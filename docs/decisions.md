@@ -153,9 +153,10 @@ TypeScript directly).
 - workflow and nested agents in the fixtures;
 - unit tests (phase 1, Vitest).
 
-## Open — owner's call
+## D11 Owner decisions (2026-10-26)
 
-1. Sentry: a new building, or a post at the Task Hall (D7)?
-2. Painter and Operator: new buildings, or shared with the Workshop?
-3. Should "calls not in the transcript" (D5) appear in the world, for example as a fog bank at the
-   faction gate, or only on the 2D dashboard?
+1. **Sentry**: a guard post at the Task Hall, where approvals already happen. No new building.
+2. **Painter and Operator**: one building each, the **Studio** (image tools) and the **Control Room**
+   (screen and browser operation). With them, the work site has 8 tool buildings around it.
+3. **"Calls not in the transcript"** (D5): shown on the 2D dashboard only. They have no task or step,
+   so placing them in the world would break "every element maps to real data".
