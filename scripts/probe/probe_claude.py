@@ -10,7 +10,9 @@ import json
 import os
 import sys
 
-ROOT = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else "~/.claude/projects")
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--json=")]
+JSON_OUT = next((a[7:] for a in sys.argv[1:] if a.startswith("--json=")), None)
+ROOT = os.path.expanduser(ARGS[0] if ARGS else "~/.claude/projects")
 USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
 
 
@@ -72,6 +74,7 @@ def main():
     parallel_turns = 0
     compact = collections.Counter()
     recon = []
+    session_totals = {}
 
     for m in mains:
         sid = os.path.basename(m)[:-6]
@@ -116,6 +119,8 @@ def main():
                 unlinked += 1
         naive_main, ded_main, n_main = session_tokens([m], stats, dup)
         naive_sub, ded_sub, n_sub = session_tokens(subs, stats, dup)
+        # usage tuple order is (input, output, cacheRead, cacheWrite) -- the adapter's order too
+        session_totals[sid] = [a + b for a, b in zip(ded_main, ded_sub)]
         if cost_state:
             mu = cost_state.get("modelUsage") or {}
             off = [sum(int(v.get(k) or 0) for v in mu.values())
@@ -144,6 +149,8 @@ def main():
     print("\nQ6 compaction")
     print(f"  {dict(compact)}")
     print(f"\nbad lines: {stats['bad_lines']}")
+    if JSON_OUT:
+        json.dump({"faction": "claude", "totals": session_totals}, open(JSON_OUT, "w"))
 
 
 if __name__ == "__main__":

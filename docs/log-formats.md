@@ -7,7 +7,10 @@ Re-run the probes after every tool upgrade:
 python3 scripts/probe/probe_claude.py      # ~30 s over ~1.9 GB
 python3 scripts/probe/probe_codex.py
 python3 scripts/probe/make_fixtures.py --out fixtures   # text-free copies, see "Fixtures"
+node scripts/parse.ts --against probe-claude.json,probe-codex.json   # adapters vs probes (D5)
 ```
+
+The probes take `--json=<file>` to write the totals that `parse.ts --against` compares.
 
 What was scanned:
 - **Claude Code**: 10 main sessions and 630 subagent files under `~/.claude/projects/`.
@@ -110,6 +113,21 @@ These totals are useful for cross-checking only. **The per-step source of truth 
 - **Line kinds the adapter must skip**: `attachment`, `file-history-*`, `queue-operation`, `api-request*`
   and the many bookkeeping kinds. These are most lines by count.
 
+### Copied records — found while building the parser
+
+Some records appear in more than one file, as copies.
+
+- **Between subagents.** Three worktree subagents, each spawned by its own `Agent` call, share 49 message ids:
+  - the later files open with a copy of the first agent's history;
+  - in one case the copy holds the *longer* `output_tokens`, because the original was cut mid-stream.
+- **Between sessions.** A continued session (`continued-in` record: 2866adfa → fe70a886) opens with
+  477 records copied from the session it continues. That is 36.6 M cache-read tokens counted twice
+  if summed naively.
+
+**Rule**: event ids come from the API message id, the tool id or the record uuid, never from the
+file. Within a session, the max `output_tokens` per message id wins. Across sessions, the session
+that started first owns a record, and copies are dropped (decisions D9).
+
 ### Retention — not in the plan, affects "history backfill"
 
 - **What is left**: only 10 main sessions remain here; the oldest was last modified 2026-10-08.
@@ -151,6 +169,15 @@ A `compacted` record (111) and an `event_msg/context_compacted` event (99).
 - **Consequence**: the Codex adapter maps these to the same `agent_spawn` / `agent_return` events, and
   Codex gets scaffolding too. The plan's "Codex: no scaffold" and "commander changes outfit" rules
   become the fallback, not the default.
+
+### Guardians
+
+`source.subagent.other == "guardian"` (73 rollouts) is Codex's automatic approval reviewer.
+
+- **One guardian is long-lived**: it can be created before the parent's first task and serve several tasks.
+- **Spawn link**: it is never spawned by `spawn_agent`, so it has no spawn call to link to.
+- **Spawned subagents**: only 12 rollouts are real `spawn_agent` children (`source.subagent.thread_spawn`).
+  Of 13 `spawn_agent` outputs, 2 name the child (`agent_id`); newer ones return only `task_name`.
 
 ### Tool names — the role table needs updating
 
@@ -197,6 +224,7 @@ A `compacted` record (111) and an `event_msg/context_compacted` event (99).
     - an aborted turn;
     - the new `token_usage_record` format;
     - a plain session.
+- **Codex guardian**: one guardian rollout with the thread it serves.
 - **Gaps**:
   - No Claude fixture has a workflow agent or a nested (`spawnDepth: 2`) agent. Only the 354 MB and
     858 MB sessions contain them, so a trimmed slice is needed.

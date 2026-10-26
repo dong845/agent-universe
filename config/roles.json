@@ -1,0 +1,124 @@
+{
+  "comment": "Role inference (docs/decisions.md D7). First matching rule wins. 'tools' match the tool name exactly; 'toolPrefix' matches its start; 'cmd' regexes run on the shell command; 'agentTypes' match a subagent's type.",
+  "dispatchTools": [
+    "Agent",
+    "Task",
+    "Workflow",
+    "spawn_agent",
+    "wait_agent",
+    "list_agents",
+    "interrupt_agent",
+    "close_agent",
+    "send_message",
+    "followup_task"
+  ],
+  "rules": [
+    {
+      "role": "inspector",
+      "shellTools": true,
+      "cmd": [
+        "(^|[;&|]\\s*|\\s)(pytest|python3? -m (pytest|unittest)|npm (run )?test|pnpm (run )?test|yarn test|vitest|jest|cargo test|go test|mvn test|gradle test|playwright test|tox|ctest)(\\s|$)"
+      ]
+    },
+    {
+      "role": "scout",
+      "shellTools": true,
+      "cmd": [
+        "^\\s*(cat|rg|grep|ls|find|sed -n|head|tail|wc|tree|fd|less|stat|file|du)(\\s|$)"
+      ]
+    },
+    {
+      "role": "scout",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "LS",
+        "ToolSearch"
+      ]
+    },
+    {
+      "role": "smith",
+      "tools": [
+        "Edit",
+        "MultiEdit",
+        "Write",
+        "NotebookEdit",
+        "apply_patch"
+      ]
+    },
+    {
+      "role": "messenger",
+      "tools": [
+        "WebSearch",
+        "WebFetch",
+        "web_search_call",
+        "web_search"
+      ]
+    },
+    {
+      "role": "operator",
+      "tools": [
+        "click",
+        "type_text",
+        "get_app_state",
+        "set_value",
+        "scroll",
+        "press_key"
+      ],
+      "toolPrefix": [
+        "mcp__claude-in-chrome__",
+        "mcp__computer-use__"
+      ]
+    },
+    {
+      "role": "diplomat",
+      "toolPrefix": [
+        "mcp__"
+      ]
+    },
+    {
+      "role": "scribe",
+      "tools": [
+        "TodoWrite",
+        "TaskCreate",
+        "TaskUpdate",
+        "TaskList",
+        "update_plan"
+      ]
+    },
+    {
+      "role": "painter",
+      "tools": [
+        "imagegen",
+        "image_generation_call",
+        "view_image"
+      ]
+    },
+    {
+      "role": "engineer",
+      "tools": [
+        "Bash",
+        "exec_command",
+        "exec",
+        "write_stdin",
+        "local_shell_call",
+        "shell"
+      ]
+    }
+  ],
+  "shellTools": [
+    "Bash",
+    "exec_command",
+    "exec",
+    "local_shell_call",
+    "shell"
+  ],
+  "agentTypes": {
+    "Explore": "scout",
+    "Plan": "scribe",
+    "guardian": "sentry"
+  },
+  "defaultToolRole": "engineer",
+  "defaultAgentRole": "commander"
+}

@@ -25,6 +25,8 @@ KEEP = {
     "response_id", "model_provider", "originator", "effort", "permissionMode", "startTime",
     "requestShape", "spawnDepth", "isSidechain", "isMeta", "isCompactSummary", "is_error",
     "mode", "kind", "event", "source", "approval_policy", "collaboration_mode",
+    # Codex subagent kind: "guardian" under source.subagent.other, the role under thread_spawn
+    "other", "agent_role",
 }
 HASH = {"cwd", "workdir", "path", "file_path", "filePath", "notebook_path", "relocatedCwd",
         "worktreePath", "trackingPath", "outputFile"}
@@ -91,6 +93,8 @@ def codex_candidates():
             "child": bool(first.get("parent_thread_id")), "spawn": txt.count('"spawn_agent"'),
             "compact": txt.count('"context_compacted"'), "aborted": txt.count('"turn_aborted"'),
             "usage_record": txt.count('"token_usage_record"'), "id": first.get("id"),
+            "spawned": "thread_spawn" in json.dumps(first.get("source")),
+            "guardian": json.dumps(first.get("source")).find('"guardian"') >= 0,
         })
     return out
 
@@ -113,7 +117,7 @@ def pick_codex(cands):
     by_id = {c["id"]: c for c in cands}
     families = {}
     for c in cands:
-        if c["child"]:
+        if c["spawned"]:  # a real spawn_agent child, not a guardian
             pid = json.loads(open(c["path"]).readline())["payload"].get("parent_thread_id")
             if pid in by_id:
                 families.setdefault(pid, []).append(c)
@@ -121,6 +125,14 @@ def pick_codex(cands):
         pid = min(families, key=lambda i: by_id[i]["kb"] + sum(k["kb"] for k in families[i]))
         picks["spawns-subagent"] = by_id[pid]
         picks.update({f"spawns-subagent-child-{i}": k for i, k in enumerate(families[pid][:3])})
+    # A guardian reviewer together with the thread it serves.
+    pairs = []
+    for g in (c for c in cands if c["guardian"]):
+        pid = json.loads(open(g["path"]).readline())["payload"].get("parent_thread_id")
+        if pid in by_id:
+            pairs.append((by_id[pid]["kb"] + g["kb"], by_id[pid], g))
+    if pairs:
+        _, picks["guardian-parent"], picks["guardian"] = min(pairs, key=lambda p: p[0])
     return picks
 
 

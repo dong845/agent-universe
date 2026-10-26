@@ -10,7 +10,9 @@ import json
 import os
 import sys
 
-ROOT = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else "~/.codex/sessions")
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--json=")]
+JSON_OUT = next((a[7:] for a in sys.argv[1:] if a.startswith("--json=")), None)
+ROOT = os.path.expanduser(ARGS[0] if ARGS else "~/.codex/sessions")
 TOK = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
 
 
@@ -29,6 +31,7 @@ def main():
     compaction = collections.Counter()
     ctx_window = collections.Counter()
     subagent_hint = collections.Counter()
+    file_totals = {}
 
     for f in files:
         prev_total = None
@@ -81,6 +84,9 @@ def main():
                     sum_last = [a + int(last.get(k) or 0) for a, k in zip(sum_last, TOK)]
                 prev_total = cur
                 final_total = cur
+        # unified order (input without cache, output, cacheRead, cacheWrite); zeros when no usage
+        ft = final_total or (0,) * len(TOK)
+        file_totals[os.path.basename(f)] = [ft[0] - ft[1], ft[2], ft[1], 0]
         if final_total:
             if list(final_total) == sum_last:
                 last_sums_match += 1
@@ -102,6 +108,8 @@ def main():
     print("\ntool call names:", dict(tool_names.most_common(15)))
     print("subagent / fork hints in session_meta:", dict(subagent_hint))
     print(f"bad lines: {bad}")
+    if JSON_OUT:
+        json.dump({"faction": "codex", "totals": file_totals}, open(JSON_OUT, "w"))
 
 
 if __name__ == "__main__":
