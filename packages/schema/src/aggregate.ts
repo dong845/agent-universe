@@ -23,7 +23,9 @@ export const keys = {
   task: (taskId: string) => `task:${taskId}`,
   taskSubagents: (taskId: string) => `task-sub:${taskId}`,
   agent: (e: Pick<AgentTownEvent, "sessionId" | "agentId">) => `agent:${e.sessionId}:${e.agentId}`,
-  building: (projectId: string, b: BuildingId) => `building:${projectId}:${b}`,
+  /** a district is one faction's work on one project (a path both factions use is two districts) */
+  district: (e: Pick<AgentTownEvent, "faction" | "projectId">) => `district:${e.faction}|${e.projectId}`,
+  building: (e: Pick<AgentTownEvent, "faction" | "projectId">, b: BuildingId) => `building:${e.faction}|${e.projectId}:${b}`,
 };
 
 function at<T>(series: Point<T>[] | undefined, t: number, empty: T): T {
@@ -77,14 +79,14 @@ export function buildLedger(input: AgentTownEvent[]): Ledger {
     const agentKey = keys.agent(e);
     if (e.kind === "model_call" && e.tokens) {
       const d = e.tokens;
-      for (const k of [keys.global(), keys.faction(e), keys.project(e), keys.session(e), agentKey]) bump(k, e.ts, d);
+      for (const k of [keys.global(), keys.faction(e), keys.project(e), keys.district(e), keys.session(e), agentKey]) bump(k, e.ts, d);
       if (e.taskId) {
         bump(keys.task(e.taskId), e.ts, d);
         if (e.agentId !== "main") bump(keys.taskSubagents(e.taskId), e.ts, d);
       }
       const b = lastResult.get(agentKey);
       if (b) {
-        bumpB(keys.building(e.projectId, b), e.ts, { attributedInput: d.input + d.cacheWrite });
+        bumpB(keys.building(e, b), e.ts, { attributedInput: d.input + d.cacheWrite });
         lastResult.delete(agentKey);
       }
     } else if (e.kind === "tool_start" && e.toolUseId) {
@@ -93,7 +95,7 @@ export function buildLedger(input: AgentTownEvent[]): Ledger {
       const s = starts.get(e.toolUseId);
       const b = buildingOf(s?.role);
       if (s && b) {
-        bumpB(keys.building(e.projectId, b), e.ts, { calls: 1, durationMs: e.durationMs ?? e.ts - s.ts });
+        bumpB(keys.building(e, b), e.ts, { calls: 1, durationMs: e.durationMs ?? e.ts - s.ts });
         lastResult.set(agentKey, b);
       }
     }

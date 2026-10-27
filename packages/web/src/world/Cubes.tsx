@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Color, Object3D, type InstancedMesh } from "three";
 import { MAX_CUBES } from "../orchestrator/timeline.ts";
-import { useStore } from "../store.ts";
+import { localNow, useRuntime } from "./districtContext.tsx";
 import { CUBE_COLOR } from "./palette.ts";
 
 const CAPACITY = 900;
@@ -11,6 +11,7 @@ const CAPACITY = 900;
 const STAGGER = 0.07;
 
 export function Cubes() {
+  const rt = useRuntime();
   const mesh = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   const colors = useMemo(() => Object.fromEntries(Object.entries(CUBE_COLOR).map(([k, v]) => [k, new Color(v)])), []);
@@ -25,7 +26,9 @@ export function Cubes() {
   useFrame(() => {
     const m = mesh.current;
     if (!m) return;
-    const { t, timeline } = useStore.getState();
+    const timeline = rt.timeline;
+    if (!timeline) return;
+    const t = localNow(rt);
     let n = 0;
     for (const f of timeline.flights) {
       const span = f.end - f.start;

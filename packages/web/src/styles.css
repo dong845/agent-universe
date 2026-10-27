@@ -128,3 +128,27 @@ canvas { display: block; }
 .look-toy input[type="range"] { accent-color: #d4663f; }
 .look-dusk input[type="range"] { accent-color: #ffb47a; }
 .look-board input[type="range"] { accent-color: #2b3440; }
+
+/* ---- world: town banners, capitals, navigation ---- */
+.banner {
+  display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 4px 10px 3px;
+  background: #fff8ec; border: 2px solid #3b2a20; border-radius: 10px; box-shadow: 0 3px 0 rgba(59, 42, 32, 0.25);
+  font-size: 13px; color: #3b2a20;
+}
+.banner b { font-weight: 700; }
+.banner span { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #f1e1c4; color: #6b4a2f; }
+.banner .live { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #d4663f; color: #fff; }
+.banner.capital { font-size: 15px; padding: 6px 12px 5px; background: #d4663f; color: #fff; border-color: #5f2b19; }
+.banner.capital span { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.banner.cap-codex { background: #4f86b8; border-color: #1f3d5c; }
+.labels .tag { background: #fff8ec; color: #3b2a20; border: 2px solid #3b2a20; border-radius: 8px; font-size: 11px; }
+.nav {
+  position: absolute; top: 84px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+}
+.nav button {
+  font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 10px; cursor: pointer;
+  background: #fff8ec; color: #3b2a20; border: 2px solid #3b2a20; box-shadow: 0 3px 0 rgba(59, 42, 32, 0.22);
+}
+.nav button.on { background: #d4663f; color: #fff; }
+.nav button:disabled { opacity: 0.5; cursor: default; }
+.nav .where { font-size: 13px; padding: 4px 10px; border-radius: 8px; background: rgba(255, 248, 236, 0.85); color: #3b2a20; }

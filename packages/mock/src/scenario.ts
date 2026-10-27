@@ -18,81 +18,96 @@ export const DEMO = {
 
 type Status = "ok" | "error" | "denied";
 
-class Builder {
+export interface BuilderConfig {
+  faction: AgentTownEvent["faction"];
+  projectId: string;
+  sessionId: string;
+  /** id prefix, unique per builder, so ids from several builders never collide */
+  prefix: string;
+  t0: number;
+  model: string;
+}
+
+/** Emits well-formed event sequences (paired tool calls, spawn/return, task start/end). */
+export class Builder {
   events: AgentTownEvent[] = [];
   private seq = 0;
   taskId: string | null = null;
+  cfg: BuilderConfig;
+  constructor(cfg: Partial<BuilderConfig> = {}) {
+    this.cfg = { faction: "claude-code", projectId: DEMO.projectId, sessionId: DEMO.sessionId, prefix: "demo", t0: DEMO.t0, model: DEMO.model, ...cfg };
+  }
 
   private base(agentId: string, sec: number) {
     this.seq++;
     return {
-      faction: "claude-code" as const,
-      projectId: DEMO.projectId,
-      sessionId: DEMO.sessionId,
+      faction: this.cfg.faction,
+      projectId: this.cfg.projectId,
+      sessionId: this.cfg.sessionId,
       taskId: this.taskId,
       agentId,
-      ts: DEMO.t0 + Math.round(sec * 1000),
-      raw: { file: "demo", line: this.seq },
+      ts: this.cfg.t0 + Math.round(sec * 1000),
+      raw: { file: this.cfg.prefix, line: this.seq },
     };
   }
 
-  taskStart(sec: number, title: string) {
-    this.taskId = hashId("demo", "task", String(sec));
-    this.events.push({ ...this.base("main", sec), id: this.taskId, kind: "task_start", trigger: "human", title });
+  taskStart(sec: number, title: string, trigger: "human" | "system" = "human") {
+    this.taskId = hashId(this.cfg.prefix, "task", String(sec));
+    this.events.push({ ...this.base("main", sec), id: this.taskId, kind: "task_start", trigger, title });
   }
 
-  taskEnd(sec: number) {
-    this.events.push({ ...this.base("main", sec), id: hashId("demo", this.taskId!, "end"), kind: "task_end", status: "ok" });
+  taskEnd(sec: number, status: "ok" | "error" = "ok") {
+    this.events.push({ ...this.base("main", sec), id: hashId(this.cfg.prefix, this.taskId!, "end"), kind: "task_end", status });
   }
 
   think(agentId: string, sec: number, t: Tokens, role: Role = agentId === "main" ? "commander" : "scout") {
     this.events.push({
-      ...this.base(agentId, sec), id: hashId("demo", agentId, "model", String(sec)), kind: "model_call", role,
-      model: DEMO.model, tokens: t, contextUsed: t.input + t.cacheRead + t.cacheWrite, contextMax: DEMO.contextMax,
+      ...this.base(agentId, sec), id: hashId(this.cfg.prefix, agentId, "model", String(sec)), kind: "model_call", role,
+      model: this.cfg.model, tokens: t, contextUsed: t.input + t.cacheRead + t.cacheWrite, contextMax: DEMO.contextMax,
     });
   }
 
   /** a tool call from start to its result */
   tool(agentId: string, sec: number, durSec: number, tool: string, role: Role, target: string, status: Status = "ok") {
-    const toolUseId = hashId("demo", agentId, tool, String(sec));
-    this.events.push({ ...this.base(agentId, sec), id: hashId("demo", toolUseId, "start"), kind: "tool_start", tool, toolUseId, role, target });
-    const end = { ...this.base(agentId, sec + durSec), id: hashId("demo", toolUseId, "end"), kind: "tool_end" as const, toolUseId, status, durationMs: Math.round(durSec * 1000) };
+    const toolUseId = hashId(this.cfg.prefix, agentId, tool, String(sec));
+    this.events.push({ ...this.base(agentId, sec), id: hashId(this.cfg.prefix, toolUseId, "start"), kind: "tool_start", tool, toolUseId, role, target });
+    const end = { ...this.base(agentId, sec + durSec), id: hashId(this.cfg.prefix, toolUseId, "end"), kind: "tool_end" as const, toolUseId, status, durationMs: Math.round(durSec * 1000) };
     this.events.push(end);
     return toolUseId;
   }
 
   /** an Agent call that spawns a subagent; the call's result arrives when the subagent returns */
   spawn(sec: number, agentId: string, agentType: string, role: Role, agentTask: string) {
-    const toolUseId = hashId("demo", "spawn", agentId);
-    this.events.push({ ...this.base("main", sec), id: hashId("demo", toolUseId, "start"), kind: "tool_start", tool: "Agent", toolUseId, role: "commander", target: agentTask });
+    const toolUseId = hashId(this.cfg.prefix, "spawn", agentId);
+    this.events.push({ ...this.base("main", sec), id: hashId(this.cfg.prefix, toolUseId, "start"), kind: "tool_start", tool: "Agent", toolUseId, role: "commander", target: agentTask });
     this.events.push({
-      ...this.base(agentId, sec + 0.1), id: hashId("demo", agentId, "spawn"), kind: "agent_spawn", parentAgentId: "main",
+      ...this.base(agentId, sec + 0.1), id: hashId(this.cfg.prefix, agentId, "spawn"), kind: "agent_spawn", parentAgentId: "main",
       spawnToolUseId: toolUseId, spawnLink: "exact", agentType, agentTask, role,
     });
     return toolUseId;
   }
 
   ret(sec: number, agentId: string, spawnToolUseId: string, spawnSec: number) {
-    this.events.push({ ...this.base(agentId, sec), id: hashId("demo", agentId, "return"), kind: "agent_return" });
+    this.events.push({ ...this.base(agentId, sec), id: hashId(this.cfg.prefix, agentId, "return"), kind: "agent_return" });
     this.events.push({
-      ...this.base("main", sec + 0.1), id: hashId("demo", spawnToolUseId, "end"), kind: "tool_end", toolUseId: spawnToolUseId,
+      ...this.base("main", sec + 0.1), id: hashId(this.cfg.prefix, spawnToolUseId, "end"), kind: "tool_end", toolUseId: spawnToolUseId,
       status: "ok", durationMs: Math.round((sec + 0.1 - spawnSec) * 1000),
     });
   }
 
   awaiting(agentId: string, sec: number) {
-    this.events.push({ ...this.base(agentId, sec), id: hashId("demo", agentId, "await", String(sec)), kind: "awaiting_user" });
+    this.events.push({ ...this.base(agentId, sec), id: hashId(this.cfg.prefix, agentId, "await", String(sec)), kind: "awaiting_user" });
   }
 
   compaction(agentId: string, sec: number, preTokens: number, postTokens: number) {
     this.events.push({
-      ...this.base(agentId, sec), id: hashId("demo", agentId, "compact", String(sec)), kind: "compaction",
+      ...this.base(agentId, sec), id: hashId(this.cfg.prefix, agentId, "compact", String(sec)), kind: "compaction",
       compaction: { preTokens, postTokens, trigger: "auto" },
     });
   }
 }
 
-const tk = (input: number, cacheRead: number, cacheWrite: number, output: number): Tokens => ({ input, output, cacheRead, cacheWrite });
+export const tk = (input: number, cacheRead: number, cacheWrite: number, output: number): Tokens => ({ input, output, cacheRead, cacheWrite });
 
 /**
  * One task, two parallel subagents, a failing-test loop that turns into rework, a compaction, a

@@ -76,7 +76,7 @@ describe("ledger", () => {
   it("attributes the next call's new input to the training ground (worked by hand)", () => {
     // tests end at 16.0 (subagent), 28.0, 34.0, 42.7; the next call of the same agent reads the result:
     // 17.0 → 1100+800, 28.5 → 2600+4400, 34.5 → 3100+6900, 43.0 → 1300+1600
-    const b = L.buildingAt(keys.building(DEMO.projectId, "training"), end);
+    const b = L.buildingAt(keys.building({ faction: "claude-code", projectId: DEMO.projectId }, "training"), end);
     expect(b.calls).toBe(4);
     expect(b.attributedInput).toBe(1900 + 7000 + 10000 + 2900);
     expect(b.durationMs).toBe(2500 + 3000 + 3000 + 3200);

@@ -6,7 +6,7 @@ import { useRef } from "react";
 import type { Group } from "three";
 import { SITE } from "../orchestrator/layout.ts";
 import { activeAt, floorsAt } from "../orchestrator/timeline.ts";
-import { useStore } from "../store.ts";
+import { useLocalUiT, useRuntime, useTimeline } from "./districtContext.tsx";
 import { hoverHandlers } from "./hover.ts";
 import { Block } from "./Buildings.tsx";
 import { useLook } from "./looks.ts";
@@ -23,8 +23,9 @@ export function siteTop(floors: number): number {
 
 export function Site() {
   const look = useLook();
-  const tl = useStore((s) => s.timeline);
-  const t = useStore((s) => s.uiT);
+  const tl = useTimeline();
+  const t = useLocalUiT();
+  const key = useRuntime().district.key;
   if (tl.foundationAt === null || t < tl.foundationAt) return null;
   const floors = floorsAt(tl, t);
   const top = siteTop(floors.length);
@@ -33,7 +34,7 @@ export function Site() {
   const cloud = activeAt(tl.clouds, t);
   return (
     <group position={[SITE.x, 0, SITE.z]}>
-      <group {...hoverHandlers({ kind: "site" })}>
+      <group {...hoverHandlers({ kind: "site", district: key })}>
         <Block size={[3.3, BASE_H, 3.3]} at={[0, BASE_H / 2, 0]} color="#b9b1a6" />
         {/* corner posts: a site under construction until it is roofed */}
         {!roofed
@@ -107,8 +108,9 @@ function Cloud() {
 
 /** dashed frames beside the site, one per subagent; each grows a level per edit and merges on return */
 export function Scaffolds() {
-  const tl = useStore((s) => s.timeline);
-  const t = useStore((s) => s.uiT);
+  const tl = useTimeline();
+  const t = useLocalUiT();
+  const key = useRuntime().district.key;
   return (
     <group>
       {tl.scaffolds
@@ -119,7 +121,7 @@ export function Scaffolds() {
           const w = 0.75;
           const pts = (y: number): [number, number, number][] => [[-w, y, -w], [w, y, -w], [w, y, w], [-w, y, w], [-w, y, -w]];
           return (
-            <group key={sc.agentId} position={[sc.pos.x, 0, sc.pos.z]} {...hoverHandlers({ kind: "scaffold", agentId: sc.agentId })}>
+            <group key={sc.agentId} position={[sc.pos.x, 0, sc.pos.z]} {...hoverHandlers({ kind: "scaffold", district: key, agentId: sc.agentId })}>
               <Line points={pts(0.02)} color={SUBAGENT} lineWidth={2} dashed dashSize={0.2} gapSize={0.12} />
               <Line points={pts(h)} color={SUBAGENT} lineWidth={2} dashed dashSize={0.2} gapSize={0.12} />
               {[[-w, -w], [w, -w], [w, w], [-w, w]].map(([x, z]) => (

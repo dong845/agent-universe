@@ -6,7 +6,7 @@ import { ExtrudeGeometry, Shape } from "three";
 import { BUILDINGS, type BuildingId } from "../../../schema/src/world.ts";
 import { BUILDING_POS, HALL_BUILDING, SENTRY_BOOTH, WAREHOUSE, type Vec } from "../orchestrator/layout.ts";
 import { sampleActor } from "../orchestrator/timeline.ts";
-import { useStore } from "../store.ts";
+import { useLocalUiT, useRuntime, useTimeline } from "./districtContext.tsx";
 import { hoverHandlers } from "./hover.ts";
 import { useLook, type Look } from "./looks.ts";
 import { Mat } from "./Mat.tsx";
@@ -227,8 +227,9 @@ function facing(p: Vec): number {
 }
 
 export function Buildings() {
-  const tl = useStore((s) => s.timeline);
-  const t = useStore((s) => s.uiT);
+  const tl = useTimeline();
+  const t = useLocalUiT();
+  const key = useRuntime().district.key;
   // a building is lit while a figure is working inside it right now
   const busy = new Set(
     tl.actors.map((a) => sampleActor(a, t)).filter((s) => s.visible && s.pose === "work" && s.building).map((s) => s.building!),
@@ -239,7 +240,7 @@ export function Buildings() {
         const p = BUILDING_POS[b.id];
         return (
           <group key={b.id} position={[p.x, 0, p.z]}>
-            <group rotation={[0, facing(p), 0]} {...hoverHandlers({ kind: "building", id: b.id })}>
+            <group rotation={[0, facing(p), 0]} {...hoverHandlers({ kind: "building", district: key, id: b.id })}>
               <Model id={b.id} lit={busy.has(b.id)} />
               <mesh position={[0, 1.2, 0]} visible={false}><boxGeometry args={[2.8, 2.6, 2.2]} /></mesh>
             </group>
@@ -252,11 +253,14 @@ export function Buildings() {
 
 export function Hall() {
   const look = useLook();
-  const lit = useStore((s) => s.timeline.hallLit.some((h) => s.uiT >= h.start && s.uiT < h.end));
+  const tl = useTimeline();
+  const t = useLocalUiT();
+  const faction = useRuntime().district.faction;
+  const lit = tl.hallLit.some((h) => t >= h.start && t < h.end);
   return (
     <group>
       {/* door turned toward the camera, so a figure waiting in front of it stays in view */}
-      <group position={[HALL_BUILDING.x, 0, HALL_BUILDING.z]} rotation={[0, Math.PI / 4, 0]} {...hoverHandlers({ kind: "faction" })}>
+      <group position={[HALL_BUILDING.x, 0, HALL_BUILDING.z]} rotation={[0, Math.PI / 4, 0]} {...hoverHandlers({ kind: "faction", faction })}>
         <Block size={[3.6, 0.2, 2.2]} at={[0, 0.1, 0]} color={look.ground.plaza} cast={false} />
         <Block size={[3.2, 1.7, 1.6]} at={[0, 1.05, 0]} color={look.hall.wall} />
         <Gable w={3.5} d={2.0} h={0.9} at={[0, 1.88, 0]} color={look.id === "board" ? look.hall.accent : look.roof} />
@@ -273,7 +277,7 @@ export function Hall() {
         <mesh position={[0, 1.55, 0]} rotation={[0, Math.PI / 4, 0]} castShadow><coneGeometry args={[0.8, 0.55, 4]} /><Mat color={look.roof} /></mesh>
         <mesh position={[0, 0.75, 0.46]}><boxGeometry args={[0.5, 0.5, 0.03]} /><Mat color="#3d3a4a" /></mesh>
       </group>
-      <group position={[WAREHOUSE.x, 0, WAREHOUSE.z]} rotation={[0, Math.PI / 5, 0]} {...hoverHandlers({ kind: "faction" })}>
+      <group position={[WAREHOUSE.x, 0, WAREHOUSE.z]} rotation={[0, Math.PI / 5, 0]} {...hoverHandlers({ kind: "faction", faction })}>
         <Block size={[2.0, 1.1, 1.5]} at={[0, 0.55, 0]} color={look.wood} />
         <mesh position={[0, 1.1, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.78, 0.78, 2.1, 12, 1, false, 0, Math.PI]} />

@@ -218,6 +218,13 @@ export function buildTimeline(input: AgentTownEvent[]): Timeline {
       tl.roofAt = et;
       continue;
     }
+    if (e.kind === "agent_spawn" && e.agentType === "guardian") {
+      // a guardian reviews approvals from the sentry post: no scaffold, and it builds no floor
+      const actor: Actor = { id: e.agentId, kind: "subagent", baseRole: "sentry", agentType: "guardian", home: SENTRY_POST, lane: 0, appear: et, vanish: null, actions: [], backpack: [] };
+      tl.actors.push(actor);
+      states.set(e.agentId, { actor, pos: SENTRY_POST, free: et });
+      continue;
+    }
     if (e.kind === "agent_spawn") {
       const slot = nextSlot++;
       const pos = scaffoldPos(slot % MAX_SCAFFOLDS);
@@ -301,6 +308,11 @@ export function buildTimeline(input: AgentTownEvent[]): Timeline {
       continue;
     }
 
+    if (e.kind === "agent_return" && s.actor.agentType === "guardian") {
+      const { start } = begin(s, et);
+      s.actor.vanish = Math.max(start, s.free) + 300;
+      continue;
+    }
     if (e.kind === "agent_return") {
       const parent = states.get("main");
       const { start, scale } = begin(s, et);

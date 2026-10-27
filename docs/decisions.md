@@ -190,3 +190,48 @@ TypeScript directly).
 - **React 19 instead of React 18.** React Three Fiber 9 requires React 19.
 - **No prices in the prototype.** Cost shows as "未配置价格" (no prices configured): no price table is
   shipped, and no price is guessed.
+
+## D13 The world (2026-10-27)
+
+**Art direction.** The owner picked the warm clay toy town (Townscaper style). Codex uses the same
+direction in cool colours and square-edged shapes, which is the plan's warm/rounded versus
+cool/square rule.
+
+**Layout.** `buildWorld()` in `packages/web/src/orchestrator/worldgen.ts` is a pure function.
+- **Territories.** A continent split by a river: Claude to the west, Codex to the east.
+- **One district per faction and project.** A path that both factions use becomes two districts,
+  placed on the same row across the river.
+- **Placement.** Each district sits on a staggered grid slot, chosen by FNV hash of the project path
+  with open addressing. A district keeps its place when another project appears, unless the
+  newcomer takes its preferred slot first.
+- **Tiers.** Five tiers by cumulative tokens: < 3 M, 3 M, 10 M, 30 M, 100 M (村落 village, 小镇 small
+  town, 镇 town, 大镇 large town, 城区 city). A low wall appears from tier 3, towers at tier 5.
+- **Houses.** Every finished task is a house in rings over the back 210° of its district. Height
+  encodes size (log2 of tokens / 60 k, 1–6 floors); the roof is grey when the task failed, and a
+  green flag marks success. At most 14 houses per tier are drawn; older tasks are counted, not drawn.
+  A live task (one with tool calls) is drawn as its site, never also as a house.
+- **Bridges.** One per pair of districts, standing from the first crossing. A crossing is the other
+  faction starting on the same path ≤ 30 min after a task ended. Every crossing is recorded and the
+  bridge is labelled "推断" (inferred).
+- **Capitals.** Each faction has a capital (its Task Hall, "你") on the south coast, with roads to
+  every district.
+
+**Ledger keys.** Building statistics are keyed by district (faction + project), not by project:
+`/demo/web-shop` exists in both factions and would otherwise have merged.
+
+**Level of detail.**
+- **Full detail** (buildings, figures, effects, labels): towns with a live task, the focused town,
+  and up to 4 towns near the view centre once the camera is zoomed in (zoom ≥ 11).
+- **Every other town:** simple instanced massing (buildings, plaza, clock tower).
+- **Scenery and houses:** mountains, forest, roads and houses are instanced. Houses change only their
+  drawn count during playback.
+
+**Camera.** The view opens on the whole world. Double-clicking a town, or pressing 当前活跃工地 (active
+site), flies there; 全景 (overview) returns.
+
+**Frame rate.** Measured on an Apple M4, production build, 1440×900, all effects on: **60 fps, p95
+17 ms**, in both the world view and the town view.
+- The dev server shows 40–50 fps while playing. That is dev-mode React overhead on the
+  4-times-a-second UI refresh; paused, the dev server holds 60.
+- **Not measured: the plan's M1 MacBook Air.** The hidden switches `?dpr=` `?post=0` `?shadow=0`
+  `?fx=ao,bloom,tilt` are the levers for the plan's quality setting.

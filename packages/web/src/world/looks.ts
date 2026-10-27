@@ -2,6 +2,7 @@
 // language, shading, lights and post-processing. Picked with ?look=toy|dusk|board.
 import type { BuildingId } from "../../../schema/src/world.ts";
 import { useStore } from "../store.ts";
+import { useFactionOf } from "./districtContext.tsx";
 
 export type LookId = "toy" | "dusk" | "board";
 export type Shading = "soft" | "faceted" | "toon";
@@ -150,6 +151,38 @@ export const LOOKS: Record<LookId, Look> = {
   },
 };
 
+/**
+ * Codex territory: the same art direction in cool colours and square-edged shapes (plan: "Claude
+ * 阵营用暖色、圆润建筑，Codex 阵营用冷色、方正建筑"). Only colours and rounding change.
+ */
+function codexOf(l: Look): Look {
+  const cool: Record<BuildingId, { wall: string; accent: string }> = {
+    library: { wall: "#e9eef3", accent: "#4f86b8" },
+    forge: { wall: "#5d6673", accent: "#ff9d4d" },
+    workshop: { wall: "#b8d3e6", accent: "#3e6d94" },
+    training: { wall: "#86c9a8", accent: "#ffffff" },
+    port: { wall: "#9fb3c4", accent: "#6fc3dc" },
+    embassy: { wall: "#f4f7fa", accent: "#3b82f6" },
+    council: { wall: "#a9b8ea", accent: "#5a6fc0" },
+    studio: { wall: "#c3b6ea", accent: "#7c62c8" },
+    control: { wall: "#6e86a8", accent: "#2f4a72" },
+  };
+  return {
+    ...l,
+    rounded: false,
+    roof: l.id === "board" ? l.roof : "#4f86b8",
+    trim: "#f4f8fb",
+    building: l.id === "board" ? l.building : cool,
+    hall: { wall: "#dce8f2", accent: "#4f86b8" },
+    ground: { ...l.ground, path: "#e1e6ea", plaza: "#d5dde3" },
+    foliage: ["#6fae8f", "#82bfa0", "#5d9c80", "#9cc9b0"],
+    windowGlow: "#bfe6ff",
+  };
+}
+const CODEX = { toy: codexOf(LOOKS.toy), dusk: codexOf(LOOKS.dusk), board: codexOf(LOOKS.board) };
+
+/** the active look, in the enclosing district's faction colours */
 export function useLook(): Look {
-  return LOOKS[useStore((s) => s.look)];
+  const id = useStore((s) => s.look);
+  return useFactionOf() === "codex" ? CODEX[id] : LOOKS[id];
 }

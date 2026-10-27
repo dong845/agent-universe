@@ -1,19 +1,22 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { demoScenario } from "../../mock/src/scenario.ts";
+import { worldScenario } from "../../mock/src/world.ts";
 import { App } from "./App.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { useStore, type HoverTarget } from "./store.ts";
 import "./styles.css";
 
 const store = useStore.getState();
-store.load(demoScenario());
+store.load(worldScenario());
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
 const q = new URLSearchParams(location.search);
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));
 const look = q.get("look");
 if (look === "toy" || look === "dusk" || look === "board") store.setLook(look);
+// ?focus=primary opens flown into the main live town instead of the whole world
+// read the live state: `store` above is the snapshot taken before load(), so its fields are stale
+if (q.get("focus") === "primary") store.setFocus(useStore.getState().primary?.district.key ?? null);
 if (q.has("t")) store.setTime(Number(q.get("t")));
 if (q.get("paused") === "1") store.setPlaying(false);
 
@@ -29,23 +32,32 @@ declare global {
 window.__agentTown = {
   setTime: (t: number) => useStore.getState().setTime(t),
   pause: () => useStore.getState().setPlaying(false),
+  focus: (k: string | null | "primary") => useStore.getState().setFocus(k === "primary" ? useStore.getState().primary?.district.key ?? null : k),
   hover: (h: HoverTarget | null, x = 400, y = 300) => {
     useStore.getState().setPointer(x, y);
     useStore.getState().setHovered(h);
   },
-  snapshot: () => {
-    const { t, timeline } = useStore.getState();
+  /** the world as drawn at the current playback time; `district` defaults to the primary live town */
+  snapshot: (district?: string) => {
+    const s = useStore.getState();
+    const rt = district ? s.runtimes.find((r) => r.district.key === district) : s.primary;
+    const tl = rt?.timeline;
+    const t = s.t - (rt?.offset ?? 0);
     return {
-      t,
-      actors: timeline.actors.map((a) => ({ id: a.id, ...sampleActor(a, t) })),
-      floors: floorsAt(timeline, t).length,
-      scaffolds: timeline.scaffolds.filter((s) => t >= s.appear && (s.merge === null || t < s.merge)).map((s) => s.agentId),
-      smoke: !!activeAt(timeline.smoke, t),
-      cloud: !!activeAt(timeline.clouds, t),
-      roof: timeline.roofAt !== null && t >= timeline.roofAt,
+      t: s.t,
+      district: rt?.district.key ?? null,
+      origin: rt?.district.origin ?? null,
+      detail: [...s.detail],
+      focus: s.focus,
+      actors: tl ? tl.actors.map((a) => ({ id: a.id, ...sampleActor(a, t) })) : [],
+      floors: tl ? floorsAt(tl, t).length : 0,
+      scaffolds: tl ? tl.scaffolds.filter((x) => t >= x.appear && (x.merge === null || t < x.merge)).map((x) => x.agentId) : [],
+      smoke: tl ? !!activeAt(tl.smoke, t) : false,
+      cloud: tl ? !!activeAt(tl.clouds, t) : false,
+      roof: tl ? tl.roofAt !== null && t >= tl.roofAt : false,
     };
   },
-  timeline: () => useStore.getState().timeline,
+  world: () => useStore.getState().world,
   toScreen: (x: number, y: number, z: number) =>
     (window as unknown as { __agentTownProject: (x: number, y: number, z: number) => { x: number; y: number } }).__agentTownProject(x, y, z),
 };

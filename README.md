@@ -21,4 +21,5 @@ corepack pnpm test                    # unit tests: mock, ledger, rework, timeli
 corepack pnpm --filter @agent-town/web e2e   # browser tests in the installed Chrome
 ```
 
-The demo task is invented. The page says so, and it is labelled 演示数据 (demo data).
+The demo world (13 projects, two weeks of history, two live tasks) is invented. The page says so, and it is labelled 演示数据 (demo data).
+Opens on the whole world; `?focus=primary` opens flown into the live Claude town.

@@ -2,20 +2,32 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useStore } from "./store.ts";
 import { HoverCard } from "./ui/HoverCard.tsx";
-import { Hud, TimelineBar } from "./ui/Chrome.tsx";
-import { Buildings, Hall } from "./world/Buildings.tsx";
-import { Cubes } from "./world/Cubes.tsx";
-import { Figures } from "./world/Figures.tsx";
+import { Hud, Nav, TimelineBar } from "./ui/Chrome.tsx";
+import { CameraRig, DetailTracker } from "./world/Camera.tsx";
 import { LabelProjector, ScreenLabels } from "./world/Labels.tsx";
 import { LOOKS } from "./world/looks.ts";
 import { Lights, Post } from "./world/Stage.tsx";
-import { Terrain } from "./world/Terrain.tsx";
-import { Scaffolds, Site } from "./world/Site.tsx";
+import { Town } from "./world/Town.tsx";
+import { LiteTowns, WorldScenery } from "./world/World.tsx";
 
 /** advances the playback clock once per rendered frame */
 function Clock() {
   useFrame((_, dt) => useStore.getState().advance(Math.min(dt, 0.1) * 1000));
   return null;
+}
+
+/** full-detail towns from the tracker; every other town is far massing */
+function Towns() {
+  const runtimes = useStore((s) => s.runtimes);
+  const detail = useStore((s) => s.detail);
+  return (
+    <>
+      {runtimes.filter((r) => detail.has(r.district.key)).map((r) => (
+        <Town key={r.district.key} rt={r} />
+      ))}
+      <LiteTowns keys={detail} />
+    </>
+  );
 }
 
 function Legend() {
@@ -31,6 +43,10 @@ function Legend() {
   );
 }
 
+// profiling switches: ?dpr=1 ?post=0 ?shadow=0
+const Q = new URLSearchParams(location.search);
+const DPR: [number, number] = Q.has("dpr") ? [1, Number(Q.get("dpr"))] : [1, 2];
+
 export function App() {
   const look = LOOKS[useStore((s) => s.look)];
   return (
@@ -39,23 +55,21 @@ export function App() {
       style={{ background: look.sky }}
       onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}
     >
-      <Canvas shadows orthographic gl={{ alpha: true, antialias: false }} camera={{ position: [22, 24, 22], zoom: 30, near: 0.1, far: 300 }} dpr={[1, 2]}>
+      <Canvas shadows={Q.get("shadow") !== "0"} orthographic gl={{ alpha: true, antialias: false }} camera={{ position: [140, 150, 148], zoom: 4, near: 1, far: 1200 }} dpr={DPR}>
         <Lights />
-        <Terrain />
-        <Buildings />
-        <Hall />
-        <Site />
-        <Scaffolds />
-        <Figures />
-        <Cubes />
+        <WorldScenery />
+        <Towns />
         <Clock />
         <LabelProjector />
-        <Post />
-        <OrbitControls makeDefault target={[0, 0, 2]} enableDamping maxPolarAngle={Math.PI / 2.3} minZoom={10} maxZoom={90} />
+        <CameraRig />
+        <DetailTracker />
+        {Q.get("post") === "0" ? null : <Post />}
+        <OrbitControls makeDefault target={[0, 0, 8]} enableDamping maxPolarAngle={Math.PI / 2.3} minZoom={2.5} maxZoom={90} />
       </Canvas>
       <ScreenLabels />
       <Hud />
-      <div className="demo-badge">演示数据：模拟的一次任务，不是你的真实会话</div>
+      <div className="demo-badge">演示数据：模拟的世界与任务，不是你的真实会话</div>
+      <Nav />
       <Legend />
       <HoverCard />
       <TimelineBar />

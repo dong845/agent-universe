@@ -7,7 +7,7 @@ import { useRef } from "react";
 import type { Color, Group, Material } from "three";
 import type { Role } from "../../../schema/src/event.ts";
 import { sampleActor, type Actor } from "../orchestrator/timeline.ts";
-import { useStore } from "../store.ts";
+import { localNow, useRuntime, useTimeline } from "./districtContext.tsx";
 import { hoverHandlers } from "./hover.ts";
 import { useLook } from "./looks.ts";
 import { Mat } from "./Mat.tsx";
@@ -16,7 +16,7 @@ import { ROLE_COLOR, SUBAGENT, backpackColor } from "./palette.ts";
 const ROLES: Role[] = ["commander", "scout", "smith", "engineer", "inspector", "messenger", "diplomat", "scribe", "painter", "operator", "sentry"];
 
 export function Figures() {
-  const actors = useStore((s) => s.timeline.actors);
+  const actors = useTimeline().actors;
   return (
     <group>
       {actors.map((a) => (
@@ -173,6 +173,7 @@ function Tool({ role }: { role: Role }) {
 
 function Figure({ actor }: { actor: Actor }) {
   const look = useLook();
+  const rt = useRuntime();
   const line = look.outline;
   const root = useRef<Group>(null);
   const body = useRef<Group>(null);
@@ -195,7 +196,7 @@ function Figure({ actor }: { actor: Actor }) {
   useFrame(({ clock }) => {
     const g = root.current;
     if (!g) return;
-    const s = sampleActor(actor, useStore.getState().t);
+    const s = sampleActor(actor, localNow(rt));
     g.visible = s.visible;
     if (!s.visible) return;
     const now = clock.elapsedTime;
@@ -255,7 +256,7 @@ function Figure({ actor }: { actor: Actor }) {
   });
 
   return (
-    <group ref={root} scale={scale} {...hoverHandlers({ kind: "figure", agentId: actor.id })}>
+    <group ref={root} scale={scale} {...hoverHandlers({ kind: "figure", district: rt.district.key, agentId: actor.id })}>
       <group ref={body}>
         {/* legs */}
         <group ref={legL} position={[-0.11, 0.24, 0]}>

@@ -7,7 +7,7 @@ import type { AgentTownEvent } from "../packages/schema/src/event.ts";
 import { loadRoles } from "../packages/schema/src/roles.ts";
 import { newStats } from "../packages/schema/src/util.ts";
 import { buildingOf } from "../packages/schema/src/world.ts";
-import { COMMANDER_POST, doorOf, HALL } from "../packages/web/src/orchestrator/layout.ts";
+import { COMMANDER_POST, doorOf, HALL, SENTRY_POST } from "../packages/web/src/orchestrator/layout.ts";
 import { MAX_LAG_MS, MAX_WALK_MS, buildTimeline, cubesFor, sampleActor, type Timeline } from "../packages/web/src/orchestrator/timeline.ts";
 
 const near = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z) < 1e-6;
@@ -121,6 +121,21 @@ describe("timeline of the demo", () => {
     expect(cubesFor(5)).toBe(1);
     expect(cubesFor(12_400)).toBe(4);
     expect(cubesFor(1e15)).toBe(12);
+  });
+});
+
+describe("guardians", () => {
+  it("stand at the sentry post, get no scaffold and build no floor", async () => {
+    const { worldScenario } = await import("../packages/mock/src/world.ts");
+    const ev = worldScenario().filter((e) => e.faction === "codex" && e.projectId === "/demo/web-shop" && e.ts >= DEMO.t0);
+    const tl = buildTimeline(ev);
+    const g = tl.actors.find((a) => a.agentType === "guardian")!;
+    expect(g.baseRole).toBe("sentry");
+    expect(near(g.home, SENTRY_POST)).toBe(true);
+    expect(tl.scaffolds.some((x) => x.agentId === g.id)).toBe(false);
+    expect(tl.floors.some((f) => f.agentId === g.id)).toBe(false);
+    expect(g.vanish).not.toBeNull();
+    checkInvariants(ev, tl);
   });
 });
 
