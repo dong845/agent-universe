@@ -157,6 +157,36 @@ TypeScript directly).
 
 1. **Sentry**: a guard post at the Task Hall, where approvals already happen. No new building.
 2. **Painter and Operator**: one building each, the **Studio** (image tools) and the **Control Room**
-   (screen and browser operation). With them, the work site has 8 tool buildings around it.
+   (screen and browser operation). With them, the work site has 9 tool buildings around it (the plan's 7 plus these 2).
 3. **"Calls not in the transcript"** (D5): shown on the 2D dashboard only. They have no task or step,
    so placing them in the world would break "every element maps to real data".
+
+## D12 3D prototype rules (2026-10-27)
+
+**Rework.** The rule is implemented in `packages/schema/src/insights.ts`:
+- A failing test opens a "failing stretch", during which the site smokes. The next passing test or
+  the task end closes it.
+- Inside the stretch, each successful edit counts against its file. When one file reaches **3**
+  edits, the rework cloud appears.
+- These do not count: edits made before any failure, failed or denied edits, and denied tests.
+
+**Lag.** Every animation action carries a `due` time: when the thing it shows actually happened.
+- No action starts more than 3 s after its `due` time. A figure that would start later has its
+  current action cut short (fast-forward).
+- A walk never takes more than 1.5 s.
+- A figure that is behind runs at double speed.
+- Checked on all 3,114 real tasks here (382 k actions): 0 violations.
+
+**Positions.**
+- The commander stands beside the site, on the camera side, not inside the floors it builds.
+- Figures working at one building at the same time get separate lanes beside its door.
+- Scaffold slots run in two rows that read horizontally from the default camera.
+
+**Changes from the plan.**
+- **Subagent task labels sit under the scaffold, not over the figure's head.** Measured: two
+  subagents at one building made the head labels overlap, and one covered a building name.
+- **Labels are one DOM overlay placed by a projector inside the canvas, not drei `<Html>`.** Under
+  React 19, `<Html>` remounted each label at startup, and the Library's label was lost.
+- **React 19 instead of React 18.** React Three Fiber 9 requires React 19.
+- **No prices in the prototype.** Cost shows as "未配置价格" (no prices configured): no price table is
+  shipped, and no price is guessed.

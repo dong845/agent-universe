@@ -1,5 +1,17 @@
 {
   "name": "agent-town",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "packageManager": "pnpm@12.15.0",
+  "scripts": {
+    "parse": "node scripts/parse.ts",
+    "test": "vitest run",
+    "dev": "pnpm --filter @agent-town/web dev",
+    "build": "pnpm --filter @agent-town/web build",
+    "e2e": "pnpm --filter @agent-town/web e2e"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
 }

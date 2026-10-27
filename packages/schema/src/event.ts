@@ -66,6 +66,8 @@ export interface AgentTownEvent {
   /** A later log line may still replace this event's token values (D3). */
   provisional?: boolean;
   trigger?: "human" | "system";
+  /** task_start only: a short, already-redacted summary of the instruction (≤ 200 chars). */
+  title?: string;
   compaction?: { preTokens?: number; postTokens?: number; trigger?: string };
   /** Where the record came from: file and 1-based line. Never the content. */
   raw: { file: string; line: number };
