@@ -12,6 +12,8 @@ store.load(demoScenario());
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
 const q = new URLSearchParams(location.search);
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));
+const look = q.get("look");
+if (look === "toy" || look === "dusk" || look === "board") store.setLook(look);
 if (q.has("t")) store.setTime(Number(q.get("t")));
 if (q.get("paused") === "1") store.setPlaying(false);
 

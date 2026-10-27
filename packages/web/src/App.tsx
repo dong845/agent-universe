@@ -7,32 +7,15 @@ import { Buildings, Hall } from "./world/Buildings.tsx";
 import { Cubes } from "./world/Cubes.tsx";
 import { Figures } from "./world/Figures.tsx";
 import { LabelProjector, ScreenLabels } from "./world/Labels.tsx";
-import { FACTION } from "./world/palette.ts";
+import { LOOKS } from "./world/looks.ts";
+import { Lights, Post } from "./world/Stage.tsx";
+import { Terrain } from "./world/Terrain.tsx";
 import { Scaffolds, Site } from "./world/Site.tsx";
 
 /** advances the playback clock once per rendered frame */
 function Clock() {
   useFrame((_, dt) => useStore.getState().advance(Math.min(dt, 0.1) * 1000));
   return null;
-}
-
-function Ground() {
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 1]} receiveShadow>
-        <circleGeometry args={[15, 64]} />
-        <meshStandardMaterial color={FACTION.ground} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-        <circleGeometry args={[5.2, 48]} />
-        <meshStandardMaterial color={FACTION.plaza} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 7.5]} receiveShadow>
-        <planeGeometry args={[1.6, 7]} />
-        <meshStandardMaterial color={FACTION.plaza} />
-      </mesh>
-    </group>
-  );
 }
 
 function Legend() {
@@ -49,22 +32,16 @@ function Legend() {
 }
 
 export function App() {
+  const look = LOOKS[useStore((s) => s.look)];
   return (
-    <div className="app" onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}>
-      <Canvas shadows orthographic camera={{ position: [22, 24, 22], zoom: 30, near: 0.1, far: 300 }} dpr={[1, 2]}>
-        <color attach="background" args={["#f7f1e8"]} />
-        <ambientLight intensity={0.75} />
-        <directionalLight
-          castShadow
-          position={[12, 20, 8]}
-          intensity={1.3}
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-18}
-          shadow-camera-right={18}
-          shadow-camera-top={18}
-          shadow-camera-bottom={-18}
-        />
-        <Ground />
+    <div
+      className={`app ${look.labelClass}`}
+      style={{ background: look.sky }}
+      onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}
+    >
+      <Canvas shadows orthographic gl={{ alpha: true, antialias: false }} camera={{ position: [22, 24, 22], zoom: 30, near: 0.1, far: 300 }} dpr={[1, 2]}>
+        <Lights />
+        <Terrain />
         <Buildings />
         <Hall />
         <Site />
@@ -73,6 +50,7 @@ export function App() {
         <Cubes />
         <Clock />
         <LabelProjector />
+        <Post />
         <OrbitControls makeDefault target={[0, 0, 2]} enableDamping maxPolarAngle={Math.PI / 2.3} minZoom={10} maxZoom={90} />
       </Canvas>
       <ScreenLabels />

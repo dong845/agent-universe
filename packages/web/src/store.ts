@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { buildLedger, type Ledger } from "../../schema/src/aggregate.ts";
 import type { AgentTownEvent } from "../../schema/src/event.ts";
 import type { BuildingId } from "../../schema/src/world.ts";
+import type { LookId } from "./world/looks.ts";
 import { buildTimeline, type Timeline } from "./orchestrator/timeline.ts";
 
 export type HoverTarget =
@@ -28,6 +29,8 @@ interface Store {
   speed: number;
   hovered: HoverTarget | null;
   pointer: { x: number; y: number };
+  look: LookId;
+  setLook(l: LookId): void;
   load(events: AgentTownEvent[]): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
@@ -49,6 +52,10 @@ export const useStore = create<Store>((set, get) => ({
   speed: 1,
   hovered: null,
   pointer: { x: 0, y: 0 },
+  look: "toy",
+  setLook(l) {
+    set({ look: l });
+  },
   load(events) {
     set({ events, timeline: buildTimeline(events), ledger: buildLedger(events), t: 0, uiT: 0 });
   },

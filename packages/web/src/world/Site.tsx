@@ -8,7 +8,10 @@ import { SITE } from "../orchestrator/layout.ts";
 import { activeAt, floorsAt } from "../orchestrator/timeline.ts";
 import { useStore } from "../store.ts";
 import { hoverHandlers } from "./hover.ts";
-import { FACTION, MAIN_FLOOR, SUBAGENT } from "./palette.ts";
+import { Block } from "./Buildings.tsx";
+import { useLook } from "./looks.ts";
+import { Mat } from "./Mat.tsx";
+import { MAIN_FLOOR, SUBAGENT } from "./palette.ts";
 
 export const FLOOR_H = 0.45;
 const BASE_H = 0.25;
@@ -19,6 +22,7 @@ export function siteTop(floors: number): number {
 }
 
 export function Site() {
+  const look = useLook();
   const tl = useStore((s) => s.timeline);
   const t = useStore((s) => s.uiT);
   if (tl.foundationAt === null || t < tl.foundationAt) return null;
@@ -30,21 +34,24 @@ export function Site() {
   return (
     <group position={[SITE.x, 0, SITE.z]}>
       <group {...hoverHandlers({ kind: "site" })}>
-        <mesh position={[0, BASE_H / 2, 0]} receiveShadow castShadow>
-          <boxGeometry args={[3.2, BASE_H, 3.2]} />
-          <meshStandardMaterial color="#a8a29e" />
-        </mesh>
+        <Block size={[3.3, BASE_H, 3.3]} at={[0, BASE_H / 2, 0]} color="#b9b1a6" />
+        {/* corner posts: a site under construction until it is roofed */}
+        {!roofed
+          ? [[-1.45, -1.45], [1.45, -1.45], [-1.45, 1.45], [1.45, 1.45]].map(([x, z]) => (
+              <mesh key={`${x}${z}`} position={[x, BASE_H + (top - BASE_H) / 2 + 0.35, z]} castShadow>
+                <boxGeometry args={[0.1, top - BASE_H + 0.7, 0.1]} />
+                <Mat color={look.wood} />
+              </mesh>
+            ))
+          : null}
         {floors.map((f, i) => (
-          <mesh key={f.eventId} position={[0, BASE_H + FLOOR_H * (i + 0.5), 0]} castShadow>
-            <boxGeometry args={[2.6, FLOOR_H * 0.92, 2.6]} />
-            <meshStandardMaterial color={f.kind === "main" ? MAIN_FLOOR : SUBAGENT} />
-          </mesh>
+          <Block key={f.eventId} size={[2.6, FLOOR_H * 0.9, 2.6]} at={[0, BASE_H + FLOOR_H * (i + 0.5), 0]} color={f.kind === "main" ? MAIN_FLOOR : SUBAGENT} />
         ))}
         {roofed ? (
           <group position={[0, top, 0]}>
             <mesh position={[0, 0.5, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
               <coneGeometry args={[2.1, 1, 4]} />
-              <meshStandardMaterial color={FACTION.roof} />
+              <Mat color={look.roof} />
             </mesh>
             <mesh position={[0, 1.6, 0]}><cylinderGeometry args={[0.04, 0.04, 1.4, 6]} /><meshStandardMaterial color="#333" /></mesh>
             <mesh position={[0.3, 2.05, 0]}><boxGeometry args={[0.6, 0.35, 0.02]} /><meshStandardMaterial color="#16a34a" /></mesh>

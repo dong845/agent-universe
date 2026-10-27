@@ -92,3 +92,39 @@ canvas { display: block; }
 .marks .m-task_start, .marks .m-task_end { background: var(--ink); }
 .marks .m-awaiting_user { background: #eab308; }
 .marks .m-compaction { background: #7c3aed; }
+
+/* ---- looks: labels and panels follow the art direction ---- */
+.look-toy .label {
+  background: #8a5a3b; color: #fff4e2; border: none; border-bottom: 3px solid #5f3b25;
+  border-radius: 6px; font-size: 12px; padding: 3px 8px 2px; box-shadow: 0 3px 0 rgba(60, 35, 20, 0.25);
+}
+.look-toy .label-sub, .look-dusk .label-sub { display: none; }
+.look-toy .bubble { background: #fffaf0; border: 2px solid #3b2a20; color: #3b2a20; font-weight: 600; box-shadow: 0 3px 0 rgba(59, 42, 32, 0.25); }
+.look-toy .hud, .look-toy .bar, .look-toy .legend {
+  background: #fff8ec; border: 2px solid #3b2a20; border-radius: 14px; box-shadow: 0 4px 0 rgba(59, 42, 32, 0.22);
+}
+.look-toy .demo-badge { border: 2px solid #3b2a20; box-shadow: 0 3px 0 rgba(59, 42, 32, 0.22); }
+
+.look-dusk .label {
+  background: rgba(32, 24, 48, 0.72); color: #ffe2bf; border: 1px solid rgba(255, 210, 160, 0.35);
+  border-radius: 999px; font-size: 12px; backdrop-filter: blur(4px);
+}
+.look-dusk .bubble { background: rgba(20, 50, 56, 0.8); border: 1.5px dashed #5eead4; color: #ccfbf1; }
+.look-dusk .hud, .look-dusk .bar, .look-dusk .legend {
+  background: rgba(36, 28, 56, 0.72); color: #fde7cf; border: 1px solid rgba(255, 210, 160, 0.3); backdrop-filter: blur(8px);
+}
+.look-dusk .hud span, .look-dusk .legend { color: #e9cdb3; }
+.look-dusk .bar .time { color: #fde7cf; }
+
+.look-board .label {
+  background: #ffffff; color: #1f2937; border: 1.5px solid #2b3440; border-radius: 4px; font-size: 12px;
+  box-shadow: 2px 2px 0 #2b3440;
+}
+.look-board .label-sub { color: #64748b; }
+.look-board .bubble { background: #ffffff; border: 1.5px solid #14b8a6; color: #0f5f56; box-shadow: 2px 2px 0 #14b8a6; }
+.look-board .hud, .look-board .bar, .look-board .legend {
+  background: #ffffff; border: 1.5px solid #2b3440; border-radius: 6px; box-shadow: 3px 3px 0 #2b3440;
+}
+.look-toy input[type="range"] { accent-color: #d4663f; }
+.look-dusk input[type="range"] { accent-color: #ffb47a; }
+.look-board input[type="range"] { accent-color: #2b3440; }
