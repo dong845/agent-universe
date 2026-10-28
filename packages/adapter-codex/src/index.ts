@@ -1,6 +1,7 @@
 // Codex rollouts → unified events. Formats: docs/log-formats.md; rules: docs/decisions.md.
 import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
+import { titleOf } from "../../schema/src/title.ts";
 import { clip, countUnknown, hashId, readJsonl, toMs, type ReadStats } from "../../schema/src/util.ts";
 
 const FACTION = "codex";
@@ -117,6 +118,7 @@ export function parseCodexThread(heads: RolloutHead[], roles: RoleMatcher, stats
     // A child's events are collected first and given their task once the spawn link is known.
     const out: AgentTownEvent[] = isRoot ? events : [];
     let model: string | undefined;
+    let openTask: AgentTownEvent | undefined;
     let prevTotal = "";
     let finalTotal: Tokens | undefined;
     const starts = new Map<string, number>();
@@ -141,9 +143,13 @@ export function parseCodexThread(heads: RolloutHead[], roles: RoleMatcher, stats
         if (et === "task_started" && isRoot) {
           taskId = hashId(FACTION, sessionId, p.turn_id ?? String(n));
           taskSpans.push({ taskId, start: ts });
-          out.push({ ...base, taskId, id: taskId, ts, kind: "task_start", trigger: "human", raw });
+          openTask = { ...base, taskId, id: taskId, ts, kind: "task_start", trigger: "human", raw };
+          out.push(openTask);
         } else if ((et === "task_complete" || et === "turn_aborted") && isRoot && taskId) {
           out.push({ ...base, taskId, id: hashId(FACTION, taskId, "end"), ts, kind: "task_end", status: et === "turn_aborted" ? "error" : "ok", raw });
+        } else if (et === "user_message" && isRoot && openTask && openTask.title === undefined) {
+          // the task's title: the first user message inside it (spec 12.5)
+          openTask.title = typeof p.message === "string" ? titleOf(p.message) : undefined;
         } else if (et === "token_count") {
           const info = p.info;
           if (!info) continue; // 33 such records carry no usage

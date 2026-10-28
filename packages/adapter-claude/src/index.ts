@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
+import { titleOf } from "../../schema/src/title.ts";
 import { clip, countUnknown, hashId, readJsonl, toMs, type ReadStats } from "../../schema/src/util.ts";
 
 const FACTION = "claude-code";
@@ -198,7 +199,7 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
         if (isMain && opensTask(rec)) {
           if (taskId) push({ ...base, projectId, taskId, id: hashId(FACTION, taskId, "end"), ts: ts!, kind: "task_end", raw });
           taskId = hashId(FACTION, sessionId, rec.uuid);
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", raw });
+          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", title: titleOf(textOf(content)), raw });
           continue;
         }
         if (isMain && !taskId && !isToolResult(content) && textOf(content)) {
