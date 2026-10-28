@@ -20,8 +20,9 @@ export interface House {
   taskId: string;
   at: Vec; // world position
   floors: number;
-  ok: boolean;
-  builtAt: number; // task_end timestamp
+  /** null: the task stopped without a recorded end (not a success, not a failure) */
+  ok: boolean | null;
+  builtAt: number; // task_end timestamp, or the last event of a task that never ended
   tokens: number;
   title?: string;
 }
@@ -86,23 +87,64 @@ export function riverX(z: number): number {
   return 5 * Math.sin(z / 17) + 2 * Math.sin(z / 7);
 }
 
+/** the shared frame of a territory grid: spacing from the largest district, columns and rows from the count */
+export interface Grid {
+  /** centre-to-centre distance in a column; > 2 × the largest radius, so no two districts touch */
+  step: number;
+  /** distance between columns (staggered rows keep diagonal neighbours a full `step` apart) */
+  colStep: number;
+  /** x of the column nearest the river */
+  x0: number;
+  /** rows reach |z| ≤ zLimit */
+  zLimit: number;
+  /** half-rows above and below the centre line */
+  half: number;
+  maxRadius: number;
+}
+
+export function gridFor(perSide: number, maxRadius: number): Grid {
+  const step = Math.max(44, 2 * maxRadius + 4);
+  const colStep = (step * 40) / 44; // ≥ step·√3/2, so staggered neighbours stay `step` apart
+  // rows per column grow until the territory is no wider than ~1.4 × its height
+  let half = 1;
+  for (;;) {
+    const perPair = 4 * half + 3; // an even column holds 2h+1, an odd one 2h+2
+    const cols = Math.ceil((2 * Math.max(1, perSide)) / perPair);
+    if (cols * colStep <= 2 * step * (half + 0.5) * 1.4) break;
+    half++;
+  }
+  return { step, colStep, x0: maxRadius + 12, zLimit: step * (half + 0.5), half, maxRadius };
+}
+
 /** district centres on a staggered grid inside one territory (side −1 = west/Claude, +1 = east/Codex) */
-export function slotsFor(side: -1 | 1): Vec[] {
+export function slotsFor(side: -1 | 1, n = 10, g: Grid = gridFor(10, 20)): Vec[] {
   const out: Vec[] = [];
-  const cols = [30, 70, 110];
-  cols.forEach((x, ci) => {
-    const zs = ci % 2 ? [-66, -22, 22, 66] : [-44, 0, 44];
-    for (const z of zs) out.push({ x: side * x, z });
-  });
+  for (let ci = 0; out.length < n; ci++) {
+    const x = g.x0 + ci * g.colStep;
+    const off = ci % 2 ? g.step / 2 : 0;
+    for (let z = -g.zLimit; z <= g.zLimit + 1e-9; z += g.step / 2) {
+      const k = Math.round((z - off) / g.step);
+      if (Math.abs(k * g.step + off - z) < 1e-6 && Math.abs(z) <= g.zLimit + 1e-9) out.push({ x: side * x, z: Math.round(z * 100) / 100 });
+    }
+    if (ci > 400) throw new Error(`slotsFor: could not lay out ${n} districts`);
+  }
   // nearest the river first: shared projects take these, so their bridge is short
   return out.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) || Math.abs(a.z) - Math.abs(b.z) || a.z - b.z);
 }
 
-const CAPITAL: Record<Faction, Vec> = { "claude-code": { x: -58, z: 100 }, codex: { x: 58, z: 100 } };
+/** a district's radius from how many houses it shows */
+function radiusFor(houses: number): number {
+  const rings = houses ? ringOf(houses - 1) + 1 : 1;
+  return HOUSE_RING + Math.max(1, rings) * HOUSE_STEP + 1;
+}
 
-export function buildWorld(events: AgentTownEvent[]): World {
+/**
+ * `live`: tasks animated in full right now; they are sites, never houses. Without it, a task with
+ * tool calls counts as live (the demo's convention).
+ */
+export function buildWorld(events: AgentTownEvent[], live?: Set<string>): World {
   // ---- per-project summaries ------------------------------------------------------------------
-  interface Acc { faction: Faction; projectId: string; tokens: number; tasks: Map<string, { start?: number; end?: number; ok: boolean; tokens: number; title?: string; live: boolean }>; detailed: boolean }
+  interface Acc { faction: Faction; projectId: string; tokens: number; tasks: Map<string, { start?: number; end?: number; last: number; ok: boolean | null; tokens: number; title?: string; live: boolean }>; detailed: boolean }
   const acc = new Map<string, Acc>();
   for (const e of events) {
     const k = districtKey(e);
@@ -111,9 +153,10 @@ export function buildWorld(events: AgentTownEvent[]): World {
     if (e.kind === "tool_start") a.detailed = true;
     if (!e.taskId) continue;
     let t = a.tasks.get(e.taskId);
-    if (!t) a.tasks.set(e.taskId, (t = { ok: true, tokens: 0, live: false }));
+    if (!t) a.tasks.set(e.taskId, (t = { ok: null, tokens: 0, live: live ? live.has(e.taskId) : false, last: e.ts }));
+    t.last = Math.max(t.last, e.ts);
     // a task with tool calls is animated on the district's site, so it is not also a house
-    if (e.kind === "tool_start") t.live = true;
+    if (!live && e.kind === "tool_start") t.live = true;
     if (e.kind === "task_start") {
       t.start = e.ts;
       t.title = e.title;
@@ -137,12 +180,24 @@ export function buildWorld(events: AgentTownEvent[]): World {
     const sy = shared.has(ay.projectId) ? 0 : 1;
     return sx - sy || hash(x) - hash(y);
   });
+  // houses and radius depend only on the project's own tasks, so they are known before placement
+  const plan = new Map<string, { tier: number; done: [string, Acc["tasks"] extends Map<string, infer T> ? T : never][]; shown: number; radius: number }>();
+  for (const [k, a] of acc) {
+    const tier = tierOf(a.tokens);
+    // finished tasks (and tasks that stopped without an end), newest kept as houses
+    const done = [...a.tasks.entries()].filter(([, t]) => t.start !== undefined && !t.live).sort((x, y) => (x[1].end ?? x[1].last) - (y[1].end ?? y[1].last));
+    const shown = Math.min(done.length, tier * HOUSES_PER_TIER);
+    plan.set(k, { tier, done, shown, radius: radiusFor(shown) });
+  }
+  const perSide = Math.max(1, ...(["claude-code", "codex"] as const).map((f) => [...acc.values()].filter((a) => a.faction === f).length));
+  const grid = gridFor(perSide, Math.max(20, ...[...plan.values()].map((p) => p.radius)));
+  const slotsBy = { "claude-code": slotsFor(-1, perSide, grid), codex: slotsFor(1, perSide, grid) };
   const taken: Record<Faction, Set<number>> = { "claude-code": new Set(), codex: new Set() };
   const sharedRow = new Map<string, number>();
   const districts: District[] = [];
   for (const k of order) {
     const a = acc.get(k)!;
-    const slots = slotsFor(a.faction === "codex" ? 1 : -1);
+    const slots = slotsBy[a.faction];
     let idx: number;
     const row = sharedRow.get(a.projectId);
     if (row !== undefined && !taken[a.faction].has(row)) idx = row;
@@ -156,24 +211,20 @@ export function buildWorld(events: AgentTownEvent[]): World {
     taken[a.faction].add(idx);
     if (shared.has(a.projectId)) sharedRow.set(a.projectId, idx);
     const origin = slots[idx];
-    const tier = tierOf(a.tokens);
-    // finished tasks, newest kept as houses
-    const done = [...a.tasks.entries()].filter(([, t]) => t.end !== undefined && t.start !== undefined && !t.live).sort((x, y) => x[1].end! - y[1].end!);
-    const cap = tier * HOUSES_PER_TIER;
-    const shown = done.slice(-cap);
+    const { tier, done, shown: count, radius } = plan.get(k)!;
+    const shown = done.slice(done.length - count);
     const houses: House[] = shown.map(([taskId, t], i) => ({
       taskId,
       at: houseSlot(origin, i, a.faction),
       floors: Math.max(1, Math.min(6, Math.round(Math.log2(Math.max(1, t.tokens / 60_000))))),
-      ok: t.ok,
-      builtAt: t.end!,
+      ok: t.end === undefined ? null : t.ok ?? true,
+      builtAt: t.end ?? t.last,
       tokens: t.tokens,
       title: t.title,
     }));
-    const rings = shown.length ? ringOf(shown.length - 1) + 1 : 1;
     districts.push({
       key: k, faction: a.faction, projectId: a.projectId, name: a.projectId.split("/").filter(Boolean).pop() ?? a.projectId,
-      origin, tier, tokens: a.tokens, radius: HOUSE_RING + Math.max(1, rings) * HOUSE_STEP + 1, houses,
+      origin, tier, tokens: a.tokens, radius, houses,
       olderTasks: done.length - shown.length, detailed: a.detailed,
     });
   }
@@ -198,8 +249,18 @@ export function buildWorld(events: AgentTownEvent[]): World {
     if (crossings.length) bridges.push({ districts: [ka, kb], at: crossings[0].at, crossings, a: byKey.get(ka)!.origin, b: byKey.get(kb)!.origin });
   }
 
-  const roads = districts.map((d) => ({ district: d.key, points: road(CAPITAL[d.faction], d.origin) }));
-  return { districts, capitals: CAPITAL, roads, bridges, river: Array.from({ length: 41 }, (_, i) => ({ x: riverX(-100 + i * 5), z: -100 + i * 5 })), bounds: { minX: -135, maxX: 135, minZ: -95, maxZ: 118 } };
+  // ---- the frame: coast, capitals and river follow the grid ----------------------------------
+  const xs = [...slotsBy["claude-code"], ...slotsBy.codex].map((p) => Math.abs(p.x));
+  const reach = grid.zLimit + grid.maxRadius;
+  const capZ = reach + 12;
+  const capX = grid.x0 + grid.colStep * 0.6;
+  const capitals: Record<Faction, Vec> = { "claude-code": { x: -capX, z: capZ }, codex: { x: capX, z: capZ } };
+  // a mountain band (minZ + 8 … minZ + 26) clear of the northernmost districts
+  const bounds = { minX: -(Math.max(...xs) + grid.maxRadius + 8), maxX: Math.max(...xs) + grid.maxRadius + 8, minZ: -(reach + 30), maxZ: capZ + 18 };
+  const roads = districts.map((d) => ({ district: d.key, points: road(capitals[d.faction], d.origin) }));
+  const river: Vec[] = [];
+  for (let z = bounds.minZ - 5; z <= capZ + 1e-9; z += 5) river.push({ x: riverX(z), z });
+  return { districts, capitals, roads, bridges, river, bounds };
 }
 
 /** the ring the i-th house lands on */

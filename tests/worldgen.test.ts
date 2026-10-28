@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_PROJECTS, worldScenario } from "../packages/mock/src/world.ts";
 import { DEMO } from "../packages/mock/src/scenario.ts";
-import { BRIDGE_WINDOW_MS, HOUSE_RING, HOUSES_PER_TIER, TIER_TOKENS, buildWorld, houseSlot, slotsFor, tierOf } from "../packages/web/src/orchestrator/worldgen.ts";
+import { BRIDGE_WINDOW_MS, HOUSE_RING, HOUSES_PER_TIER, TIER_TOKENS, buildWorld, houseSlot, riverX, tierOf } from "../packages/web/src/orchestrator/worldgen.ts";
+import type { AgentTownEvent } from "../packages/schema/src/event.ts";
 import { HALL, HALL_BUILDING, SENTRY_BOOTH, WAREHOUSE } from "../packages/web/src/orchestrator/layout.ts";
 
 const events = worldScenario();
@@ -44,7 +45,8 @@ describe("world layout", () => {
     const a = d("claude-code", "/demo/web-shop");
     const b = d("codex", "/demo/web-shop");
     expect(a.origin.z).toBe(b.origin.z);
-    expect(Math.abs(a.origin.x)).toBe(slotsFor(-1)[0].x * -1);
+    // the column nearest the river
+    expect(Math.abs(a.origin.x)).toBe(Math.min(...world.districts.filter((x) => x.faction === "claude-code").map((x) => Math.abs(x.origin.x))));
   });
 
   it("sizes districts by cumulative tokens on the plan's five tiers", () => {
@@ -91,5 +93,74 @@ describe("world layout", () => {
     ];
     expect(buildWorld(at(BRIDGE_WINDOW_MS)).bridges).toHaveLength(1);
     expect(buildWorld(at(BRIDGE_WINDOW_MS + 1)).bridges).toHaveLength(0);
+  });
+
+  it("keeps the demo's districts inside the world, on their own bank, clear of the capitals", () => {
+    inFrame(world);
+  });
+});
+
+function inFrame(w: ReturnType<typeof buildWorld>) {
+  for (const x of w.districts) {
+    expect(x.origin.x - x.radius).toBeGreaterThan(w.bounds.minX);
+    expect(x.origin.x + x.radius).toBeLessThan(w.bounds.maxX);
+    expect(x.origin.z - x.radius).toBeGreaterThan(w.bounds.minZ + 26); // south of the mountain band
+    expect(x.origin.z + x.radius).toBeLessThan(w.bounds.maxZ);
+    const gap = x.faction === "codex" ? x.origin.x - x.radius - riverX(x.origin.z) : riverX(x.origin.z) - (x.origin.x + x.radius);
+    expect(gap).toBeGreaterThan(4);
+    for (const c of Object.values(w.capitals)) expect(Math.hypot(c.x - x.origin.x, c.z - x.origin.z)).toBeGreaterThan(x.radius + 6);
+    for (const h of x.houses) expect(Math.hypot(h.at.x - x.origin.x, h.at.z - x.origin.z)).toBeLessThan(x.radius);
+  }
+  const zs = w.districts.map((x) => x.origin.z);
+  expect(w.river[0].z).toBeLessThanOrEqual(Math.min(...zs) - 20);
+  expect(w.river.at(-1)!.z).toBeGreaterThanOrEqual(Math.max(...zs) + 20);
+}
+
+describe("a world as big as real logs", () => {
+  // 60 projects a side; every tenth has enough finished tasks to reach tier 5 and its house cap
+  const big: AgentTownEvent[] = [];
+  let n = 0;
+  for (const faction of ["claude-code", "codex"] as const)
+    for (let p = 0; p < 60; p++) {
+      const tasks = p % 10 === 0 ? 120 : 3;
+      for (let t = 0; t < tasks; t++) {
+        const base = { faction, projectId: `/big/p${p}`, sessionId: `s${p}`, agentId: "main", taskId: `${faction}-${p}-${t}`, raw: { file: "x", line: 0 } };
+        big.push({ ...base, id: `e${n++}`, ts: t * 10, kind: "task_start" });
+        big.push({ ...base, id: `e${n++}`, ts: t * 10 + 1, kind: "model_call", tokens: { input: 0, output: 0, cacheRead: p % 10 === 0 ? 2e6 : 1e4, cacheWrite: 0 } });
+        big.push({ ...base, id: `e${n++}`, ts: t * 10 + 2, kind: "task_end" });
+      }
+    }
+  const w = buildWorld(big);
+
+  it("places all 120 districts without overlap", () => {
+    expect(w.districts).toHaveLength(120);
+    expect(w.districts.filter((x) => x.tier === 5)).toHaveLength(12);
+    for (const a of w.districts)
+      for (const b of w.districts) {
+        if (a === b) continue;
+        expect(Math.hypot(a.origin.x - b.origin.x, a.origin.z - b.origin.z)).toBeGreaterThan(a.radius + b.radius);
+      }
+  });
+
+  it("keeps every district inside the world, on its own bank, clear of the capitals and mountains", () => {
+    inFrame(w);
+  });
+});
+
+describe("tasks with no recorded end", () => {
+  const base = { faction: "claude-code" as const, projectId: "/p", sessionId: "s", agentId: "main", raw: { file: "x", line: 0 } };
+  const evs: AgentTownEvent[] = [
+    { ...base, id: "a", taskId: "T", ts: 100, kind: "task_start" },
+    { ...base, id: "b", taskId: "T", ts: 900, kind: "model_call", tokens: { input: 1, output: 1, cacheRead: 1, cacheWrite: 1 } },
+  ];
+
+  it("become houses with no verdict, built at their last event", () => {
+    const h = buildWorld(evs).districts[0].houses[0];
+    expect(h.ok).toBeNull();
+    expect(h.builtAt).toBe(900);
+  });
+
+  it("stay off the map as houses while live", () => {
+    expect(buildWorld(evs, new Set(["T"])).districts[0].houses).toHaveLength(0);
   });
 });

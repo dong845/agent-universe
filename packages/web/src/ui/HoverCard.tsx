@@ -118,7 +118,7 @@ export function CardBody({ target }: { target: HoverTarget }) {
     if (!h) return null;
     return (
       <>
-        <h4>已完成的任务<small>{h.ok ? "成功" : "以失败告终"}</small></h4>
+        <h4>{h.ok === null ? "停下的任务" : "已完成的任务"}<small>{h.ok === null ? "未见结束" : h.ok ? "成功" : "以失败告终"}</small></h4>
         {h.title ? <div className="task">{h.title}</div> : null}
         <TokenRows t={ledger.tokensAt(keys.task(h.taskId), abs)} label="合计 token" />
         <Row k="楼高" v={`${h.floors} 层（按 token 规模）`} />

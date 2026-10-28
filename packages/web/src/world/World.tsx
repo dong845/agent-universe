@@ -31,7 +31,7 @@ function rand(seed: number): () => number {
 /** one bank of the continent: from the river's edge out to a rounded coast */
 function territoryShape(side: -1 | 1, w: WorldT): Shape {
   const { minZ, maxZ } = w.bounds;
-  const outer = side * 128;
+  const outer = side * (w.bounds.maxX - 7);
   const r = 14; // corner radius
   const pts: [number, number][] = [];
   // river bank, north → south
@@ -71,9 +71,10 @@ function Territory({ side, faction }: { side: -1 | 1; faction: Faction }) {
 }
 
 function Sea() {
+  const b = useStore((s) => s.world.bounds);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.4, 8]} receiveShadow>
-      <planeGeometry args={[600, 520]} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.4, (b.minZ + b.maxZ) / 2]} receiveShadow>
+      <planeGeometry args={[(b.maxX - b.minX) * 2.2, (b.maxZ - b.minZ) * 2.4]} />
       <meshStandardMaterial color={SEA} roughness={0.35} metalness={0.05} />
     </mesh>
   );
@@ -104,7 +105,7 @@ function Mountains() {
   const peaks = useMemo(() => {
     const r = rand(5);
     const out: { x: number; z: number; h: number; s: number }[] = [];
-    for (let x = -120; x <= 120; x += 7) {
+    for (let x = -(w.bounds.maxX - 15); x <= w.bounds.maxX - 15; x += 7) {
       if (Math.abs(x - riverX(w.bounds.minZ + 10)) < 9) continue;
       for (let k = 0; k < 2; k++) out.push({ x: x + r() * 5, z: w.bounds.minZ + 8 + r() * 12 + k * 6, h: 5 + r() * 9, s: 4 + r() * 3 });
     }
@@ -155,13 +156,15 @@ function Forest() {
     const out: { x: number; z: number; s: number; c: number; codex: boolean }[] = [];
     const ok = (x: number, z: number) =>
       Math.abs(x - riverX(z)) > RIVER_HALF + 3 &&
-      Math.abs(x) < 122 && z > w.bounds.minZ + 26 && z < w.bounds.maxZ - 6 &&
+      Math.abs(x) < w.bounds.maxX - 13 && z > w.bounds.minZ + 26 && z < w.bounds.maxZ - 6 &&
       w.districts.every((d) => Math.hypot(d.origin.x - x, d.origin.z - z) > d.radius + 2.5) &&
       Object.values(w.capitals).every((c) => Math.hypot(c.x - x, c.z - z) > 11) &&
       segs.every(([a, b]) => distToSegment({ x, z }, a, b) > 2.2);
     // clustered: pick grove centres, then trees around them
-    for (let g = 0; g < 70; g++) {
-      const cx = (r() * 2 - 1) * 120;
+    // 70 groves on the demo's 270 × 213 continent, scaled by area
+    const groves = Math.round((70 * (w.bounds.maxX - w.bounds.minX) * (w.bounds.maxZ - w.bounds.minZ)) / (270 * 213));
+    for (let g = 0; g < groves; g++) {
+      const cx = (r() * 2 - 1) * (w.bounds.maxX - 15);
       const cz = w.bounds.minZ + 26 + r() * (w.bounds.maxZ - w.bounds.minZ - 32);
       const n = 6 + Math.floor(r() * 14);
       for (let i = 0; i < n; i++) {
@@ -292,7 +295,7 @@ function Bridges() {
 function Houses() {
   const w = useStore((s) => s.world);
   const all = useMemo(() => w.districts.flatMap((d) => d.houses.map((h) => ({ h, d }))).sort((a, b) => a.h.builtAt - b.h.builtAt), [w]);
-  const flagged = useMemo(() => all.filter((x) => x.h.ok), [all]);
+  const flagged = useMemo(() => all.filter((x) => x.h.ok === true), [all]);
   const body = useRef<InstancedMesh>(null);
   const roofM = useRef<InstancedMesh>(null);
   const flag = useRef<InstancedMesh>(null);
@@ -314,7 +317,8 @@ function Houses() {
     document.body.style.cursor = "";
   };
   const wall = (f: Faction) => new Color(f === "codex" ? "#e8eef3" : "#fbefd9");
-  const roof = (f: Faction, ok: boolean) => new Color(!ok ? "#7a7470" : f === "codex" ? "#4f86b8" : look.roof);
+  // grey only for a recorded failure; a task that never ended keeps its faction's roof, with no flag
+  const roof = (f: Faction, ok: boolean | null) => new Color(ok === false ? "#7a7470" : f === "codex" ? "#4f86b8" : look.roof);
   const height = (floors: number) => 0.6 + floors * 0.42;
   const face = (o: Object3D, it: { h: { at: Vec }; d: District }) => o.rotation.set(0, Math.atan2(it.d.origin.x - it.h.at.x, it.d.origin.z - it.h.at.z), 0);
   const both = (ref: { current: InstancedMesh | null }, fill: (m: InstancedMesh | null) => void) => (m: InstancedMesh | null) => {
