@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -6,7 +6,7 @@ import { loadEvents } from "../packages/server/src/load.ts";
 import { projectRoot } from "../packages/server/src/projectRoot.ts";
 import { writeClaudeSession } from "./helpers/synthLogs.ts";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "at-root-"));
+const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), "at-root-")));
 
 describe("projectRoot", () => {
   it("walks up from a subdirectory to the repo with .git", () => {
@@ -48,7 +48,7 @@ describe("loader groups sessions by repo", () => {
     const tk = { input: 1, output: 1, cacheRead: 1, cacheWrite: 0 };
     writeClaudeSession(claudeRoot, { sessionId: "ra", cwd: join(d, "repo/a"), t0: 1e12, turns: [{ prompt: "a", tokens: tk }] });
     writeClaudeSession(claudeRoot, { sessionId: "rb", cwd: join(d, "repo/b"), t0: 1e12 + 5000, turns: [{ prompt: "b", tokens: tk }] });
-    const r = loadEvents({ claudeRoot, codexRoot: join(d, "none"), cacheDir: null });
+    const r = loadEvents({ claudeRoot, codexRoot: join(d, "none"), cacheDir: null, assign: { home: d, tempRoots: [] } });
     expect(new Set(r.events.map((e) => e.projectId))).toEqual(new Set([join(d, "repo")]));
   });
 });

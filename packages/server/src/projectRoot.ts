@@ -13,10 +13,15 @@ function parent(p: string): string | null {
   return p.slice(0, i);
 }
 
-/** the nearest directory at or above `cwd` holding a `.git` (dir or file); `cwd` itself if none */
-export function projectRoot(cwd: string, isGitMarker: (dir: string) => boolean = defaultMarker): string {
-  for (let d: string | null = cwd; d !== null; d = parent(d)) {
+/** the nearest directory at or above `dir` holding a `.git` (dir or file); null if none */
+export function gitRoot(dir: string, isGitMarker: (dir: string) => boolean = defaultMarker): string | null {
+  for (let d: string | null = dir; d !== null; d = parent(d)) {
     if (isGitMarker(d)) return d;
   }
-  return cwd;
+  return null;
+}
+
+/** the repo holding `cwd`, else `cwd` itself */
+export function projectRoot(cwd: string, isGitMarker: (dir: string) => boolean = defaultMarker): string {
+  return gitRoot(cwd, isGitMarker) ?? cwd;
 }

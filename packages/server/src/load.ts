@@ -9,7 +9,8 @@ import { groupThreads, parseCodexThread, rolloutHead, type RolloutHead } from ".
 import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
 import { loadRoles } from "../../schema/src/roles.ts";
 import { newStats, type ReadStats } from "../../schema/src/util.ts";
-import { projectRoot } from "./projectRoot.ts";
+import { homedir } from "node:os";
+import { assignProjects, defaultTempRoots, type AssignOptions } from "./assign.ts";
 
 /** bump when the adapters' output changes shape, so stale cache entries are not reused */
 const CACHE_VERSION = 2;
@@ -20,6 +21,8 @@ export interface LoadOptions {
   /** null: no cache, nothing written */
   cacheDir: string | null;
   onProgress?: (done: number, total: number) => void;
+  /** how tasks are placed in towns; defaults to this machine's home and temp directories */
+  assign?: AssignOptions;
 }
 
 export interface Totals {
@@ -172,13 +175,7 @@ export function loadEvents(o: LoadOptions): Loaded {
     }
   }
   events.sort((a, b) => a.ts - b.ts);
-  // one town per repository (spec 12.4); cached events keep the raw cwd, so a repo created later
-  // still regroups its sessions
-  const roots = new Map<string, string>();
-  for (const e of events) {
-    let r = roots.get(e.projectId);
-    if (r === undefined) roots.set(e.projectId, (r = projectRoot(e.projectId)));
-    e.projectId = r;
-  }
+  // which town each task belongs to; cached events keep the raw cwd, so this is redone every load
+  assignProjects(events, o.assign ?? { home: homedir(), tempRoots: defaultTempRoots() });
   return { events, mtimes, totals, modified, stats, copied, perUnit, units: { claude: claudeUnits, codexRollouts: heads.length }, parsed, cached };
 }
