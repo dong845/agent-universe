@@ -126,8 +126,9 @@ export const useStore = create<Store>((set, get) => ({
   live: new Set(),
   replay: null,
   select(s) {
+    // a replay belongs to its town: its site, its figures and its own task keep it; anything else ends it
     const r = get().replay;
-    if (r && !(s?.kind === "task" && s.taskId === r.taskId) && !(s?.kind === "site" && s.district === r.district)) get().stopReplay();
+    if (r && !(s && s.district === r.district && (s.kind !== "task" || s.taskId === r.taskId))) get().stopReplay();
     set(s ? { selected: s, focus: s.district } : { selected: null });
   },
   back() {

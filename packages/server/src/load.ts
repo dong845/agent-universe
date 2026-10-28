@@ -4,15 +4,16 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseClaudeSession, sessionFiles } from "../../adapter-claude/src/index.ts";
 import { groupThreads, parseCodexThread, rolloutHead, type RolloutHead } from "../../adapter-codex/src/index.ts";
 import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
 import { loadRoles } from "../../schema/src/roles.ts";
-import { newStats, type ReadStats } from "../../schema/src/util.ts";
+import { countUnknown, newStats, type ReadStats } from "../../schema/src/util.ts";
 import { homedir } from "node:os";
 import { assignProjects, defaultTempRoots, type AssignOptions } from "./assign.ts";
 
-/** bump when the adapters' output changes shape, so stale cache entries are not reused */
+/** the cache entry format; the parser sources and role rules are hashed into every key as well (producerHash) */
 const CACHE_VERSION = 3;
 
 export interface LoadOptions {
@@ -23,6 +24,8 @@ export interface LoadOptions {
   onProgress?: (done: number, total: number) => void;
   /** how tasks are placed in towns; defaults to this machine's home and temp directories */
   assign?: AssignOptions;
+  /** role rules; defaults to config/roles.json */
+  rolesPath?: string;
 }
 
 export interface Totals {
@@ -67,7 +70,13 @@ export function walk(dir: string, keep: (p: string) => boolean, depth: number, o
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir).sort()) {
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) {
+    let st;
+    try {
+      st = statSync(p);
+    } catch {
+      continue; // deleted between listing and reading (session cleanup)
+    }
+    if (st.isDirectory()) {
       if (depth > 0) walk(p, keep, depth - 1, out);
     } else if (keep(p)) out.push(p);
   }
@@ -95,13 +104,34 @@ export async function loadEventsAsync(o: LoadOptions): Promise<Loaded> {
   }
 }
 
+/**
+ * What a cached unit was produced with: the role rules and the parser sources. Any edit to them
+ * re-reads every session, so a cache can never serve events an older parser made.
+ */
+function producerHash(rolesPath: string): string {
+  const h = createHash("sha1").update(String(CACHE_VERSION)).update(readFileSync(rolesPath));
+  for (const rel of PRODUCERS) h.update(readFileSync(new URL(rel, import.meta.url)));
+  return h.digest("hex").slice(0, 16);
+}
+const PRODUCERS = [
+  "../../adapter-claude/src/index.ts", "../../adapter-codex/src/index.ts", "../../schema/src/event.ts",
+  "../../schema/src/roles.ts", "../../schema/src/title.ts", "../../schema/src/util.ts",
+];
+
 function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
-  const roles = loadRoles();
+  const rolesPath = o.rolesPath ?? fileURLToPath(new URL("../../../config/roles.json", import.meta.url));
+  const roles = loadRoles(pathToFileURL(rolesPath));
+  const producer = producerHash(rolesPath);
   const stats = newStats();
   const mtimes = new Map<string, number>();
   const sig = (files: string[]) =>
     files.map((f) => {
-      const st = statSync(f);
+      let st;
+      try {
+        st = statSync(f);
+      } catch {
+        return `${f}:gone`; // deleted mid-load: the unit re-reads (and skips it) next time
+      }
       mtimes.set(f, st.mtimeMs);
       return `${f}:${st.mtimeMs}:${st.size}`;
     }).join("|");
@@ -109,7 +139,7 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   // Claude: main sessions sit exactly one level below the root (<project>/<session>.jsonl).
   const units: Unit[] = [];
   for (const m of walk(o.claudeRoot, (p) => p.endsWith(".jsonl"), 1).filter((p) => !p.includes("/subagents/"))) {
-    const files = sessionFiles(m).map((f) => f.path);
+    const files = sessionFiles(m).map((f) => f.path); // a damaged meta file is counted when the unit is parsed
     units.push({
       key: `claude:${sig(files)}`,
       files,
@@ -144,7 +174,7 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   let parsed = 0;
   let cached = 0;
   for (const [i, u] of units.entries()) {
-    const path = o.cacheDir ? join(o.cacheDir, createHash("sha1").update(`${CACHE_VERSION}|${u.key}`).digest("hex") + ".json") : null;
+    const path = o.cacheDir ? join(o.cacheDir, createHash("sha1").update(`${producer}|${u.key}`).digest("hex") + ".json") : null;
     let entry: CacheEntry | undefined;
     if (path && existsSync(path)) {
       try {
@@ -158,7 +188,16 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       cached++;
     } else {
       const st = newStats();
-      const r = u.parse(st);
+      let r: ReturnType<Unit["parse"]>;
+      try {
+        r = u.parse(st);
+      } catch (e) {
+        // a session deleted or unreadable mid-load: skip it, count it, keep the rest
+        countUnknown(stats, `unreadable unit: ${e instanceof Error ? e.message.slice(0, 80) : String(e)}`);
+        o.onProgress?.(i + 1, units.length);
+        yield;
+        continue;
+      }
       entry = { v: CACHE_VERSION, key: u.key, events: r.events, totals: r.totals, badLines: st.badLines, unknownKinds: [...st.unknownKinds] };
       if (path) writeFileSync(path, JSON.stringify(entry));
       parsed++;

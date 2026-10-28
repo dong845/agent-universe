@@ -11,5 +11,5 @@ export default defineConfig({
     viewport: { width: 1440, height: 900 },
     launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
   },
-  webServer: { command: "pnpm exec vite", url: "http://127.0.0.1:5180", reuseExistingServer: true },
+  webServer: { command: "./node_modules/.bin/vite", url: "http://127.0.0.1:5180", reuseExistingServer: true },
 });

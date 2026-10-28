@@ -1,6 +1,7 @@
 // HUD (plan "顶部 HUD 常驻") and the replay bar (plan "回放").
 import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
 import { absTime, SPEEDS, useStore } from "../store.ts";
+import { openTasks } from "./counts.ts";
 import { clockLabel, replayClock } from "./format.ts";
 
 
@@ -13,19 +14,14 @@ export function Hud() {
   const all = ledger.tokensAt(keys.global(), abs);
   const claude = ledger.tokensAt(keys.faction({ faction: "claude-code" }), abs);
   const codex = ledger.tokensAt(keys.faction({ faction: "codex" }), abs);
-  const open = new Set<string>();
-  for (const e of events) {
-    if (e.ts > abs) break;
-    if (e.kind === "task_start" && e.taskId && !unended.has(e.taskId)) open.add(e.taskId);
-    if (e.kind === "task_end" && e.taskId) open.delete(e.taskId);
-  }
+  const openCount = openTasks(events, abs, unended);
   return (
     <div className="hud" data-testid="hud">
       <div><span>全局 token</span><b data-testid="hud-total">{formatCount(totalOf(all))}</b></div>
       <div><span>等效花费</span><b>未配置价格</b></div>
       <div><span>Claude Code</span><b>{formatCount(totalOf(claude))}</b></div>
       <div><span>Codex</span><b>{formatCount(totalOf(codex))}</b></div>
-      <div><span>进行中任务</span><b data-testid="hud-open">{open.size}</b></div>
+      <div><span>进行中任务</span><b data-testid="hud-open">{openCount}</b></div>
     </div>
   );
 }

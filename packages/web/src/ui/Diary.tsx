@@ -5,10 +5,9 @@ import { formatCount } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { ROLE_NAMES } from "../../../schema/src/world.ts";
 import { fetchTask } from "../data.ts";
-import { districtKey } from "../orchestrator/worldgen.ts";
-import type { Selection } from "../selection.ts";
 import { useStore } from "../store.ts";
-import { diaryOf, type Diary as DiaryT, type DiaryStep } from "./diaryModel.ts";
+import { districtKey } from "../orchestrator/worldgen.ts";
+import { diaryOf, taskOfSelection, type Diary as DiaryT, type DiaryStep } from "./diaryModel.ts";
 import { TokenRows } from "./HoverCard.tsx";
 
 /** steps rendered at once; the rest behind a "还有 N 步" button */
@@ -32,20 +31,6 @@ function dur(ms: number): string {
 const OUTCOME = { ok: "成功", error: "失败", unknown: "未见结束", running: "进行中" } as const;
 const OPENED_BY = { peer: "子代理回报后继续", compact: "上下文压缩后继续", meta: "系统消息后继续", other: "系统消息后继续" } as const;
 const PLACED = { files: "按改动的文件", inferred: "按命令里的路径推断", cwd: "按启动目录" } as const;
-
-/** the task a selection is about: the house's task, the site's live task, or the agent's task */
-export function taskOfSelection(sel: Selection | null, events: AgentTownEvent[], live: Set<string>): string | null {
-  if (!sel) return null;
-  if (sel.kind === "task") return sel.taskId;
-  const inTown = (e: AgentTownEvent) => districtKey(e) === sel.district;
-  let found: string | null = null;
-  for (const e of events) {
-    if (!e.taskId || !inTown(e)) continue;
-    if (sel.kind === "site" && e.kind === "task_start" && (live.has(e.taskId) || !live.size)) found = e.taskId;
-    if (sel.kind === "agent" && e.agentId === sel.agentId && live.has(e.taskId)) found = e.taskId;
-  }
-  return found;
-}
 
 function Step({ s }: { s: DiaryStep }) {
   return (
@@ -76,7 +61,7 @@ export function Diary() {
   const live = useStore((s) => s.live);
   const replay = useStore((s) => s.replay);
   const world = useStore((s) => s.world);
-  const taskId = useMemo(() => taskOfSelection(selected, events, live), [selected, events, live]);
+  const taskId = useMemo(() => taskOfSelection(selected, events, live, replay), [selected, events, live, replay]);
   const [got, setGot] = useState<{ taskId: string; events?: AgentTownEvent[]; diary?: DiaryT; error?: string } | null>(null);
 
   useEffect(() => {
@@ -121,7 +106,7 @@ export function Diary() {
             className="replay"
             disabled={!d.replayable || replay?.taskId === d.taskId}
             title={d.replayable ? "在这个镇的工地上把这个任务从地基重新盖一遍" : "这个演示任务只有摘要，没有逐步记录"}
-            onClick={() => got?.events && useStore.getState().startReplay(selected.district, got.events)}
+            onClick={() => got?.events?.length && useStore.getState().startReplay(districtKey(got.events[0]), got.events)}
           >
             重放
           </button>

@@ -31,7 +31,8 @@ export function touchedDirs(e: AgentTownEvent): string[] {
     return [dirname(e.target)];
   }
   if (e.tool === "apply_patch") {
-    return [...e.target.matchAll(PATCH_FILE)].map((m) => dirname(resolve(e.projectId, m[1].trim())));
+    // a relative patch path needs an absolute cwd; never resolve against this process's directory
+    return [...e.target.matchAll(PATCH_FILE)].map((m) => m[1].trim()).filter((p) => isAbsolute(p) || isAbsolute(e.projectId)).map((p) => dirname(resolve(e.projectId, p)));
   }
   return [];
 }
@@ -84,18 +85,26 @@ export function makePlacer(o: AssignOptions) {
   const temps = [...new Set(o.tempRoots.flatMap((t) => [t, real(t)]))];
   const isTemp = (d: string) => temps.some((t) => inside(d, t));
   const memo = new Map<string, string>();
-  /** a touched directory → its town */
-  const ofDir = (dir: string): string => {
-    let r = memo.get(dir);
+  /**
+   * a touched directory → its town: the repo holding it; outside any repo (or once the repo is
+   * deleted), the task's own working directory when the file lies under it; else a folder under home
+   */
+  const ofDir = (dir: string, cwd: string): string => {
+    const key = `${dir}\0${cwd}`;
+    let r = memo.get(key);
     if (r !== undefined) return r;
     const d = real(dir);
     if (isTemp(dir) || isTemp(d)) r = TEMP_PROJECT;
-    else r = gitRoot(d) ?? container(d, o.home);
-    memo.set(dir, r);
+    else {
+      const underCwd = isAbsolute(cwd) && cwd !== o.home && (inside(dir, cwd) || inside(d, real(cwd)));
+      r = gitRoot(d) ?? (underCwd ? ofCwd(cwd) : container(d, o.home));
+    }
+    memo.set(key, r);
     return r;
   };
-  /** a working directory → its town: the repo it is in, else itself */
+  /** a working directory → its town: the repo it is in, else itself; a non-path cwd ("unknown") stays as it is */
   const ofCwd = (cwd: string): string => {
+    if (!isAbsolute(cwd)) return cwd;
     const d = real(cwd);
     if (isTemp(cwd) || isTemp(d)) return TEMP_PROJECT;
     return gitRoot(d) ?? cwd;
@@ -119,8 +128,8 @@ export function assignProjects(events: AgentTownEvent[], o: AssignOptions): void
   // votes per task: exact (file tools, patches) and inferred (shell paths), counted apart
   const exact = new Map<string, Map<string, number>>();
   const inferred = new Map<string, Map<string, number>>();
-  const vote = (box: Map<string, Map<string, number>>, taskId: string, dir: string) => {
-    const town = place.ofDir(dir);
+  const vote = (box: Map<string, Map<string, number>>, taskId: string, dir: string, cwd: string) => {
+    const town = place.ofDir(dir, cwd);
     if (town === o.home) return; // home is the fallback, never a vote
     const v = box.get(taskId) ?? new Map<string, number>();
     v.set(town, (v.get(town) ?? 0) + 1); // ties: the town touched first wins (Map keeps insertion order)
@@ -128,8 +137,8 @@ export function assignProjects(events: AgentTownEvent[], o: AssignOptions): void
   };
   for (const e of events) {
     if (!e.taskId) continue;
-    for (const d of touchedDirs(e)) vote(exact, e.taskId, d);
-    for (const d of shellDirs(e, o.home)) vote(inferred, e.taskId, d);
+    for (const d of touchedDirs(e)) vote(exact, e.taskId, d, e.projectId);
+    for (const d of shellDirs(e, o.home)) vote(inferred, e.taskId, d, e.projectId);
   }
   // Precedence: a real town by exact paths, a real town by inferred paths, then the temp site.
   // Temp files are by-products (screenshots, scratch scripts): they decide only when nothing else does.

@@ -29,7 +29,7 @@ interface AgentFile {
 }
 
 /** The main transcript plus every subagent and workflow-agent file next to it. */
-export function sessionFiles(mainPath: string): AgentFile[] {
+export function sessionFiles(mainPath: string, stats?: ReadStats): AgentFile[] {
   const files: AgentFile[] = [{ path: mainPath, agentId: "main", spawnDepth: 0 }];
   const subRoot = join(mainPath.slice(0, -".jsonl".length), "subagents");
   const walk = (dir: string, groupId?: string) => {
@@ -40,7 +40,13 @@ export function sessionFiles(mainPath: string): AgentFile[] {
         walk(p, name.startsWith("wf_") ? name : groupId);
       } else if (name.startsWith("agent-") && name.endsWith(".jsonl")) {
         const metaPath = p.slice(0, -".jsonl".length) + ".meta.json";
-        const meta = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf8")) : {};
+        // a meta file can be half-written while its subagent starts: count it and go on without it
+        let meta: Record<string, any> = {};
+        try {
+          if (existsSync(metaPath)) meta = JSON.parse(readFileSync(metaPath, "utf8"));
+        } catch {
+          if (stats) stats.badLines++;
+        }
         files.push({
           path: p,
           agentId: name.slice("agent-".length, -".jsonl".length),
@@ -109,7 +115,7 @@ export interface ClaudeSessionResult {
 
 export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: ReadStats): ClaudeSessionResult {
   const sessionId = basename(mainPath, ".jsonl");
-  const files = sessionFiles(mainPath);
+  const files = sessionFiles(mainPath, stats);
   const events: AgentTownEvent[] = [];
   let projectId = dirname(mainPath);
   let projectFromCwd = false;

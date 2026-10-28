@@ -3,6 +3,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { parsePort, staticDirFrom } from "../packages/server/src/cli.ts";
 import { createServer, portInUseMessage } from "../packages/server/src/http.ts";
 import { loadEventsAsync } from "../packages/server/src/load.ts";
 
@@ -11,11 +12,17 @@ function arg(name: string): string | undefined {
   return i > 0 ? process.argv[i + 1] : undefined;
 }
 
-const port = Number(arg("--port") ?? 5182);
+let port: number;
+try {
+  port = parsePort(arg("--port"));
+} catch (e) {
+  console.error((e as Error).message);
+  process.exit(1);
+}
 const claudeRoot = arg("--claude") ?? join(homedir(), ".claude/projects");
 const codexRoot = arg("--codex") ?? join(homedir(), ".codex/sessions");
 const cacheDir = process.argv.includes("--no-cache") ? null : process.env.AGENT_TOWN_CACHE ?? join(homedir(), ".agent-town/cache");
-const dist = new URL("../packages/web/dist", import.meta.url).pathname;
+const dist = staticDirFrom(new URL(import.meta.url));
 
 let lastPrint = 0;
 const t0 = Date.now();

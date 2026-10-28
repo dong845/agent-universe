@@ -3,6 +3,8 @@
 import type { AgentTownEvent, Faction, Role, Tokens } from "../../../schema/src/event.ts";
 import { addTokens, zeroTokens } from "../../../schema/src/event.ts";
 import { detectRework } from "../../../schema/src/insights.ts";
+import { districtKey } from "../orchestrator/worldgen.ts";
+import type { Selection } from "../selection.ts";
 
 export interface DiaryStep {
   ts: number;
@@ -130,3 +132,20 @@ export function diaryOf(input: AgentTownEvent[], taskId: string, live: boolean):
     replayable: toolStarts.length > 0,
   };
 }
+
+/** the task a selection is about: the house's task, the site's live task, or the agent's task */
+export function taskOfSelection(sel: Selection | null, events: AgentTownEvent[], live: Set<string>, replay?: { district: string; taskId: string } | null): string | null {
+  if (!sel) return null;
+  if (sel.kind === "task") return sel.taskId;
+  // during a replay, its town's site and figures are that task
+  if (replay && sel.district === replay.district) return replay.taskId;
+  const inTown = (e: AgentTownEvent) => districtKey(e) === sel.district;
+  let found: string | null = null;
+  for (const e of events) {
+    if (!e.taskId || !inTown(e)) continue;
+    if (sel.kind === "site" && e.kind === "task_start" && (live.has(e.taskId) || !live.size)) found = e.taskId;
+    if (sel.kind === "agent" && e.agentId === sel.agentId && live.has(e.taskId)) found = e.taskId;
+  }
+  return found;
+}
+

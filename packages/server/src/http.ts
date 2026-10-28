@@ -78,13 +78,31 @@ export function createServer(o: ServerOptions) {
     res.end(JSON.stringify(body));
   };
 
-  const server = http.createServer((req, res) => {
+  /**
+   * DNS rebinding: a page on another name can resolve it to 127.0.0.1 and read this server as its own
+   * origin. Only requests addressed to this machine by its loopback names are answered, and a POST
+   * from a foreign page is refused.
+   */
+  const allowed = (req: http.IncomingMessage): boolean => {
+    const port = (server.address() as { port?: number } | null)?.port;
+    const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+    if (!hosts.has(req.headers.host ?? "")) return false;
+    const origin = req.headers.origin;
+    return req.method === "GET" || req.method === "HEAD" || !origin || [...hosts].some((h) => origin === `http://${h}`);
+  };
+
+  const handle = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
     if (path === "/api/status") return json(res, 200, state);
     if (path === "/api/world") return payload && state.phase === "ready" ? json(res, 200, payload) : json(res, 503, state);
     if (path.startsWith("/api/task/")) {
-      const id = decodeURIComponent(path.slice("/api/task/".length));
+      let id: string;
+      try {
+        id = decodeURIComponent(path.slice("/api/task/".length));
+      } catch {
+        return json(res, 400, { error: "bad task id" });
+      }
       const evs = byTask.get(id);
       return evs ? json(res, 200, { events: evs }) : json(res, 404, { error: "no such task" });
     }
@@ -108,6 +126,17 @@ export function createServer(o: ServerOptions) {
     const target = existsSync(file) && statSync(file).isFile() ? file : join(o.staticDir, "index.html");
     res.writeHead(200, { "content-type": TYPES[extname(target)] ?? "application/octet-stream" });
     res.end(readFileSync(target));
+  };
+
+  const server = http.createServer((req, res) => {
+    if (!allowed(req)) return json(res, 403, { error: "only this machine's loopback address is served" });
+    try {
+      handle(req, res);
+    } catch (e) {
+      // one bad request never takes the server down
+      if (!res.headersSent) json(res, 500, { error: e instanceof Error ? e.message : String(e) });
+      else res.end();
+    }
   });
   return { server, state: () => ({ ...state }), reload };
 }

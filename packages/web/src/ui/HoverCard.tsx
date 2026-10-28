@@ -7,6 +7,7 @@ import { BUILDINGS, ROLE_NAMES } from "../../../schema/src/world.ts";
 import { activeAt, floorsAt, sampleActor } from "../orchestrator/timeline.ts";
 import { TIER_NAMES, TIER_TOKENS } from "../orchestrator/worldgen.ts";
 import { absTime, runtimeOf, useStore, type HoverTarget } from "../store.ts";
+import { openSessions } from "./counts.ts";
 
 const SHOW_AFTER_MS = 150;
 
@@ -56,18 +57,6 @@ function Freshness({ abs, last }: { abs: number; last?: AgentTownEvent }) {
   return <div className="fresh">更新于 {fmtDur(abs - last.ts)}前</div>;
 }
 
-/** sessions with a task started and not yet ended at `abs` */
-function openSessions(events: AgentTownEvent[], abs: number, pred: (e: AgentTownEvent) => boolean): number {
-  const open = new Map<string, string>();
-  for (const e of events) {
-    if (e.ts > abs) break;
-    if (!pred(e)) continue;
-    if (e.kind === "task_start" && e.taskId) open.set(e.taskId, e.sessionId);
-    if (e.kind === "task_end" && e.taskId) open.delete(e.taskId);
-  }
-  return new Set(open.values()).size;
-}
-
 export function CardBody({ target }: { target: HoverTarget }) {
   const { events, ledger, world } = useStore.getState();
   const t = useStore((s) => s.uiT);
@@ -84,7 +73,7 @@ export function CardBody({ target }: { target: HoverTarget }) {
         <TokenRows t={tk} />
         {pricing}
         <Row k="缓存命中率" v={`${(hit * 100).toFixed(1)}%`} />
-        <Row k="活跃会话" v={String(openSessions(events, abs, (e) => e.faction === target.faction))} />
+        <Row k="活跃会话" v={String(openSessions(events, abs, (e) => e.faction === target.faction, useStore.getState().unended))} />
       </>
     );
   }
