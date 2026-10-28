@@ -12,7 +12,7 @@ import { riverX, type District, type World as WorldT } from "../orchestrator/wor
 import { useStore } from "../store.ts";
 import { Block } from "./Buildings.tsx";
 import { DistrictContext } from "./districtContext.tsx";
-import { hoverHandlers } from "./hover.ts";
+import { hoverHandlers, selectOnClick } from "./hover.ts";
 import { LOOKS } from "./looks.ts";
 import { Mat } from "./Mat.tsx";
 
@@ -335,6 +335,10 @@ function Houses() {
         receiveShadow
         onPointerOver={onOver}
         onPointerOut={onOut}
+        onClick={selectOnClick((e) => {
+          const it = e.instanceId !== undefined ? all[e.instanceId] : undefined;
+          return it ? { kind: "task", district: it.d.key, taskId: it.h.taskId } : null;
+        })}
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.85} />

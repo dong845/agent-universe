@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, type Progress } from "./data.ts";
+import { fromHash, toHash } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { useStore, type HoverTarget } from "./store.ts";
@@ -30,6 +31,17 @@ if (look === "toy" || look === "dusk" || look === "board") store.setLook(look);
 if (q.get("focus") === "primary") store.setFocus(useStore.getState().primary?.district.key ?? null);
 if (q.has("t")) store.setTime(Number(q.get("t")));
 if (q.get("paused") === "1") store.setPlaying(false);
+// #task=… / #site=… / #agent=… reopen a selection; selecting writes the hash back
+const fromUrl = fromHash(location.hash);
+if (fromUrl) store.select(fromUrl);
+useStore.subscribe((s, p) => {
+  if (s.selected !== p.selected) history.replaceState(null, "", toHash(s.selected) || location.pathname + location.search);
+});
+// a pasted link or back/forward changes only the hash: no reload, so read it here too
+window.addEventListener("hashchange", () => useStore.getState().select(fromHash(location.hash)));
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") useStore.getState().back();
+});
 
 /**
  * Test hook: reads the world through the same functions the renderer uses, so a browser test can
@@ -43,8 +55,11 @@ declare global {
 window.__agentTown = {
   state: () => {
     const s = useStore.getState();
-    return { t: s.t, duration: s.duration, source: s.source, focus: s.focus };
+    const cam = (window as unknown as { __agentTownCamera?: { zoom: number } }).__agentTownCamera;
+    const ctl = (window as unknown as { __agentTownControls?: { target: { x: number; z: number } } }).__agentTownControls;
+    return { t: s.t, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
   },
+  play: () => useStore.getState().setPlaying(true),
   setTime: (t: number) => useStore.getState().setTime(t),
   pause: () => useStore.getState().setPlaying(false),
   focus: (k: string | null | "primary") => useStore.getState().setFocus(k === "primary" ? useStore.getState().primary?.district.key ?? null : k),

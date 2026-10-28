@@ -8,7 +8,7 @@ import type { Color, Group, Material } from "three";
 import type { Role } from "../../../schema/src/event.ts";
 import { sampleActor, type Actor } from "../orchestrator/timeline.ts";
 import { localNow, useRuntime, useTimeline } from "./districtContext.tsx";
-import { hoverHandlers } from "./hover.ts";
+import { hoverHandlers, selectOnClick } from "./hover.ts";
 import { useLook } from "./looks.ts";
 import { Mat } from "./Mat.tsx";
 import { ROLE_COLOR, SUBAGENT, backpackColor } from "./palette.ts";
@@ -256,7 +256,7 @@ function Figure({ actor }: { actor: Actor }) {
   });
 
   return (
-    <group ref={root} scale={scale} {...hoverHandlers({ kind: "figure", district: rt.district.key, agentId: actor.id })}>
+    <group ref={root} scale={scale} {...hoverHandlers({ kind: "figure", district: rt.district.key, agentId: actor.id })} onClick={selectOnClick({ kind: "agent", district: rt.district.key, agentId: actor.id })}>
       <group ref={body}>
         {/* legs */}
         <group ref={legL} position={[-0.11, 0.24, 0]}>

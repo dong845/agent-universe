@@ -1,4 +1,5 @@
 import type { ThreeEvent } from "@react-three/fiber";
+import type { Selection } from "../selection.ts";
 import { useStore, type HoverTarget } from "../store.ts";
 
 /** pointer handlers that make a mesh group report itself as the hovered object */
@@ -17,6 +18,20 @@ export function hoverHandlers(target: HoverTarget) {
         document.body.style.cursor = "";
       }
     },
+  };
+}
+
+/** a pointer that moved more than this between press and release was dragging the view, not clicking */
+export const CLICK_SLOP_PX = 5;
+
+/** a click (not a drag) selects `sel` */
+export function selectOnClick(sel: Selection | ((e: ThreeEvent<MouseEvent>) => Selection | null)) {
+  return (e: ThreeEvent<MouseEvent>) => {
+    if (e.delta > CLICK_SLOP_PX) return;
+    const s = typeof sel === "function" ? sel(e) : sel;
+    if (!s) return;
+    e.stopPropagation();
+    useStore.getState().select(s);
   };
 }
 

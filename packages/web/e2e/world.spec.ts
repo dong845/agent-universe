@@ -203,3 +203,82 @@ test("real data: shows reading progress, then the world from /api/world, badged 
   const s = await page.evaluate(() => { const st = (window as any).__agentTown.state(); return { t: st.t, duration: st.duration }; });
   expect(s.t).toBe(s.duration);
 });
+
+test.describe("click to zoom", () => {
+  /** the screen point of the tallest drawn house in a demo history town */
+  const houseOnScreen = (page: Page) =>
+    page.evaluate(() => {
+      const w = (window as any).__agentTown.world();
+      const all = w.districts.flatMap((d: any) => d.houses.map((h: any) => ({ d: d.key, h })));
+      const { d, h } = all.sort((a: any, b: any) => b.h.floors - a.h.floors)[0];
+      const y = (0.6 + h.floors * 0.42) / 2;
+      return { district: d, taskId: h.taskId, at: h.at, p: (window as any).__agentTown.toScreen(h.at.x, y, h.at.z) };
+    });
+  const view = (page: Page) => page.evaluate(() => (window as any).__agentTown.state());
+  /** waits until the camera has stopped moving, so a projected point stays where it was computed */
+  const settled = (page: Page) => expect.poll(() => page.evaluate(() => (window as any).__agentTownFlying()), { timeout: 15_000 }).toBe(false);
+
+  test("clicking a house pushes in to it and records it in the URL; Escape goes back", async ({ page }) => {
+    await open(page, [], "world");
+    await settled(page);
+    const h = await houseOnScreen(page);
+    await page.mouse.click(h.p.x, h.p.y);
+    await expect.poll(async () => (await view(page)).zoom, { timeout: 5000 }).toBeGreaterThanOrEqual(38);
+    expect((await view(page)).selected).toEqual({ kind: "task", district: h.district, taskId: h.taskId });
+    // the flight ends centred on the house
+    await expect.poll(async () => { const t = (await view(page)).target; return Math.hypot(t.x - h.at.x, t.z - h.at.z); }, { timeout: 5000 }).toBeLessThan(0.5);
+    expect(await page.evaluate(() => location.hash)).toMatch(/^#task=/);
+    await page.keyboard.press("Escape");
+    await expect.poll(async () => (await view(page)).selected).toBeNull();
+    expect(await page.evaluate(() => location.hash)).toBe("");
+  });
+
+  test("a drag that starts on a house does not select it", async ({ page }) => {
+    await open(page, [], "world");
+    await settled(page);
+    const h = await houseOnScreen(page);
+    await page.mouse.move(h.p.x, h.p.y);
+    await page.mouse.down();
+    await page.mouse.move(h.p.x + 80, h.p.y + 40, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    expect((await view(page)).selected).toBeNull();
+  });
+
+  test("clicking a figure follows it while it walks", async ({ page }) => {
+    await open(page, []);
+    await at(page, 2000);
+    await settled(page);
+    const p = await page.evaluate(() => {
+      const s = (window as any).__agentTown.snapshot();
+      const c = s.actors.find((a: any) => a.id === "main");
+      return (window as any).__agentTown.toScreen(s.origin.x + c.pos.x, 0.7, s.origin.z + c.pos.z);
+    });
+    // the figure is moved to t=2000 on the next rendered frame, and R3F raycasts only on pointer
+    // events: under load, a pointer that arrives first hits the ground and stays there
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await page.mouse.move(p.x, p.y);
+    await expect(page.getByTestId("hover-card")).toContainText("指挥官");
+    await page.mouse.click(p.x, p.y);
+    await expect.poll(async () => (await view(page)).selected?.kind).toBe("agent");
+    await page.evaluate(() => (window as any).__agentTown.play());
+    await page.waitForTimeout(2500);
+    const d = await page.evaluate(() => {
+      const st = (window as any).__agentTown.state();
+      const s = (window as any).__agentTown.snapshot();
+      const c = s.actors.find((a: any) => a.id === "main");
+      return Math.hypot(st.target.x - (s.origin.x + c.pos.x), st.target.z - (s.origin.z + c.pos.z));
+    });
+    expect(d).toBeLessThan(1.5);
+  });
+
+  test("a hash in the URL opens on that task", async ({ page }) => {
+    await open(page, [], "world");
+    const h = await houseOnScreen(page);
+    const hash = await page.evaluate((h) => `#task=${encodeURIComponent(h.district)}~${encodeURIComponent(h.taskId)}`, h);
+    await page.goto(`/?demo=1&paused=1${hash}`);
+    await page.waitForFunction(() => !!(window as any).__agentTown);
+    await expect.poll(async () => (await view(page)).selected?.taskId, { timeout: 8000 }).toBe(h.taskId);
+    await expect.poll(async () => (await view(page)).zoom, { timeout: 8000 }).toBeGreaterThanOrEqual(38);
+  });
+});

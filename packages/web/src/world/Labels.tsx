@@ -33,7 +33,8 @@ const ALWAYS = { minZoom: 0, maxZoom: Infinity };
 
 /** inside the canvas: projects every anchor to the screen and hides labels outside their zoom band */
 export function LabelProjector() {
-  const { camera, size, scene } = useThree();
+  const { camera, size, scene, controls } = useThree();
+  (window as unknown as { __agentTownControls?: unknown }).__agentTownControls = controls;
   (window as unknown as { __agentTownScene?: unknown; __agentTownCamera?: unknown }).__agentTownScene = scene;
   (window as unknown as { __agentTownCamera?: unknown }).__agentTownCamera = camera;
   // test hook: world point → screen pixel, with the live camera

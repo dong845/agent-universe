@@ -7,7 +7,7 @@ import type { Group } from "three";
 import { SITE } from "../orchestrator/layout.ts";
 import { activeAt, floorsAt } from "../orchestrator/timeline.ts";
 import { useLocalUiT, useRuntime, useTimeline } from "./districtContext.tsx";
-import { hoverHandlers } from "./hover.ts";
+import { hoverHandlers, selectOnClick } from "./hover.ts";
 import { Block } from "./Buildings.tsx";
 import { useLook } from "./looks.ts";
 import { Mat } from "./Mat.tsx";
@@ -34,7 +34,7 @@ export function Site() {
   const cloud = activeAt(tl.clouds, t);
   return (
     <group position={[SITE.x, 0, SITE.z]}>
-      <group {...hoverHandlers({ kind: "site", district: key })}>
+      <group {...hoverHandlers({ kind: "site", district: key })} onClick={selectOnClick({ kind: "site", district: key })}>
         <Block size={[3.3, BASE_H, 3.3]} at={[0, BASE_H / 2, 0]} color="#b9b1a6" />
         {/* corner posts: a site under construction until it is roofed */}
         {!roofed

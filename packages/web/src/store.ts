@@ -5,6 +5,7 @@ import type { WorldPayload } from "../../schema/src/payload.ts";
 import type { BuildingId } from "../../schema/src/world.ts";
 import { buildTimeline, type Timeline } from "./orchestrator/timeline.ts";
 import { buildWorld, districtKey, type District, type World } from "./orchestrator/worldgen.ts";
+import type { Selection } from "./selection.ts";
 import type { LookId } from "./world/looks.ts";
 
 export type HoverTarget =
@@ -52,6 +53,11 @@ interface Store {
   look: LookId;
   /** district key the camera flies to; null = the whole world */
   focus: string | null;
+  /** what was clicked: the camera pushes in to it and the diary shows it */
+  selected: Selection | null;
+  select(s: Selection | null): void;
+  /** one level out: selection → its town → the whole world */
+  back(): void;
   /** towns drawn in full detail (the rest are far massing) */
   detail: Set<string>;
   setDetail(k: Set<string>): void;
@@ -108,6 +114,15 @@ export const useStore = create<Store>((set, get) => ({
   pointer: { x: 0, y: 0 },
   look: "toy",
   focus: null,
+  selected: null,
+  select(s) {
+    set(s ? { selected: s, focus: s.district } : { selected: null });
+  },
+  back() {
+    const { selected, focus } = get();
+    if (selected) set({ selected: null });
+    else if (focus) set({ focus: null });
+  },
   detail: new Set(),
   setDetail(k) {
     set({ detail: k });
