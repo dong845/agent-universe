@@ -45,5 +45,5 @@ srv.server.on("error", (e: NodeJS.ErrnoException) => {
 });
 srv.server.listen(port, "127.0.0.1", () => {
   console.log(`Agent Town: http://127.0.0.1:${port}/${srv.state().phase === "loading" ? "（正在读取日志）" : ""}`);
-  if (!existsSync(join(dist, "index.html"))) console.log("还没有网页构建：开发时用 pnpm dev 打开 http://127.0.0.1:5180/，或先 pnpm build");
+  if (!existsSync(join(dist, "index.html"))) console.log("还没有网页构建：先运行 node --run build；开发时用 node --run dev 打开 http://127.0.0.1:5180/");
 });

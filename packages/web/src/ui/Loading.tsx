@@ -7,7 +7,7 @@ export function Loading({ p }: { p: Progress | null }) {
       {p?.phase === "error" ? (
         <>
           <b>{p.message}</b>
-          <span>开发时另开一个终端运行 pnpm serve，再刷新本页</span>
+          <span>开发时另开一个终端运行 node --run serve，再刷新本页</span>
         </>
       ) : (
         <>

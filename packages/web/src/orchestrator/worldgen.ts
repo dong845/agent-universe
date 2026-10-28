@@ -174,7 +174,7 @@ export function buildWorld(events: AgentTownEvent[], live?: Set<string>, home?: 
     if (!live && e.kind === "tool_start") t.live = true;
     if (e.kind === "task_start") {
       t.start = e.ts;
-      t.title = e.title;
+      t.title = e.title ?? (e.continues ? `接续：${e.continues}` : undefined);
     } else if (e.kind === "task_end") {
       t.end = e.ts;
       t.ok = e.status !== "error";

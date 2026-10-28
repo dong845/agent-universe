@@ -19,7 +19,7 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
-function TokenRows({ t, label = "累计 token" }: { t: Tokens; label?: string }) {
+export function TokenRows({ t, label = "累计 token" }: { t: Tokens; label?: string }) {
   return (
     <>
       <Row k={label} v={formatCount(totalOf(t))} />

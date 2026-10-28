@@ -186,7 +186,7 @@ test.describe("the world", () => {
 test("without the local server, says how to start it instead of drawing an empty world", async ({ page }) => {
   await page.route("**/api/**", (r) => r.abort());
   await page.goto("/");
-  await expect(page.getByTestId("loading")).toContainText("本地服务未启动：运行 pnpm start", { timeout: 10_000 });
+  await expect(page.getByTestId("loading")).toContainText("本地服务未启动：在 agent-town 目录运行 node --run start", { timeout: 10_000 });
   expect(await page.evaluate(() => !!(window as any).__agentTown)).toBe(false);
 });
 
@@ -280,5 +280,46 @@ test.describe("click to zoom", () => {
     await page.waitForFunction(() => !!(window as any).__agentTown);
     await expect.poll(async () => (await view(page)).selected?.taskId, { timeout: 8000 }).toBe(h.taskId);
     await expect.poll(async () => (await view(page)).zoom, { timeout: 8000 }).toBeGreaterThanOrEqual(38);
+  });
+});
+
+test.describe("task diary", () => {
+  const select = (page: Page, s: unknown) => page.evaluate((s) => (window as any).__agentTown.select(s), s);
+  const historyHouse = (page: Page) =>
+    page.evaluate(() => {
+      const d = (window as any).__agentTown.world().districts.find((x: any) => x.houses.length);
+      return { kind: "task", district: d.key, taskId: d.houses[0].taskId };
+    });
+
+  test("selecting the live site opens its diary with the task's steps; Escape closes it", async ({ page }) => {
+    await open(page, []);
+    await select(page, { kind: "site", district: PRIMARY });
+    const diary = page.getByTestId("diary");
+    await expect(diary).toContainText("给 HTTP 客户端加上失败重试，并补上测试");
+    expect(await diary.locator("[data-step]").count()).toBeGreaterThan(5);
+    await expect(diary).toContainText("子代理");
+    await page.keyboard.press("Escape");
+    await expect(diary).toHaveCount(0);
+  });
+
+  test("a demo history task has no step-by-step record, so replay is disabled and says why", async ({ page }) => {
+    await open(page, [], "world");
+    await select(page, await historyHouse(page));
+    const btn = page.getByTestId("diary").getByRole("button", { name: "重放" });
+    await expect(btn).toBeDisabled();
+    await expect(btn).toHaveAttribute("title", "这个演示任务只有摘要，没有逐步记录");
+  });
+
+  test("replay rebuilds the task on the town's site from the ground up", async ({ page }) => {
+    await open(page, []);
+    await at(page, 50_000); // near the end: the site is several floors up
+    expect((await snap(page)).floors).toBeGreaterThan(0);
+    await select(page, { kind: "site", district: PRIMARY });
+    await page.getByTestId("diary").getByRole("button", { name: "重放" }).click();
+    await expect.poll(async () => (await page.evaluate(() => (window as any).__agentTown.state().replay))?.taskId).toBe("demo:task:0");
+    expect((await snap(page)).floors).toBe(0);
+    // 30 s into the replay (SwiftShader renders ~1 frame/s, too slow to wait for playback)
+    await page.evaluate(() => { const st = (window as any).__agentTown.state(); (window as any).__agentTown.setTime(st.t + 30_000); });
+    await expect.poll(async () => (await snap(page)).floors).toBeGreaterThan(0);
   });
 });

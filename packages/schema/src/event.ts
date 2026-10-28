@@ -68,6 +68,10 @@ export interface AgentTownEvent {
   trigger?: "human" | "system";
   /** task_start only: the first line of the task's first user message, ≤ 80 chars (spec 12.5). Shown on this machine only. */
   title?: string;
+  /** task_start, system-triggered only: the title of the session's last human-started task, which this turn continues */
+  continues?: string;
+  /** task_start, system-triggered only: what opened the turn — a subagent's hand-back, a compaction summary, another meta line */
+  triggerBy?: "peer" | "compact" | "meta" | "other";
   /** task_start only: how the task's town was chosen — exact file paths, paths inferred from shell commands, or its cwd */
   projectBy?: "files" | "inferred" | "cwd";
   compaction?: { preTokens?: number; postTokens?: number; trigger?: string };

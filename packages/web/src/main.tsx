@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, type Progress } from "./data.ts";
-import { fromHash, toHash } from "./selection.ts";
+import { fromHash, toHash, type Selection } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { useStore, type HoverTarget } from "./store.ts";
@@ -16,7 +16,7 @@ let payload;
 try {
   payload = await loadWorld(q.get("demo") === "1", showLoading);
 } catch (e) {
-  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务未启动：运行 pnpm start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
+  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务未启动：在 agent-town 目录运行 node --run start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
   throw e;
 }
 const store = useStore.getState();
@@ -57,9 +57,11 @@ window.__agentTown = {
     const s = useStore.getState();
     const cam = (window as unknown as { __agentTownCamera?: { zoom: number } }).__agentTownCamera;
     const ctl = (window as unknown as { __agentTownControls?: { target: { x: number; z: number } } }).__agentTownControls;
-    return { t: s.t, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
+    return { t: s.t, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, replay: s.replay, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
   },
   play: () => useStore.getState().setPlaying(true),
+  setSpeed: (n: number) => useStore.getState().setSpeed(n),
+  select: (s: Selection | null) => useStore.getState().select(s),
   setTime: (t: number) => useStore.getState().setTime(t),
   pause: () => useStore.getState().setPlaying(false),
   focus: (k: string | null | "primary") => useStore.getState().setFocus(k === "primary" ? useStore.getState().primary?.district.key ?? null : k),

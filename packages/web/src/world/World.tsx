@@ -3,7 +3,7 @@
 // towns, bridges for cross-faction hand-overs, the houses of finished tasks, and simplified massing
 // for towns seen from far away. Everything large is instanced to keep draw calls low.
 import { useMemo, useRef } from "react";
-import { Color, ExtrudeGeometry, Object3D, Shape, type InstancedMesh } from "three";
+import { Color, ExtrudeGeometry, Object3D, Shape, type InstancedMesh, type Mesh } from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import type { Faction } from "../../../schema/src/event.ts";
 import { BUILDINGS } from "../../../schema/src/world.ts";
@@ -458,6 +458,25 @@ export function TownBounds() {
   );
 }
 
+/** a ring on the ground around the selected task's house */
+function SelectedMarker() {
+  const sel = useStore((s) => s.selected);
+  const w = useStore((s) => s.world);
+  const ring = useRef<Mesh>(null);
+  useFrame(({ clock }) => {
+    if (ring.current) ring.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 3) * 0.06);
+  });
+  if (sel?.kind !== "task") return null;
+  const h = w.districts.find((d) => d.key === sel.district)?.houses.find((x) => x.taskId === sel.taskId);
+  if (!h) return null;
+  return (
+    <mesh ref={ring} position={[h.at.x, 0.06, h.at.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[1.3, 1.7, 40]} />
+      <meshBasicMaterial color="#d4663f" transparent opacity={0.9} />
+    </mesh>
+  );
+}
+
 export function WorldScenery() {
   return (
     <group>
@@ -472,6 +491,7 @@ export function WorldScenery() {
       <Bridges />
       <TownBounds />
       <Houses />
+      <SelectedMarker />
     </group>
   );
 }

@@ -47,3 +47,23 @@ describe("task titles from the adapters", () => {
     expect(sum(r.events)).toEqual({ ...tk(5, 6, 70), reasoning: 0 });
   });
 });
+
+describe("turns not opened by a human prompt", () => {
+  it("continue the session's last human task by name, and say what opened them", () => {
+    const dir = mkdtempSync(join(tmpdir(), "at-cont-"));
+    const r = parseClaudeSession(writeClaudeSession(dir, {
+      sessionId: "s-cont", cwd: "/synth/x", t0: Date.UTC(2026, 9, 2),
+      turns: [
+        { prompt: "把世界做大", tokens: tk(1, 1, 1) },
+        { prompt: "subagent report", opener: "peer", tokens: tk(1, 1, 1) },
+        { prompt: "summary of the conversation", opener: "compact", tokens: tk(1, 1, 1) },
+      ],
+    }), roles, newStats());
+    const starts = r.events.filter((e) => e.kind === "task_start");
+    expect(starts.map((e) => [e.trigger, e.title, e.continues, e.triggerBy])).toEqual([
+      ["human", "把世界做大", undefined, undefined],
+      ["system", undefined, "把世界做大", "peer"],
+      ["system", undefined, "把世界做大", "compact"],
+    ]);
+  });
+});

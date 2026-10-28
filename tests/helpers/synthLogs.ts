@@ -12,6 +12,8 @@ export interface SynthTool {
 
 export interface SynthTurn {
   prompt: string;
+  /** how the opening user line is marked: a human prompt (default), a peer hand-back, a meta line, a compaction summary */
+  opener?: "human" | "peer" | "meta" | "compact";
   tools?: SynthTool[];
   tokens: Tokens;
   /** default true: the turn ends (turn_duration / task_complete) */
@@ -36,7 +38,9 @@ export function writeClaudeSession(dir: string, s: SynthSession): string {
   let n = 0;
   const base = () => ({ sessionId: s.sessionId, cwd: s.cwd, timestamp: iso((t += 1000)), uuid: `${s.sessionId}-u${n++}` });
   s.turns.forEach((turn, ti) => {
-    lines.push({ ...base(), type: "user", message: { role: "user", content: turn.prompt } });
+    const op = turn.opener ?? "human";
+    const mark = op === "human" ? { origin: { kind: "human" } } : op === "peer" ? { origin: { kind: "peer" }, isMeta: true } : op === "meta" ? { isMeta: true } : { isCompactSummary: true };
+    lines.push({ ...base(), type: "user", ...mark, message: { role: "user", content: turn.prompt } });
     const tools = turn.tools ?? [];
     tools.forEach((tool, k) => {
       const id = `${s.sessionId}-t${ti}-${k}`;

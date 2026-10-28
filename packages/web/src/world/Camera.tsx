@@ -35,9 +35,12 @@ export function CameraRig() {
 
   useEffect(() => {
     const aim = (focus: string | null, sel: Selection | null) => {
-      const { world } = useStore.getState();
+      const { world, replay } = useStore.getState();
       const d = (k: string | null) => (k ? world.districts.find((x) => x.key === k) : undefined);
       follow.current = sel?.kind === "agent" ? sel : null;
+      // a replay rebuilds the task on its town's central site: watch it there
+      const rp = replay ? d(replay.district) : undefined;
+      if (rp) return void (goal.current = { target: new Vector3(rp.origin.x, 0, rp.origin.z + 2), zoom: SITE_ZOOM });
       if (sel?.kind === "task") {
         // the house, or the town when the task has no house drawn (older than the tier keeps, or live)
         const town = d(sel.district);
@@ -55,7 +58,7 @@ export function CameraRig() {
     };
     aim(useStore.getState().focus, useStore.getState().selected);
     return useStore.subscribe((s, p) => {
-      if (s.focus !== p.focus || s.selected !== p.selected) aim(s.focus, s.selected);
+      if (s.focus !== p.focus || s.selected !== p.selected || s.replay !== p.replay) aim(s.focus, s.selected);
     });
   }, [size.width, size.height]);
 

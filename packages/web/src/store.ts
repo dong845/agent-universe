@@ -55,6 +55,12 @@ interface Store {
   focus: string | null;
   /** what was clicked: the camera pushes in to it and the diary shows it */
   selected: Selection | null;
+  /** tasks animated in full (the payload's live tasks) */
+  live: Set<string>;
+  /** a task being rebuilt on its town's site (spec 4 "重放") */
+  replay: { district: string; taskId: string } | null;
+  startReplay(district: string, events: AgentTownEvent[]): void;
+  stopReplay(): void;
   select(s: Selection | null): void;
   /** one level out: selection → its town → the whole world */
   back(): void;
@@ -76,6 +82,8 @@ interface Store {
 }
 
 let lastUi = 0;
+/** the runtime and clock length a replay replaced */
+let saved: { runtime: Runtime; duration: number } | null = null;
 
 /**
  * Split events into districts. A district's timeline animates only its live tasks — tasks with tool
@@ -115,13 +123,38 @@ export const useStore = create<Store>((set, get) => ({
   look: "toy",
   focus: null,
   selected: null,
+  live: new Set(),
+  replay: null,
   select(s) {
+    const r = get().replay;
+    if (r && !(s?.kind === "task" && s.taskId === r.taskId) && !(s?.kind === "site" && s.district === r.district)) get().stopReplay();
     set(s ? { selected: s, focus: s.district } : { selected: null });
   },
   back() {
     const { selected, focus } = get();
-    if (selected) set({ selected: null });
+    if (selected) get().select(null);
     else if (focus) set({ focus: null });
+  },
+  startReplay(district, events) {
+    get().stopReplay();
+    const { runtimes, t, duration, primary } = get();
+    const i = runtimes.findIndex((r) => r.district.key === district);
+    const taskId = events.find((e) => e.taskId)?.taskId;
+    if (i < 0 || !taskId) throw new Error(`cannot replay ${taskId ?? "?"} in ${district}`);
+    // the town's site rebuilds the task from now on; the original runtime comes back on stop
+    const timeline = buildTimeline(events);
+    const rt: Runtime = { district: runtimes[i].district, timeline, offset: t };
+    saved = { runtime: runtimes[i], duration };
+    const next = runtimes.map((r, k) => (k === i ? rt : r));
+    set({ runtimes: next, primary: primary?.district.key === district ? rt : primary, duration: Math.max(duration, t + timeline.duration), replay: { district, taskId }, playing: true });
+  },
+  stopReplay() {
+    const { replay, runtimes, primary, t } = get();
+    if (!replay || !saved) return;
+    const back = saved;
+    saved = null;
+    const next = runtimes.map((r) => (r.district.key === replay.district ? back.runtime : r));
+    set({ runtimes: next, primary: primary?.district.key === replay.district ? back.runtime : primary, duration: back.duration, t: Math.min(t, back.duration), uiT: Math.min(t, back.duration), replay: null });
   },
   detail: new Set(),
   setDetail(k) {
@@ -155,7 +188,8 @@ export const useStore = create<Store>((set, get) => ({
       t = duration;
     }
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
-    set({ events, source, unended, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
+    saved = null;
+    set({ events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
   },
   setTime(t) {
     const c = Math.max(0, Math.min(get().duration, t));

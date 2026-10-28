@@ -1,6 +1,7 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useStore } from "./store.ts";
+import { Diary } from "./ui/Diary.tsx";
 import { HoverCard } from "./ui/HoverCard.tsx";
 import { Hud, Nav, TimelineBar } from "./ui/Chrome.tsx";
 import { CameraRig, DetailTracker } from "./world/Camera.tsx";
@@ -74,6 +75,7 @@ export function App() {
       <Nav />
       <Legend />
       <HoverCard />
+      <Diary />
       <TimelineBar />
     </div>
   );

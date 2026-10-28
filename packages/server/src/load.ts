@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { assignProjects, defaultTempRoots, type AssignOptions } from "./assign.ts";
 
 /** bump when the adapters' output changes shape, so stale cache entries are not reused */
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 export interface LoadOptions {
   claudeRoot: string;

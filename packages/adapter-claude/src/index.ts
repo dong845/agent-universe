@@ -130,6 +130,7 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
     events.push(ev);
   };
 
+  let lastHumanTitle: string | undefined;
   // Main file first: it defines tasks. Subagent files only attach to them.
   for (const f of files) {
     const isMain = f.agentId === "main";
@@ -199,12 +200,16 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
         if (isMain && opensTask(rec)) {
           if (taskId) push({ ...base, projectId, taskId, id: hashId(FACTION, taskId, "end"), ts: ts!, kind: "task_end", raw });
           taskId = hashId(FACTION, sessionId, rec.uuid);
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", title: titleOf(textOf(content)), raw });
+          const title = titleOf(textOf(content));
+          if (title) lastHumanTitle = title;
+          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", title, raw });
           continue;
         }
         if (isMain && !taskId && !isToolResult(content) && textOf(content)) {
           taskId = hashId(FACTION, sessionId, rec.uuid);
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "system", raw });
+          // a turn opened by something other than a prompt keeps working on the last human request
+          const triggerBy = rec.isCompactSummary ? "compact" : rec.origin?.kind === "peer" ? "peer" : rec.isMeta ? "meta" : "other";
+          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "system", continues: lastHumanTitle, triggerBy, raw });
         }
         if (rec.isCompactSummary) continue;
         const decision = rec.permissionDecision;

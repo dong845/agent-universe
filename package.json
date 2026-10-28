@@ -6,11 +6,11 @@
   "scripts": {
     "parse": "node scripts/parse.ts",
     "test": "vitest run",
-    "dev": "pnpm --filter @agent-town/web dev",
-    "build": "pnpm --filter @agent-town/web build",
-    "e2e": "pnpm --filter @agent-town/web e2e",
-    "start": "pnpm build && node scripts/serve.ts",
-    "serve": "node scripts/serve.ts"
+    "dev": "cd packages/web && ./node_modules/.bin/vite",
+    "build": "cd packages/web && ../../node_modules/.bin/tsc --noEmit -p . && ./node_modules/.bin/vite build",
+    "e2e": "cd packages/web && ./node_modules/.bin/playwright test",
+    "serve": "node scripts/serve.ts",
+    "start": "node --run build && node scripts/serve.ts"
   },
   "devDependencies": {
     "typescript": "5.9.3",
