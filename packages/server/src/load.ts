@@ -76,7 +76,26 @@ export function walk(dir: string, keep: (p: string) => boolean, depth: number, o
 
 const asRow = (t: Tokens) => [t.input, t.output, t.cacheRead, t.cacheWrite];
 
+/** reads everything at once */
 export function loadEvents(o: LoadOptions): Loaded {
+  const g = loadSteps(o);
+  for (;;) {
+    const r = g.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** the same, yielding to the event loop between units so a server can answer while it loads */
+export async function loadEventsAsync(o: LoadOptions): Promise<Loaded> {
+  const g = loadSteps(o);
+  for (;;) {
+    const r = g.next();
+    if (r.done) return r.value;
+    await new Promise((res) => setImmediate(res));
+  }
+}
+
+function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   const roles = loadRoles();
   const stats = newStats();
   const mtimes = new Map<string, number>();
@@ -124,7 +143,7 @@ export function loadEvents(o: LoadOptions): Loaded {
   const modified: Loaded["modified"] = { claude: {}, codex: {} };
   let parsed = 0;
   let cached = 0;
-  units.forEach((u, i) => {
+  for (const [i, u] of units.entries()) {
     const path = o.cacheDir ? join(o.cacheDir, createHash("sha1").update(`${CACHE_VERSION}|${u.key}`).digest("hex") + ".json") : null;
     let entry: CacheEntry | undefined;
     if (path && existsSync(path)) {
@@ -153,7 +172,8 @@ export function loadEvents(o: LoadOptions): Loaded {
     Object.assign(totals.codex, entry.totals.codex);
     perUnit.push(entry.events);
     o.onProgress?.(i + 1, units.length);
-  });
+    yield;
+  }
 
   // A continued session opens with copies of the previous session's records (same API message ids,
   // tool ids and uuids). The session that started first owns them; the copies are dropped (D9).

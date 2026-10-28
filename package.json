@@ -8,7 +8,9 @@
     "test": "vitest run",
     "dev": "pnpm --filter @agent-town/web dev",
     "build": "pnpm --filter @agent-town/web build",
-    "e2e": "pnpm --filter @agent-town/web e2e"
+    "e2e": "pnpm --filter @agent-town/web e2e",
+    "start": "pnpm build && node scripts/serve.ts",
+    "serve": "node scripts/serve.ts"
   },
   "devDependencies": {
     "typescript": "5.9.3",
