@@ -4,21 +4,15 @@
 // of the record, the payload gives too (tests/payload.test.ts).
 import { buildingDeltas, type BuildingRow } from "../../schema/src/aggregate.ts";
 import { addTokens, zeroTokens, type AgentTownEvent } from "../../schema/src/event.ts";
+import type { WorldPayload } from "../../schema/src/payload.ts";
 
-export interface WorldPayload {
-  events: AgentTownEvent[];
-  buildingRows: BuildingRow[];
-  /** tasks animated in full, most recently active first */
-  liveTaskIds: string[];
-  generatedAt: number;
-  source: "real" | "demo";
-}
+export type { WorldPayload };
 
 export const LIVE_WINDOW_MS = 600_000;
 export const MAX_LIVE = 6;
 const HOUR = 3_600_000;
 
-export function compactPayload(full: AgentTownEvent[], mtimes: Map<string, number>, now: number, opts: { liveWindowMs?: number; maxLive?: number } = {}): WorldPayload {
+export function compactPayload(full: AgentTownEvent[], mtimes: Map<string, number>, now: number, opts: { liveWindowMs?: number; maxLive?: number; home?: string } = {}): WorldPayload {
   const window = opts.liveWindowMs ?? LIVE_WINDOW_MS;
   const maxLive = opts.maxLive ?? MAX_LIVE;
 
@@ -76,5 +70,5 @@ export function compactPayload(full: AgentTownEvent[], mtimes: Map<string, numbe
       s.ts = Math.max(s.ts, r.ts);
     }
   }
-  return { events, buildingRows: [...rows.values()], liveTaskIds, generatedAt: now, source: "real" };
+  return { events, buildingRows: [...rows.values()], liveTaskIds, generatedAt: now, source: "real", home: opts.home };
 }

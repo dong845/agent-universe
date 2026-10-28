@@ -8,6 +8,7 @@ import { BUILDINGS } from "../../../schema/src/world.ts";
 import { BUILDING_POS, HALL_BUILDING, SENTRY_BOOTH, WAREHOUSE, type Vec } from "../orchestrator/layout.ts";
 import { activeAt, floorsAt } from "../orchestrator/timeline.ts";
 import { TIER_NAMES, riverX } from "../orchestrator/worldgen.ts";
+import { declutter, type LabelBox } from "../ui/format.ts";
 import { useStore, type Runtime } from "../store.ts";
 import { DETAIL_ZOOM } from "./Camera.tsx";
 import { siteTop } from "./Site.tsx";
@@ -18,11 +19,14 @@ interface Anchor {
   z: number;
   minZoom: number;
   maxZoom: number;
+  /** labels with a priority give way to higher ones they overlap (town banners in the world view) */
+  priority?: number;
 }
 
 const anchors = new Map<string, Anchor>();
 const elements = new Map<string, HTMLDivElement>();
 const v = new Vector3();
+const sizes = new WeakMap<HTMLDivElement, { w: number; h: number }>();
 const FAR = { minZoom: 0, maxZoom: DETAIL_ZOOM };
 const NEAR = { minZoom: DETAIL_ZOOM, maxZoom: Infinity };
 const ALWAYS = { minZoom: 0, maxZoom: Infinity };
@@ -39,6 +43,7 @@ export function LabelProjector() {
   };
   useFrame(() => {
     const zoom = (camera as OrthographicCamera).zoom;
+    const crowd: LabelBox[] = [];
     for (const [id, el] of elements) {
       const a = anchors.get(id);
       if (!a) continue;
@@ -52,13 +57,21 @@ export function LabelProjector() {
       const off = x < -200 || x > size.width + 200 || y < -100 || y > size.height + 100;
       el.style.visibility = off ? "hidden" : "visible";
       el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`;
+      if (!off && a.priority !== undefined) {
+        let s = sizes.get(el);
+        if (!s) sizes.set(el, (s = { w: el.offsetWidth, h: el.offsetHeight }));
+        crowd.push({ id, rect: { x: x - s.w / 2 - 3, y: y - s.h / 2 - 2, w: s.w + 6, h: s.h + 4 }, priority: a.priority });
+      }
     }
+    // overlapping banners: the more important town keeps its label
+    const keep = declutter(crowd);
+    for (const c of crowd) if (!keep.has(c.id)) elements.get(c.id)!.style.visibility = "hidden";
   });
   return null;
 }
 
-function bind(id: string, at: Vec & { y: number }, band: { minZoom: number; maxZoom: number }) {
-  anchors.set(id, { x: at.x, y: at.y, z: at.z, ...band });
+function bind(id: string, at: Vec & { y: number }, band: { minZoom: number; maxZoom: number }, priority?: number) {
+  anchors.set(id, { x: at.x, y: at.y, z: at.z, ...band, priority });
   return (el: HTMLDivElement | null) => {
     if (el) elements.set(id, el);
     else elements.delete(id);
@@ -117,7 +130,7 @@ export function ScreenLabels() {
       {world.districts.map((d) => {
         const live = runtimes.find((r) => r.district.key === d.key)?.timeline;
         return (
-          <div key={d.key} ref={bind(`town|${d.key}`, { x: d.origin.x, y: 4, z: d.origin.z + d.radius }, FAR)} className="banner" data-label={`town-${d.key}`}>
+          <div key={d.key} ref={bind(`town|${d.key}`, { x: d.origin.x, y: 4, z: d.origin.z + d.radius }, FAR, (live ? 1e15 : 0) + d.tokens)} className="banner" data-label={`town-${d.key}`}>
             <b>{d.name}</b>
             <span>{TIER_NAMES[d.tier - 1]}</span>
             {live ? <i className="live">施工中</i> : null}
@@ -125,7 +138,7 @@ export function ScreenLabels() {
         );
       })}
       {(["claude-code", "codex"] as const).map((f) => (
-        <div key={f} ref={bind(`cap|${f}`, { x: world.capitals[f].x, y: 0, z: world.capitals[f].z + 9 }, ALWAYS)} className={`banner capital cap-${f}`} data-label={`capital-${f}`}>
+        <div key={f} ref={bind(`cap|${f}`, { x: world.capitals[f].x, y: 0, z: world.capitals[f].z + 9 }, ALWAYS, 1e18)} className={`banner capital cap-${f}`} data-label={`capital-${f}`}>
           <b>{f === "codex" ? "Codex 阵营" : "Claude Code 阵营"}</b>
           <span>任务大厅 · 你</span>
         </div>

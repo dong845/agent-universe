@@ -20,7 +20,7 @@ function totalUpTo(t: number, pred = (_e: (typeof events)[number]) => true): num
 async function open(page: Page, errors: string[], focus: "primary" | "world" = "primary") {
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(focus === "primary" ? "/?paused=1&focus=primary" : "/?paused=1");
+  await page.goto(focus === "primary" ? "/?demo=1&paused=1&focus=primary" : "/?demo=1&paused=1");
   await page.waitForFunction(() => !!(window as any).__agentTown);
   if (focus === "primary") await page.waitForSelector(`.label[data-label="b-library"][data-district="${PRIMARY}"]`, { state: "visible", timeout: 20_000 });
   else await page.waitForSelector(".banner", { state: "visible", timeout: 20_000 });
@@ -137,12 +137,22 @@ test("the canvas actually draws the town", async ({ page }) => {
 });
 
 test.describe("the world", () => {
-  test("shows every town and both capitals inside the window from afar", async ({ page }) => {
+  test("from afar: every town banner is shown or gives way to a bigger town it would cover; none overlap", async ({ page }) => {
     await open(page, [], "world");
-    const boxes = await page.$$eval(".banner", (els) =>
-      els.filter((e) => getComputedStyle(e).visibility === "visible").map((e) => ({ id: (e as HTMLElement).dataset.label, r: e.getBoundingClientRect().toJSON() })));
-    expect(boxes.filter((b) => b.id!.startsWith("town-"))).toHaveLength(13);
-    expect(boxes.filter((b) => b.id!.startsWith("capital-"))).toHaveLength(2);
+    const all = await page.$$eval(".banner", (els) =>
+      els.map((e) => ({ id: (e as HTMLElement).dataset.label!, visible: getComputedStyle(e).visibility === "visible", r: e.getBoundingClientRect().toJSON() })));
+    const boxes = all.filter((b) => b.visible);
+    const hit = (a: DOMRect, b: DOMRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    for (const a of boxes) for (const b of boxes) if (a.id < b.id) expect(hit(a.r, b.r), `${a.id} overlaps ${b.id}`).toBe(false);
+    // a hidden banner sits where a shown one is (its box is measured even while hidden)
+    const tokens = await page.evaluate(() => Object.fromEntries((window as any).__agentTown.world().districts.map((d: any) => [`town-${d.key}`, d.tokens])));
+    for (const h of all.filter((b) => !b.visible && b.id.startsWith("town-"))) {
+      const cover = boxes.filter((b) => hit(h.r, b.r));
+      expect(cover.length, `${h.id} is hidden but nothing covers it`).toBeGreaterThan(0);
+      for (const c of cover.filter((c) => c.id.startsWith("town-"))) expect(tokens[c.id], `${c.id} should outrank ${h.id}`).toBeGreaterThanOrEqual(tokens[h.id]);
+    }
+    expect(boxes.filter((b) => b.id.startsWith("town-")).length).toBeGreaterThanOrEqual(10);
+    expect(boxes.filter((b) => b.id.startsWith("capital-"))).toHaveLength(2);
     for (const b of boxes) {
       expect(b.r.x, b.id).toBeGreaterThan(0);
       expect(b.r.x + b.r.width, b.id).toBeLessThan(1440);
@@ -171,4 +181,25 @@ test.describe("the world", () => {
     await expect.poll(() => page.evaluate(() => (window as any).__agentTown.snapshot().detail), { timeout: 10_000 }).toContain(key);
     await expect(page.locator(`.label[data-label="b-forge"][data-district="${key}"]`)).toBeVisible({ timeout: 10_000 });
   });
+});
+
+test("without the local server, says how to start it instead of drawing an empty world", async ({ page }) => {
+  await page.route("**/api/**", (r) => r.abort());
+  await page.goto("/");
+  await expect(page.getByTestId("loading")).toContainText("本地服务未启动：运行 pnpm start", { timeout: 10_000 });
+  expect(await page.evaluate(() => !!(window as any).__agentTown)).toBe(false);
+});
+
+test("real data: shows reading progress, then the world from /api/world, badged as real", async ({ page }) => {
+  let polls = 0;
+  await page.route("**/api/status", (r) => r.fulfill({ json: ++polls < 3 ? { phase: "loading", done: polls * 10, total: 30 } : { phase: "ready", done: 30, total: 30 } }));
+  // a tiny real-shaped payload: the demo events, served as if they were real
+  await page.route("**/api/world", async (r) => r.fulfill({ json: { events, buildingRows: [], liveTaskIds: [], generatedAt: Date.now(), source: "real" } }));
+  await page.goto("/?paused=1");
+  await expect(page.getByTestId("loading")).toContainText("正在读取本机日志");
+  await page.waitForFunction(() => !!(window as any).__agentTown, null, { timeout: 15_000 });
+  await expect(page.getByTestId("source-badge")).toHaveText("真实数据 · 仅本机");
+  // real data opens at "now": the end of the record
+  const s = await page.evaluate(() => { const st = (window as any).__agentTown.state(); return { t: st.t, duration: st.duration }; });
+  expect(s.t).toBe(s.duration);
 });

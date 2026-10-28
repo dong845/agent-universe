@@ -11,7 +11,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, dev
 const errors = [];
 page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-await page.goto("http://127.0.0.1:5180/?paused=1");
+await page.goto("http://127.0.0.1:5180/?demo=1&paused=1");
 await page.waitForFunction(() => !!window.__agentTown);
 await page.waitForSelector(".label", { state: "visible" }); // the first frame has been drawn
 for (const [name, t] of moments) {

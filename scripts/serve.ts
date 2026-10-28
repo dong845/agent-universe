@@ -20,6 +20,7 @@ const dist = new URL("../packages/web/dist", import.meta.url).pathname;
 let lastPrint = 0;
 const t0 = Date.now();
 const srv = createServer({
+  home: homedir(),
   staticDir: existsSync(join(dist, "index.html")) ? dist : null,
   load: (onProgress) =>
     loadEventsAsync({

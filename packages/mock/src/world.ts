@@ -3,6 +3,7 @@
 // full detail — the Claude demo task and a Codex task on the same project, which the plan's
 // cross-faction rule turns into a bridge. All invented; the UI labels it as demo data.
 import type { AgentTownEvent } from "../../schema/src/event.ts";
+import type { WorldPayload } from "../../schema/src/payload.ts";
 import { Builder, DEMO, demoScenario, tk } from "./scenario.ts";
 
 export interface MockProject {
@@ -118,4 +119,11 @@ export function worldScenario(): AgentTownEvent[] {
     for (const e of all) if (e.taskId === tid) e.ts += shift;
   }
   return all.sort((a, b) => a.ts - b.ts);
+}
+
+/** the demo world as the browser loads it (?demo=1): every event in full, live = tasks with tool calls */
+export function demoPayload(): WorldPayload {
+  const events = worldScenario();
+  const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId).map((e) => e.taskId!))];
+  return { events, buildingRows: [], liveTaskIds: live, generatedAt: Math.max(...events.map((e) => e.ts)), source: "demo" };
 }

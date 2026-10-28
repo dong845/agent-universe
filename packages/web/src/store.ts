@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { buildLedger, type Ledger } from "../../schema/src/aggregate.ts";
 import type { AgentTownEvent, Faction } from "../../schema/src/event.ts";
+import type { WorldPayload } from "../../schema/src/payload.ts";
 import type { BuildingId } from "../../schema/src/world.ts";
 import { buildTimeline, type Timeline } from "./orchestrator/timeline.ts";
 import { buildWorld, districtKey, type District, type World } from "./orchestrator/worldgen.ts";
@@ -29,6 +30,9 @@ export interface Runtime {
 
 interface Store {
   events: AgentTownEvent[];
+  source: WorldPayload["source"];
+  /** tasks that stopped without a recorded end and are not live: never counted as in progress */
+  unended: Set<string>;
   world: World;
   runtimes: Runtime[];
   /** the first runtime with a timeline; the default focus */
@@ -56,7 +60,7 @@ interface Store {
   setNear(n: boolean): void;
   setLook(l: LookId): void;
   setFocus(k: string | null): void;
-  load(events: AgentTownEvent[]): void;
+  load(p: WorldPayload): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
   setPlaying(p: boolean): void;
@@ -71,8 +75,7 @@ let lastUi = 0;
  * Split events into districts. A district's timeline animates only its live tasks — tasks with tool
  * calls; summarised history (start, one call, end) is drawn as houses, not replayed.
  */
-function runtimesOf(events: AgentTownEvent[], world: World): { runtimes: Runtime[]; t0: number; duration: number } {
-  const liveTasks = new Set(events.filter((e) => e.kind === "tool_start" && e.taskId).map((e) => e.taskId!));
+function runtimesOf(events: AgentTownEvent[], world: World, liveTasks: Set<string>): { runtimes: Runtime[]; t0: number; duration: number } {
   const live = events.filter((e) => e.taskId && liveTasks.has(e.taskId));
   const t0 = live.length ? Math.min(...live.map((e) => e.ts)) : events.length ? events[events.length - 1].ts : 0;
   let duration = 0;
@@ -89,6 +92,8 @@ function runtimesOf(events: AgentTownEvent[], world: World): { runtimes: Runtime
 
 export const useStore = create<Store>((set, get) => ({
   events: [],
+  source: "demo",
+  unended: new Set(),
   world: buildWorld([]),
   runtimes: [],
   primary: null,
@@ -117,11 +122,25 @@ export const useStore = create<Store>((set, get) => ({
   setFocus(k) {
     set({ focus: k });
   },
-  load(events) {
-    const world = buildWorld(events);
-    const { runtimes, t0, duration } = runtimesOf(events, world);
+  load(p) {
+    const { events, source } = p;
+    const live = new Set(p.liveTaskIds);
+    const world = buildWorld(events, source === "real" ? live : undefined, p.home);
+    let { runtimes, t0, duration } = runtimesOf(events, world, live);
+    const ended = new Set(events.filter((e) => e.kind === "task_end" && e.taskId).map((e) => e.taskId!));
+    const unended = new Set(events.filter((e) => e.kind === "task_start" && e.taskId && !ended.has(e.taskId) && !live.has(e.taskId)).map((e) => e.taskId!));
+    let t = 0;
+    if (source === "real" && events.length) {
+      // real data: the clock spans the whole record and opens at its end, "now" (spec 12.2)
+      const first = events[0].ts;
+      const last = events[events.length - 1].ts;
+      runtimes = runtimes.map((r) => (r.timeline ? { ...r, offset: r.timeline.t0 - first } : r));
+      duration = Math.max(last - first, ...runtimes.map((r) => (r.timeline ? r.offset + r.timeline.duration : 0)));
+      t0 = first;
+      t = duration;
+    }
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
-    set({ events, world, runtimes, primary, t0, duration, ledger: buildLedger(events), t: 0, uiT: 0 });
+    set({ events, source, unended, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
   },
   setTime(t) {
     const c = Math.max(0, Math.min(get().duration, t));

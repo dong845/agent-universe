@@ -132,6 +132,21 @@ export function slotsFor(side: -1 | 1, n = 10, g: Grid = gridFor(10, 20)): Vec[]
   return out.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) || Math.abs(a.z) - Math.abs(b.z) || a.z - b.z);
 }
 
+/** a town's name: its folder, with the parent folder added when two towns of a faction share it */
+function townNames(towns: { faction: Faction; projectId: string }[], home?: string): Map<string, string> {
+  const parts = (p: string) => p.split(/[\\/]/).filter(Boolean);
+  const base = (p: string) => (home !== undefined && p === home ? "主目录" : parts(p).pop() ?? p);
+  const count = new Map<string, number>();
+  for (const t of towns) count.set(`${t.faction}|${base(t.projectId)}`, (count.get(`${t.faction}|${base(t.projectId)}`) ?? 0) + 1);
+  const out = new Map<string, string>();
+  for (const t of towns) {
+    const b = base(t.projectId);
+    const ps = parts(t.projectId);
+    out.set(districtKey(t), (count.get(`${t.faction}|${b}`) ?? 0) > 1 && ps.length > 1 ? ps.slice(-2).join("/") : b);
+  }
+  return out;
+}
+
 /** a district's radius from how many houses it shows */
 function radiusFor(houses: number): number {
   const rings = houses ? ringOf(houses - 1) + 1 : 1;
@@ -139,10 +154,10 @@ function radiusFor(houses: number): number {
 }
 
 /**
- * `live`: tasks animated in full right now; they are sites, never houses. Without it, a task with
+ * `home`: the user's home directory, named 主目录. `live`: tasks animated in full right now; they are sites, never houses. Without it, a task with
  * tool calls counts as live (the demo's convention).
  */
-export function buildWorld(events: AgentTownEvent[], live?: Set<string>): World {
+export function buildWorld(events: AgentTownEvent[], live?: Set<string>, home?: string): World {
   // ---- per-project summaries ------------------------------------------------------------------
   interface Acc { faction: Faction; projectId: string; tokens: number; tasks: Map<string, { start?: number; end?: number; last: number; ok: boolean | null; tokens: number; title?: string; live: boolean }>; detailed: boolean }
   const acc = new Map<string, Acc>();
@@ -192,6 +207,7 @@ export function buildWorld(events: AgentTownEvent[], live?: Set<string>): World 
   const perSide = Math.max(1, ...(["claude-code", "codex"] as const).map((f) => [...acc.values()].filter((a) => a.faction === f).length));
   const grid = gridFor(perSide, Math.max(20, ...[...plan.values()].map((p) => p.radius)));
   const slotsBy = { "claude-code": slotsFor(-1, perSide, grid), codex: slotsFor(1, perSide, grid) };
+  const names = townNames([...acc.values()], home);
   const taken: Record<Faction, Set<number>> = { "claude-code": new Set(), codex: new Set() };
   const sharedRow = new Map<string, number>();
   const districts: District[] = [];
@@ -223,7 +239,7 @@ export function buildWorld(events: AgentTownEvent[], live?: Set<string>): World 
       title: t.title,
     }));
     districts.push({
-      key: k, faction: a.faction, projectId: a.projectId, name: a.projectId.split("/").filter(Boolean).pop() ?? a.projectId,
+      key: k, faction: a.faction, projectId: a.projectId, name: names.get(k)!,
       origin, tier, tokens: a.tokens, radius, houses,
       olderTasks: done.length - shown.length, detailed: a.detailed,
     });

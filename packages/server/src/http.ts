@@ -20,6 +20,8 @@ export interface ServerOptions {
   /** the built web app; null serves the API only */
   staticDir: string | null;
   now?: () => number;
+  /** sent with the world so the home directory can be named 主目录 */
+  home?: string;
 }
 
 const TYPES: Record<string, string> = {
@@ -57,7 +59,7 @@ export function createServer(o: ServerOptions) {
           else m.set(e.taskId, [e]);
         }
         byTask = m;
-        payload = compactPayload(r.events, r.mtimes, now());
+        payload = compactPayload(r.events, r.mtimes, now(), { home: o.home });
         state.phase = "ready";
       })
       .catch((err: unknown) => {

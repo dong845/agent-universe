@@ -6,7 +6,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 200)); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-await page.goto("http://127.0.0.1:5180/?paused=1");
+await page.goto("http://127.0.0.1:5180/?demo=1&paused=1");
 await page.waitForFunction(() => !!window.__agentTown, null, { timeout: 30000 });
 await page.waitForTimeout(2500);
 const shot = async (name, fn, wait = 2600) => { await page.evaluate(fn); await page.waitForTimeout(wait); await page.screenshot({ path: `${out}/${name}.png` }); };

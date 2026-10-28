@@ -1,16 +1,27 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { worldScenario } from "../../mock/src/world.ts";
 import { App } from "./App.tsx";
+import { loadWorld, ServerDown, type Progress } from "./data.ts";
+import { Loading } from "./ui/Loading.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { useStore, type HoverTarget } from "./store.ts";
 import "./styles.css";
 
+const q = new URLSearchParams(location.search);
+const root = createRoot(document.getElementById("root")!);
+const showLoading = (p: Progress | null) => root.render(<Loading p={p} />);
+showLoading(null);
+let payload;
+try {
+  payload = await loadWorld(q.get("demo") === "1", showLoading);
+} catch (e) {
+  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务未启动：运行 pnpm start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
+  throw e;
+}
 const store = useStore.getState();
-store.load(worldScenario());
+store.load(payload);
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
-const q = new URLSearchParams(location.search);
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));
 const look = q.get("look");
 if (look === "toy" || look === "dusk" || look === "board") store.setLook(look);
@@ -30,6 +41,10 @@ declare global {
   }
 }
 window.__agentTown = {
+  state: () => {
+    const s = useStore.getState();
+    return { t: s.t, duration: s.duration, source: s.source, focus: s.focus };
+  },
   setTime: (t: number) => useStore.getState().setTime(t),
   pause: () => useStore.getState().setPlaying(false),
   focus: (k: string | null | "primary") => useStore.getState().setFocus(k === "primary" ? useStore.getState().primary?.district.key ?? null : k),
@@ -62,7 +77,7 @@ window.__agentTown = {
     (window as unknown as { __agentTownProject: (x: number, y: number, z: number) => { x: number; y: number } }).__agentTownProject(x, y, z),
 };
 
-createRoot(document.getElementById("root")!).render(
+root.render(
   <StrictMode>
     <App />
   </StrictMode>,

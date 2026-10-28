@@ -116,7 +116,7 @@ function container(d: string, home: string): string {
 /** rewrites every event's projectId in place; marks task_start with projectBy */
 export function assignProjects(events: AgentTownEvent[], o: AssignOptions): void {
   const place = makePlacer(o);
-  // exact votes (file tools, patches) decide; inferred votes (shell paths) only when there are none
+  // votes per task: exact (file tools, patches) and inferred (shell paths), counted apart
   const exact = new Map<string, Map<string, number>>();
   const inferred = new Map<string, Map<string, number>>();
   const vote = (box: Map<string, Map<string, number>>, taskId: string, dir: string) => {
@@ -131,10 +131,20 @@ export function assignProjects(events: AgentTownEvent[], o: AssignOptions): void
     for (const d of touchedDirs(e)) vote(exact, e.taskId, d);
     for (const d of shellDirs(e, o.home)) vote(inferred, e.taskId, d);
   }
-  const winner = (v: Map<string, number>) => [...v].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  // Precedence: a real town by exact paths, a real town by inferred paths, then the temp site.
+  // Temp files are by-products (screenshots, scratch scripts): they decide only when nothing else does.
+  const winner = (v: Map<string, number> | undefined, temp: boolean): string | undefined => {
+    const c = [...(v ?? [])].filter(([t]) => (t === TEMP_PROJECT) === temp);
+    return c.length ? c.reduce((a, b) => (b[1] > a[1] ? b : a))[0] : undefined;
+  };
   const byTask = new Map<string, { town: string; by: "files" | "inferred" }>();
-  for (const [taskId, v] of inferred) byTask.set(taskId, { town: winner(v), by: "inferred" });
-  for (const [taskId, v] of exact) byTask.set(taskId, { town: winner(v), by: "files" });
+  for (const taskId of new Set([...exact.keys(), ...inferred.keys()])) {
+    const e = exact.get(taskId);
+    const i = inferred.get(taskId);
+    const pick: [string | undefined, "files" | "inferred"][] = [[winner(e, false), "files"], [winner(i, false), "inferred"], [winner(e, true), "files"], [winner(i, true), "inferred"]];
+    const [town, by] = pick.find(([t]) => t !== undefined)!;
+    byTask.set(taskId, { town: town!, by });
+  }
   const cwdMemo = new Map<string, string>();
   for (const e of events) {
     const hit = e.taskId ? byTask.get(e.taskId) : undefined;

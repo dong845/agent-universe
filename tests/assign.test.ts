@@ -126,4 +126,13 @@ describe("assignProjects", () => {
     assignProjects(evs, opts);
     expect(startOf(evs).projectId).toBe(join(h, "code/repoB"));
   });
+
+  it("treats temp files as by-products: any other town, even inferred, outvotes them", () => {
+    const { h, opts } = world();
+    const tmp = { tool: "Write", target: join(h, "scratch/shot.png") };
+    const evs = task(h, [tmp, tmp, tmp, { tool: "Bash", target: `cd ${join(h, "code/repoA")} && git status` }]);
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(join(h, "code/repoA"));
+    expect(startOf(evs).projectBy).toBe("inferred");
+  });
 });

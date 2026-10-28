@@ -7,7 +7,7 @@ for (const look of ["toy", "dusk", "board"]) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.on("console", (m) => { if (m.type() === "error") errors.push(`${look}: ${m.text().slice(0, 160)}`); });
   page.on("pageerror", (e) => errors.push(`${look} pageerror: ${e.message}`));
-  await page.goto(`http://127.0.0.1:5180/?paused=1&look=${look}`);
+  await page.goto(`http://127.0.0.1:5180/?demo=1&paused=1&look=${look}`);
   await page.waitForSelector(".label", { state: "visible", timeout: 30000 });
   for (const [name, t] of [["parallel", 9300], ["rework", 38600]]) {
     await page.evaluate((t) => window.__agentTown.setTime(t), t);

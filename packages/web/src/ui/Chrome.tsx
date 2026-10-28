@@ -1,15 +1,13 @@
 // HUD (plan "顶部 HUD 常驻") and the replay bar (plan "回放").
 import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
 import { absTime, SPEEDS, useStore } from "../store.ts";
+import { clockLabel } from "./format.ts";
 
-function clock(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
 
 export function Hud() {
   const t = useStore((s) => s.uiT);
   const events = useStore((s) => s.events);
+  const unended = useStore((s) => s.unended);
   const ledger = useStore((s) => s.ledger);
   const abs = absTime(t);
   const all = ledger.tokensAt(keys.global(), abs);
@@ -18,7 +16,7 @@ export function Hud() {
   const open = new Set<string>();
   for (const e of events) {
     if (e.ts > abs) break;
-    if (e.kind === "task_start" && e.taskId) open.add(e.taskId);
+    if (e.kind === "task_start" && e.taskId && !unended.has(e.taskId)) open.add(e.taskId);
     if (e.kind === "task_end" && e.taskId) open.delete(e.taskId);
   }
   return (
@@ -36,6 +34,9 @@ export function TimelineBar() {
   const t = useStore((s) => s.uiT);
   const runtimes = useStore((s) => s.runtimes);
   const duration = useStore((s) => s.duration);
+  const t0 = useStore((s) => s.t0);
+  const source = useStore((s) => s.source);
+  const clock = (ms: number) => clockLabel(ms, t0, source);
   const markers = runtimes.flatMap((r) => (r.timeline ? r.timeline.markers.map((m) => ({ ...m, t: m.t + r.offset })) : []));
   const playing = useStore((s) => s.playing);
   const speed = useStore((s) => s.speed);

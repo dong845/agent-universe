@@ -49,13 +49,15 @@ const DPR: [number, number] = Q.has("dpr") ? [1, Number(Q.get("dpr"))] : [1, 2];
 
 export function App() {
   const look = LOOKS[useStore((s) => s.look)];
+  const source = useStore((s) => s.source);
   return (
     <div
       className={`app ${look.labelClass}`}
       style={{ background: look.sky }}
       onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}
     >
-      <Canvas shadows={Q.get("shadow") !== "0"} orthographic gl={{ alpha: true, antialias: false }} camera={{ position: [140, 150, 148], zoom: 4, near: 1, far: 1200 }} dpr={DPR}>
+      {/* 5× the old offset from the controls' target (0,0,8): the same orthographic view, and a big world never crosses the near plane */}
+      <Canvas shadows={Q.get("shadow") !== "0"} orthographic gl={{ alpha: true, antialias: false }} camera={{ position: [700, 750, 708], zoom: 4, near: 1, far: 6000 }} dpr={DPR}>
         <Lights />
         <WorldScenery />
         <Towns />
@@ -64,11 +66,11 @@ export function App() {
         <CameraRig />
         <DetailTracker />
         {Q.get("post") === "0" ? null : <Post />}
-        <OrbitControls makeDefault target={[0, 0, 8]} enableDamping maxPolarAngle={Math.PI / 2.3} minZoom={2.5} maxZoom={90} />
+        <OrbitControls makeDefault target={[0, 0, 8]} enableDamping maxPolarAngle={Math.PI / 2.3} minZoom={0.8} maxZoom={90} />
       </Canvas>
       <ScreenLabels />
       <Hud />
-      <div className="demo-badge">演示数据：模拟的世界与任务，不是你的真实会话</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       <Nav />
       <Legend />
       <HoverCard />
