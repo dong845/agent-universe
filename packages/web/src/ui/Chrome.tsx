@@ -1,7 +1,7 @@
 // HUD (plan "顶部 HUD 常驻") and the replay bar (plan "回放").
 import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
 import { absTime, SPEEDS, useStore } from "../store.ts";
-import { clockLabel } from "./format.ts";
+import { clockLabel, replayClock } from "./format.ts";
 
 
 export function Hud() {
@@ -36,7 +36,9 @@ export function TimelineBar() {
   const duration = useStore((s) => s.duration);
   const t0 = useStore((s) => s.t0);
   const source = useStore((s) => s.source);
-  const clock = (ms: number) => clockLabel(ms, t0, source);
+  const replay = useStore((s) => s.replay);
+  const rrt = replay ? runtimes.find((r) => r.district.key === replay.district) : undefined;
+  const clock = (ms: number) => (rrt?.timeline ? replayClock(ms, { offset: rrt.offset, t0: rrt.timeline.t0 }) : clockLabel(ms, t0, source));
   const markers = runtimes.flatMap((r) => (r.timeline ? r.timeline.markers.map((m) => ({ ...m, t: m.t + r.offset })) : []));
   const playing = useStore((s) => s.playing);
   const speed = useStore((s) => s.speed);

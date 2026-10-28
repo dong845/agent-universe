@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentTownEvent } from "../packages/schema/src/event.ts";
 import { buildWorld } from "../packages/web/src/orchestrator/worldgen.ts";
-import { clockLabel, declutter } from "../packages/web/src/ui/format.ts";
+import { clockLabel, declutter, replayClock } from "../packages/web/src/ui/format.ts";
 
 const ev = (faction: AgentTownEvent["faction"], projectId: string, i: number): AgentTownEvent[] => [
   { id: `s${i}`, ts: i, faction, projectId, sessionId: "s", taskId: `t${i}`, agentId: "main", kind: "task_start", raw: { file: "f", line: 1 } },
@@ -45,5 +45,13 @@ describe("declutter", () => {
   it("breaks priority ties by id, so the picture does not flicker between frames", () => {
     const r = { x: 0, y: 0, w: 10, h: 10 };
     expect([...declutter([{ id: "b", rect: r, priority: 1 }, { id: "a", rect: r, priority: 1 }])]).toEqual(["a"]);
+  });
+});
+
+describe("replayClock", () => {
+  it("shows the replayed task's own time, not today's", () => {
+    const taskT0 = new Date(2026, 9, 4, 17, 6).getTime();
+    // replay started at world clock 1e9; 90 s later the task is at 17:07:30 on 10-04
+    expect(replayClock(1e9 + 90_000, { offset: 1e9, t0: taskT0 })).toBe("10-04 17:07");
   });
 });

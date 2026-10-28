@@ -31,3 +31,8 @@ export function declutter(labels: LabelBox[]): Set<string> {
   }
   return out;
 }
+
+/** during a replay the clock tells the replayed task's own time: its first event plus how far in we are */
+export function replayClock(t: number, rt: { offset: number; t0: number }): string {
+  return clockLabel(t - rt.offset, rt.t0, "real");
+}

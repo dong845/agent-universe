@@ -235,3 +235,43 @@ site), flies there; 全景 (overview) returns.
   4-times-a-second UI refresh; paused, the dev server holds 60.
 - **Not measured: the plan's M1 MacBook Air.** The hidden switches `?dpr=` `?post=0` `?shadow=0`
   `?fx=ao,bloom,tilt` are the levers for the plan's quality setting.
+
+## D14 World v2, step 1: real data, click to zoom, task diary (2026-10-28)
+
+Spec: `docs/superpowers/specs/2026-10-28-world-v2-design.md`. Plan: `docs/superpowers/plans/2026-10-28-world-v2-step1-real-data-diary.md`.
+
+**Running it.** `node --run start` builds the page and serves it with the real logs on `127.0.0.1:5182`; `?demo=1` is the simulated world. The root scripts do not call `pnpm` (not on PATH on this Mac).
+
+**Loading.** `packages/server/src/load.ts` caches parsed sessions in `~/.agent-town/cache/` (keyed by file mtime + size, `CACHE_VERSION` 3). Measured here: cold 34 s, cached 2.3–3.3 s, 293 k events. D5 after the refactor: Claude 10/10, Codex 476/476 identical.
+
+**Which town a task belongs to** (owner decision): the repository or folder holding most of the files it touched.
+- Exact paths (file tools, patch headers) outvote inferred ones (paths in shell commands that exist and lie inside home); home never votes.
+- Temp directories are by-products: they decide only when nothing else does; all temp work is one 临时工地 per faction.
+- A task that touched nothing falls back to its working directory's git root. The rule is recorded per task (`projectBy`) and shown in the diary.
+- Why: every Claude session here runs from `~`; by working directory all 1,991 Claude tasks were one town. Now 42 Claude and 48 Codex towns (plus temp).
+
+**Payload.** Finished tasks travel as start / one summed call per agent / end; live tasks (no end, file written ≤ 10 min ago, at most 6) in full; building statistics as pre-summed rows. Every token total equals the full events' (tests/payload.test.ts). Real: 293 k events → 10 k + 5.9 k rows, 5.7 MB.
+
+**World size.** The grid grows with the town count; spacing = max(44, 2 × largest radius + 4); coast, capitals, river, mountains and forest follow it. Real: 104 towns, ±354 × ±238.
+
+**Readability on real data.**
+- Town banners in the overview give way to a bigger (or live) town they would cover.
+- Same-named folders show `parent/name`; home is 主目录.
+- The clock shows local date and time; during a replay, the replayed task's own time.
+
+**Tasks with no recorded end.** If not live, they are houses with no flag and a normal roof, "未见结束".
+
+**Turns not opened by a prompt.** Subagent hand-backs, compaction summaries and meta lines continue the last human request: `continues` + `triggerBy`, shown as "接续：…". 1,232 of 1,255 now named.
+
+**Selection.** Click (not drag, > 5 px) a house, site or figure. The camera pushes in (zoom 40 / 34) or follows the agent until you drag. Esc goes up a level; the URL hash keeps the selection.
+
+**Diary.**
+- Steps per agent, with the tokens of the call that read each result. Parallel calls credit that call once; the others show "—".
+- Rework files and replay. Replay rebuilds the task on its town's central site, not at the house; that moves to the house once streets exist (step 2).
+
+**Frame rate** (M4, production build, Metal, 1440×900, all effects): 60 fps, p95 17 ms in the real overview, the live town, the largest real town, and both demo views.
+
+**Known, for step 2:**
+- Small towns from incidental shell paths (`.cache`, `hi`, `data`).
+- 886 Claude tasks still fall back to `~`: relative paths after `cd`, and notification turns.
+- UI chrome can cover a banner at the top edge.
