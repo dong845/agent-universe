@@ -34,6 +34,8 @@ export interface RequestRow {
   /** false if any turn failed, true if every turn ended well, null while any turn has no end */
   ok: boolean | null;
   title?: string;
+  /** the user's own words when they were a bare "可以" / "继续" and `title` names the request continued */
+  asked?: string;
   class: RequestClass;
   productKind: ProductKind | null;
   tokens: Tokens;

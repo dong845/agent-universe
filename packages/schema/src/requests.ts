@@ -29,6 +29,10 @@ export function requestIdsOf(events: AgentTownEvent[]): Map<string, string> {
   return out;
 }
 
+/** replies that only say "go on": they name no work of their own */
+const BARE = new Set(["可以", "可以的", "继续", "继续吧", "好", "好的", "行", "嗯", "嗯嗯", "是", "是的", "对", "对的", "同意", "开始", "开始吧", "执行", "没问题", "确认", "好的继续", "ok", "okay", "yes", "y", "go", "goahead", "continue", "proceed", "sure", "yep", "lgtm"]);
+export const isBareReply = (title: string): boolean => BARE.has(title.toLowerCase().replace(/[\s\p{P}~]+/gu, ""));
+
 const KIND_ORDER: ProductKind[] = ["code", "docs", "slides", "image", "video", "data"];
 const IMAGE_TOOL = /image_gen|imagegen/i;
 
@@ -140,5 +144,17 @@ export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, s
     } else r.class = r.calls >= cfg.investigationCalls ? "investigation" : r.calls >= 1 ? "chat" : "empty";
     out.push(r);
   }
-  return out.sort((x, y) => x.startTs - y.startTs);
+  out.sort((x, y) => x.startTs - y.startTs);
+  // a bare "可以" / "继续" continues the session's last request that said what it wanted (owner 2026-10-29)
+  const lastSaid = new Map<string, string>();
+  for (const r of out) {
+    const s = `${r.faction}|${r.sessionId}`;
+    if (!r.title) continue;
+    if (!isBareReply(r.title)) lastSaid.set(s, r.title.replace(/^接续：/, ""));
+    else if (lastSaid.has(s)) {
+      r.asked = r.title;
+      r.title = `接续：${lastSaid.get(s)}`;
+    }
+  }
+  return out;
 }

@@ -114,3 +114,26 @@ describe("buildRequests", () => {
     expect(one(evs)).toMatchObject({ fails: 2, spawns: 1 });
   });
 });
+
+describe("request titles that say nothing (owner 2026-10-29)", () => {
+  let k = 0;
+  const start = (taskId: string, ts: number, title: string, sessionId = "s1", trigger: "human" | "system" = "human"): AgentTownEvent => ({ id: `t${k++}`, ts, faction: "codex", projectId: "/p", sessionId, taskId, agentId: "main", kind: "task_start", trigger, title, raw: { file: "f", line: 1 } });
+  const rows = (evs: AgentTownEvent[]) => buildRequests(evs, requestIdsOf(evs), DEFAULT_WORLD_CONFIG);
+
+  it("a bare reply continues the session's last request that said something; the words stay as `asked`", () => {
+    const r = rows([start("a", 1, "把登录页改成深色"), start("b", 2, "可以"), start("c", 3, "继续。"), start("d", 4, "ok")]);
+    expect(r.map((x) => x.title)).toEqual(["把登录页改成深色", "接续：把登录页改成深色", "接续：把登录页改成深色", "接续：把登录页改成深色"]);
+    expect(r[1].asked).toBe("可以");
+    expect(r[0].asked).toBeUndefined();
+  });
+
+  it("keeps a short reply when nothing before it said anything, and never reaches into another session", () => {
+    const r = rows([start("a", 1, "继续"), start("b", 2, "修好测试", "s2"), start("c", 3, "好的", "s3")]);
+    expect(r.map((x) => x.title)).toEqual(["继续", "修好测试", "好的"]);
+  });
+
+  it("a short but meaningful request keeps its own title", () => {
+    const r = rows([start("a", 1, "写文档"), start("b", 2, "修 bug"), start("c", 3, "Fix CI")]);
+    expect(r.map((x) => x.title)).toEqual(["写文档", "修 bug", "Fix CI"]);
+  });
+});
