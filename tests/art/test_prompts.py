@@ -43,6 +43,8 @@ def test_check_private():
     check_private("a cozy hut", ["hut"])  # too short to mean anything
     with pytest.raises(PrivacyError):
         check_private("Agent-Town square", ["agent-town"])
+    with pytest.raises(PrivacyError):  # even when the catalogue itself was edited to carry it
+        check_private("the slides_maker hall", ["slides_maker"], known_words={"slides_maker"})
 
 
 def test_unknown_theme_names_itself():

@@ -26,11 +26,16 @@ def _walk(x):
 
 
 def check_private(prompt, forbidden, known_words=frozenset()):
-    """raise PrivacyError when a local name (≥ 4 chars, not a word the catalogue itself uses) is in the prompt"""
+    """raise PrivacyError when a local name (≥ 4 chars) is in the prompt; only short plain words the
+    catalogue itself uses are exempt"""
     low = prompt.lower()
     for name in forbidden:
         n = name.strip().lower()
-        if len(n) < 4 or n in known_words:
+        if len(n) < 4:
+            continue
+        # a short plain word the catalogue itself uses ("music", "town") is generic; a compound or
+        # longer name ("slides_maker", "agent-town") is someone's project and is never allowed
+        if n in known_words and n.isalpha() and len(n) <= 6:
             continue
         if n in low:
             raise PrivacyError(f"prompt would carry a local name ({len(n)} chars)")
