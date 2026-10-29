@@ -3,6 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { normSkill } from "../../schema/src/skills.ts";
+import type { ThemesConfig } from "../../schema/src/themes.ts";
 import { DEFAULT_WORLD_CONFIG, type WorldConfig } from "../../schema/src/worldConfig.ts";
 
 /** where a skill with this key may live, in both spellings */
@@ -93,4 +94,11 @@ export function readOverrides(path: string): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+/** config/themes.json; a missing or broken file is an error (the world cannot be themed without it) */
+export function loadThemes(path = new URL("../../../config/themes.json", import.meta.url)): ThemesConfig {
+  const t = JSON.parse(readFileSync(path, "utf8")) as ThemesConfig;
+  if (!Array.isArray(t.themes) || !t.default?.id || !t.fixed?.capital?.id || !t.fixed?.outpost?.id) throw new Error("config/themes.json: needs themes[], default and fixed.capital/outpost");
+  return t;
 }

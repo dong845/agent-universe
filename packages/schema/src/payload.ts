@@ -1,5 +1,6 @@
 // What the browser loads: from the local server (real logs) or from the mock (?demo=1).
 import type { BuildingRow } from "./aggregate.ts";
+import type { TownRow } from "./towns.ts";
 import type { AgentTownEvent, Faction, Tokens } from "./event.ts";
 
 export interface WorldPayload {
@@ -11,6 +12,10 @@ export interface WorldPayload {
   source: "real" | "demo";
   /** the user's home directory (real data), named 主目录 in the world */
   home?: string;
+  /** spec v3 4.7: one row per request, oldest first */
+  requests: RequestRow[];
+  /** spec v3 4.7: one row per town that holds a request */
+  towns: TownRow[];
 }
 
 /** spec v3 4.2: what became of a request */

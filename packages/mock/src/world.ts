@@ -4,6 +4,11 @@
 // cross-faction rule turns into a bridge. All invented; the UI labels it as demo data.
 import type { AgentTownEvent } from "../../schema/src/event.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
+import { buildRequests, requestIdsOf } from "../../schema/src/requests.ts";
+import type { ThemesConfig } from "../../schema/src/themes.ts";
+import { buildTowns } from "../../schema/src/towns.ts";
+import { DEFAULT_WORLD_CONFIG } from "../../schema/src/worldConfig.ts";
+import themesConfig from "../../../config/themes.json" with { type: "json" };
 import { Builder, DEMO, demoScenario, tk } from "./scenario.ts";
 
 export interface MockProject {
@@ -125,5 +130,7 @@ export function worldScenario(): AgentTownEvent[] {
 export function demoPayload(): WorldPayload {
   const events = worldScenario();
   const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId).map((e) => e.taskId!))];
-  return { events, buildingRows: [], liveTaskIds: live, generatedAt: Math.max(...events.map((e) => e.ts)), source: "demo" };
+  const requests = buildRequests(events, requestIdsOf(events), DEFAULT_WORLD_CONFIG);
+  const towns = buildTowns(requests, events, { themes: themesConfig as ThemesConfig, overrides: {}, guildSkillsOf: () => [], describe: () => undefined });
+  return { events, buildingRows: [], liveTaskIds: live, generatedAt: Math.max(...events.map((e) => e.ts)), source: "demo", requests, towns };
 }
