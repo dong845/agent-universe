@@ -67,3 +67,41 @@ describe("turns not opened by a human prompt", () => {
     ]);
   });
 });
+
+describe("tool_start files (v3 step 1)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "at-files-"));
+  const long = "/synth/shop/" + "deep/".repeat(40) + "page.tsx";
+  const claude = (tools: SynthSession["turns"][0]["tools"]) => {
+    const spec: SynthSession = { sessionId: `s-files-${Math.random()}`, cwd: "/synth/shop", t0: Date.UTC(2026, 9, 2), turns: [{ prompt: "go", tools, tokens: tk(1, 1, 0) }] };
+    return parseClaudeSession(writeClaudeSession(join(dir, "claude"), spec), roles, newStats()).events.filter((e) => e.kind === "tool_start");
+  };
+
+  it("claude tool_start carries the full file path even when the target is clipped", () => {
+    const [w, r] = claude([{ name: "Write", input: { file_path: long, content: "x" } }, { name: "Read", input: { file_path: "/synth/shop/a.md" } }]);
+    expect(w.target!.endsWith("…")).toBe(true);
+    expect(w.files).toEqual([{ path: long, access: "edit" }]);
+    expect(r.files).toEqual([{ path: "/synth/shop/a.md", access: "read" }]);
+  });
+
+  it("claude Skill tool target is the skill name", () => {
+    const [s] = claude([{ name: "Skill", input: { skill: "superpowers:brainstorming", args: "x" } }]);
+    expect(s.target).toBe("superpowers:brainstorming");
+  });
+
+  it("codex apply_patch lists every patched file", () => {
+    const patch = `*** Begin Patch\n*** Add File: a/one.ts\n+x\n*** Update File: ${long}\n@@\n-a\n+b\n*** Delete File: b/two.md\n*** End Patch`;
+    const spec: SynthSession = { sessionId: "s-codex-files", cwd: "/w", t0: Date.UTC(2026, 9, 2), turns: [{ prompt: "go", tools: [{ name: "apply_patch", input: { input: patch } }], tokens: tk(1, 1, 0) }] };
+    const head = rolloutHead(writeCodexRollout(join(dir, "codex"), spec), newStats())!;
+    const [s] = parseCodexThread([head], roles, newStats()).events.filter((e) => e.kind === "tool_start");
+    expect(s.files).toEqual([
+      { path: "/w/a/one.ts", access: "edit" },
+      { path: long, access: "edit" },
+      { path: "/w/b/two.md", access: "edit" },
+    ]);
+  });
+
+  it("tools without files have no files field", () => {
+    const [b] = claude([{ name: "Bash", input: { command: "ls" } }]);
+    expect(b.files).toBeUndefined();
+  });
+});
