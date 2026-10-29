@@ -1,7 +1,8 @@
 // The file-system side of towns (spec v3 4.4, 4.6): skill descriptions from local SKILL.md files.
 // Descriptions are shown on this machine only; they never go into git, tests or prompts.
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { basename, isAbsolute, join } from "node:path";
+import { normSkill } from "../../schema/src/skills.ts";
 import { DEFAULT_WORLD_CONFIG, type WorldConfig } from "../../schema/src/worldConfig.ts";
 
 /** where a skill with this key may live, in both spellings */
@@ -54,4 +55,42 @@ export function loadWorldConfig(path = new URL("../../../config/world.json", imp
   }
   if (raw.productExt !== undefined) Object.assign(out.productExt, raw.productExt);
   return out;
+}
+
+const SKILL_FOLDER = /[\\/]skills[\\/]([^\\/]+)[\\/]?$/;
+const frontName = (file: string): string | undefined => {
+  try {
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, "utf8"));
+    return fm ? /^name:\s*["']?([^"'\n]+?)["']?\s*$/m.exec(fm[1])?.[1] : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** the skills whose home a folder is: a folder under skills/, its own SKILL.md, or skills/*\/SKILL.md inside it */
+export function guildSkillsOf(dir: string): string[] {
+  if (!isAbsolute(dir)) return [];
+  const own = SKILL_FOLDER.exec(dir);
+  if (own && !own[1].startsWith(".")) return [normSkill(own[1]).key];
+  const out: string[] = [];
+  if (existsSync(join(dir, "SKILL.md"))) out.push(normSkill(frontName(join(dir, "SKILL.md")) ?? basename(dir)).key);
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(join(dir, "skills"));
+  } catch {
+    // no skills folder
+  }
+  for (const n of entries.sort()) if (!n.startsWith(".") && existsSync(join(dir, "skills", n, "SKILL.md"))) out.push(normSkill(n).key);
+  return [...new Set(out)];
+}
+
+/** the owner's theme choices, `faction|projectId` → theme id; a missing or garbled file gives none */
+export function readOverrides(path: string): Record<string, string> {
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === "string")) as Record<string, string>;
+  } catch {
+    return {};
+  }
 }
