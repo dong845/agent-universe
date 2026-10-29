@@ -28,6 +28,11 @@ export type Role =
   | "operator"
   | "sentry";
 
+export interface ToolFile {
+  path: string;
+  access: "read" | "edit";
+}
+
 /** Additive token counts, except `reasoning`, which is a part of `output` (D3). */
 export interface Tokens {
   input: number;
@@ -57,6 +62,8 @@ export interface AgentTownEvent {
   toolUseId?: string;
   role?: Role;
   target?: string;
+  /** tool_start only: every file the call names exactly, untruncated (Claude file tools, Codex patch headers) */
+  files?: ToolFile[];
   tokens?: Tokens;
   contextUsed?: number;
   contextMax?: number;

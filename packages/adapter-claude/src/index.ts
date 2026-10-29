@@ -1,7 +1,7 @@
 // Claude Code transcript → unified events. Formats: docs/log-formats.md; rules: docs/decisions.md.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
+import type { AgentTownEvent, Tokens, ToolFile } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
 import { titleOf } from "../../schema/src/title.ts";
 import { clip, countUnknown, hashId, readJsonl, toMs, type ReadStats } from "../../schema/src/util.ts";
@@ -73,8 +73,21 @@ function usageTokens(u: Record<string, any>): Tokens {
   };
 }
 
+const READ_TOOLS = new Set(["Read"]);
+const EDIT_TOOLS = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
+
+/** the files a call names exactly, untruncated */
+function toolFiles(name: string, input: Record<string, any> | undefined): ToolFile[] | undefined {
+  const p = input?.file_path ?? input?.notebook_path;
+  if (typeof p !== "string" || !p) return undefined;
+  if (READ_TOOLS.has(name)) return [{ path: p, access: "read" }];
+  if (EDIT_TOOLS.has(name)) return [{ path: p, access: "edit" }];
+  return undefined;
+}
+
 function toolTarget(name: string, input: Record<string, any> | undefined): { target?: string; command?: string } {
   if (!input) return {};
+  if (name === "Skill" && typeof input.skill === "string") return { target: clip(input.skill, 120) };
   if (typeof input.command === "string") return { target: clip(input.command, 80), command: input.command };
   const t = input.file_path ?? input.notebook_path ?? input.path ?? input.url ?? input.pattern ?? input.query;
   return { target: clip(t, 120) };
@@ -194,7 +207,7 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
           toolStarts.set(b.id, ts!);
           push({
             ...base, projectId, taskId, id: hashId(FACTION, b.id, "start"), ts: ts!, kind: "tool_start",
-            tool: b.name, toolUseId: b.id, target,
+            tool: b.name, toolUseId: b.id, target, ...(toolFiles(b.name, b.input) ? { files: toolFiles(b.name, b.input) } : {}),
             role: roles.isDispatch(b.name) ? "commander" : roles.forTool(b.name, command), raw,
           });
         }

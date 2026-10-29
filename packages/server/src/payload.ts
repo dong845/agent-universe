@@ -5,6 +5,10 @@
 import { buildingDeltas, type BuildingRow } from "../../schema/src/aggregate.ts";
 import { addTokens, zeroTokens, type AgentTownEvent } from "../../schema/src/event.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
+import { buildRequests, requestIdsOf } from "../../schema/src/requests.ts";
+import { buildTowns, type TownOptions } from "../../schema/src/towns.ts";
+import type { WorldConfig } from "../../schema/src/worldConfig.ts";
+import { guildSkillsOf, loadThemes, loadWorldConfig, skillDescription, skillDirs } from "./townsFs.ts";
 
 export type { WorldPayload };
 
@@ -12,7 +16,28 @@ export const LIVE_WINDOW_MS = 600_000;
 export const MAX_LIVE = 6;
 const HOUR = 3_600_000;
 
-export function compactPayload(full: AgentTownEvent[], mtimes: Map<string, number>, now: number, opts: { liveWindowMs?: number; maxLive?: number; home?: string } = {}): WorldPayload {
+export interface PayloadOptions {
+  liveWindowMs?: number;
+  maxLive?: number;
+  home?: string;
+  /** taskId → requestId; default: worked out from the events */
+  requestOf?: Map<string, string>;
+  config?: WorldConfig;
+  /** themes, local overrides, guild facts and skill descriptions; defaults read this machine's files */
+  towns?: Partial<TownOptions>;
+}
+
+/** what towns are built with, filling in this machine's files for anything not given */
+export function townOptions(o: Partial<TownOptions> = {}, home?: string): TownOptions {
+  return {
+    themes: o.themes ?? loadThemes(),
+    overrides: o.overrides ?? {},
+    guildSkillsOf: o.guildSkillsOf ?? guildSkillsOf,
+    describe: o.describe ?? ((k) => (home ? skillDescription(skillDirs(home, k)) : undefined)),
+  };
+}
+
+export function compactPayload(full: AgentTownEvent[], mtimes: Map<string, number>, now: number, opts: PayloadOptions = {}): WorldPayload {
   const window = opts.liveWindowMs ?? LIVE_WINDOW_MS;
   const maxLive = opts.maxLive ?? MAX_LIVE;
 
@@ -70,5 +95,8 @@ export function compactPayload(full: AgentTownEvent[], mtimes: Map<string, numbe
       s.ts = Math.max(s.ts, r.ts);
     }
   }
-  return { events, buildingRows: [...rows.values()], liveTaskIds, generatedAt: now, source: "real", home: opts.home };
+  // ---- v3: requests and towns ------------------------------------------------------------------
+  const requests = buildRequests(full, opts.requestOf ?? requestIdsOf(full), opts.config ?? loadWorldConfig());
+  const towns = buildTowns(requests, full, townOptions(opts.towns, opts.home));
+  return { events, buildingRows: [...rows.values()], liveTaskIds, generatedAt: now, source: "real", home: opts.home, requests, towns };
 }

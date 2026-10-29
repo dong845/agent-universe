@@ -67,3 +67,60 @@ describe("turns not opened by a human prompt", () => {
     ]);
   });
 });
+
+describe("tool_start files (v3 step 1)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "at-files-"));
+  const long = "/synth/shop/" + "deep/".repeat(40) + "page.tsx";
+  const claude = (tools: SynthSession["turns"][0]["tools"]) => {
+    const spec: SynthSession = { sessionId: `s-files-${Math.random()}`, cwd: "/synth/shop", t0: Date.UTC(2026, 9, 2), turns: [{ prompt: "go", tools, tokens: tk(1, 1, 0) }] };
+    return parseClaudeSession(writeClaudeSession(join(dir, "claude"), spec), roles, newStats()).events.filter((e) => e.kind === "tool_start");
+  };
+
+  it("claude tool_start carries the full file path even when the target is clipped", () => {
+    const [w, r] = claude([{ name: "Write", input: { file_path: long, content: "x" } }, { name: "Read", input: { file_path: "/synth/shop/a.md" } }]);
+    expect(w.target!.endsWith("…")).toBe(true);
+    expect(w.files).toEqual([{ path: long, access: "edit" }]);
+    expect(r.files).toEqual([{ path: "/synth/shop/a.md", access: "read" }]);
+  });
+
+  it("claude Skill tool target is the skill name", () => {
+    const [s] = claude([{ name: "Skill", input: { skill: "superpowers:brainstorming", args: "x" } }]);
+    expect(s.target).toBe("superpowers:brainstorming");
+  });
+
+  it("codex apply_patch lists every patched file", () => {
+    const patch = `*** Begin Patch\n*** Add File: a/one.ts\n+x\n*** Update File: ${long}\n@@\n-a\n+b\n*** Delete File: b/two.md\n*** End Patch`;
+    const spec: SynthSession = { sessionId: "s-codex-files", cwd: "/w", t0: Date.UTC(2026, 9, 2), turns: [{ prompt: "go", tools: [{ name: "apply_patch", input: { input: patch } }], tokens: tk(1, 1, 0) }] };
+    const head = rolloutHead(writeCodexRollout(join(dir, "codex"), spec), newStats())!;
+    const [s] = parseCodexThread([head], roles, newStats()).events.filter((e) => e.kind === "tool_start");
+    expect(s.files).toEqual([
+      { path: "/w/a/one.ts", access: "edit" },
+      { path: long, access: "edit" },
+      { path: "/w/b/two.md", access: "edit" },
+    ]);
+  });
+
+  it("tools without files have no files field", () => {
+    const [b] = claude([{ name: "Bash", input: { command: "ls" } }]);
+    expect(b.files).toBeUndefined();
+  });
+});
+
+import { patchFiles } from "../packages/adapter-codex/src/index.ts";
+
+describe("patchFiles on escaped patches", () => {
+  it("stops a path at a written-out \\n, as some shells pass the patch", () => {
+    const text = String.raw`apply_patch "*** Begin Patch\n*** Update File: /w/src/a.ts\n@@\n-x\n+y\n*** Add File: /w/skills/k/b.py\n+print(1)\n*** End Patch"`;
+    expect(patchFiles(text, "/w")).toEqual([{ path: "/w/src/a.ts", access: "edit" }, { path: "/w/skills/k/b.py", access: "edit" }]);
+  });
+  it("drops a header whose path is not a path", () => {
+    expect(patchFiles("*** Update File: \n*** Add File: " + "x".repeat(2000) + "\n", "/w")).toBeUndefined();
+  });
+});
+
+describe("patchFiles never invents files from patch content (review I1)", () => {
+  it("a header written inside an added line is content, not a file", () => {
+    const text = '*** Begin Patch\n*** Update File: tests/a.test.ts\n@@\n+  const t = "*** Update File: /tmp/x.ts\\n@@";\n+  console.log("a\\n*** Add File: b");\n*** End Patch';
+    expect(patchFiles(text, "/repo")).toEqual([{ path: "/repo/tests/a.test.ts", access: "edit" }]);
+  });
+});

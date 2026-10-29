@@ -1,5 +1,6 @@
 // Codex rollouts → unified events. Formats: docs/log-formats.md; rules: docs/decisions.md.
-import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
+import { posix } from "node:path";
+import type { AgentTownEvent, Tokens, ToolFile } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
 import { titleOf } from "../../schema/src/title.ts";
 import { clip, countUnknown, hashId, readJsonl, toMs, type ReadStats } from "../../schema/src/util.ts";
@@ -61,9 +62,27 @@ function deltaTokens(last: Record<string, number>): Tokens {
   };
 }
 
-function callTarget(p: Record<string, any>): { tool: string; target?: string; command?: string } {
+const PATCH_HEADER = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
+
+/** every file a patch names, untruncated; relative paths resolved against an absolute cwd */
+export function patchFiles(text: unknown, cwd: string): ToolFile[] | undefined {
+  if (typeof text !== "string" || !text.includes("*** ")) return undefined;
+  // some shells pass the patch with its line breaks written out as "\n"; a patch with real line
+  // breaks is read as it is, so a "\n" inside its content never starts a header
+  const lines = text.includes("\n") ? text : text.replace(/\\n/g, "\n");
+  const out: ToolFile[] = [];
+  for (const m of lines.matchAll(PATCH_HEADER)) {
+    let path = m[1].trim().replace(/\\?["'`]+$/, "");
+    if (!path || path.length > 1024 || /[\u0000-\u001f]|\\n/.test(path)) continue;
+    if (cwd.startsWith("/")) path = posix.resolve(cwd, path);
+    out.push({ path, access: "edit" });
+  }
+  return out.length ? out : undefined;
+}
+
+function callTarget(p: Record<string, any>, cwd: string): { tool: string; target?: string; command?: string; files?: ToolFile[] } {
   const tool = p.name ?? p.type;
-  if (p.type === "custom_tool_call") return { tool, target: clip(p.input, 80), command: typeof p.input === "string" ? p.input : undefined };
+  if (p.type === "custom_tool_call") return { tool, target: clip(p.input, 80), command: typeof p.input === "string" ? p.input : undefined, files: patchFiles(p.input, cwd) };
   if (p.type === "local_shell_call") {
     const cmd = Array.isArray(p.action?.command) ? p.action.command.join(" ") : undefined;
     return { tool, target: clip(cmd, 80), command: cmd };
@@ -76,7 +95,8 @@ function callTarget(p: Record<string, any>): { tool: string; target?: string; co
     return { tool };
   }
   const cmd = typeof args.cmd === "string" ? args.cmd : Array.isArray(args.command) ? args.command.join(" ") : undefined;
-  return { tool, target: clip(cmd ?? args.path ?? args.task_name ?? args.message, 80), command: cmd };
+  const patch = typeof args.input === "string" ? args.input : typeof args.patch === "string" ? args.patch : cmd;
+  return { tool, target: clip(cmd ?? args.input ?? args.path ?? args.task_name ?? args.message, 80), command: cmd, files: patchFiles(patch, cwd) };
 }
 
 function exitStatus(output: unknown): "ok" | "error" {
@@ -179,11 +199,11 @@ export function parseCodexThread(heads: RolloutHead[], roles: RoleMatcher, stats
         const it = p.type;
         if (CALLS.has(it)) {
           const callId = p.call_id ?? p.id ?? `${h.path}:${n}`;
-          const { tool, target, command } = callTarget(p);
+          const { tool, target, command, files } = callTarget(p, projectId);
           starts.set(callId, ts);
           if (tool === "spawn_agent") spawnCalls.push({ callId, ts, agentId, taskId, childIds: [] });
           out.push({
-            ...base, taskId, id: hashId(FACTION, h.id, callId, "start"), ts, kind: "tool_start", tool, toolUseId: callId, target,
+            ...base, taskId, id: hashId(FACTION, h.id, callId, "start"), ts, kind: "tool_start", tool, toolUseId: callId, target, ...(files ? { files } : {}),
             role: roles.isDispatch(tool) ? "commander" : roles.forTool(tool, command), raw,
           });
           if (it === "web_search_call" || it === "image_generation_call") {

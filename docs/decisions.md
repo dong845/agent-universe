@@ -275,3 +275,21 @@ Spec: `docs/superpowers/specs/2026-10-28-world-v2-design.md`. Plan: `docs/superp
 - Small towns from incidental shell paths (`.cache`, `hi`, `data`).
 - 886 Claude tasks still fall back to `~`: relative paths after `cd`, and notification turns.
 - UI chrome can cover a banner at the top edge.
+
+## D15 World v3, step 1: requests, skills, towns, themes (2026-10-29)
+
+Spec: `docs/superpowers/specs/2026-10-29-world-v3-design.md`. Owner picked: 2.5D Codex-drawn buildings per town theme, only useful work shown, plain names, skills as guilds, KayKit figures.
+
+**Request = a human turn + the system turns that continue it** (subagent hand-backs, compaction summaries, meta lines; same faction and session). All turns of a request share one town. Real data: 3,129 turns → 1,901 requests.
+
+**Classes.** produced = any exact edit or image generation; investigation = otherwise ≥ 20 tool calls; chat = ≥ 1 call; empty = none. Real: 851 / 164 / 573 / 313. Product kind by edited file extensions (one vote per edit; image tools vote image; `…/remotion/…` → video; html/pdf under slides|deck → slides; tie order code, docs, slides, image, video, data). `config/world.json` holds the numbers.
+
+**Adapters.** tool_start carries untruncated `files` (Claude file tools; every Codex patch header, including patches whose line breaks are written out as `\n`). Claude's Skill tool target is the skill name. D5 after the change: Claude 10/10, Codex 480/480 identical.
+
+**Placement**, first match: temp folder → 野外营地 (outpost); `…/skills/<name>/` → that skill's guild (the repository when the folder is inside one); git repository (worktrees → main repo); the tools' own folders (`~/.claude`, `~/.codex`, `~/.agents`) → 都城 (capital); nearest folder below home with a project marker; the folder the session started in, if the file lies under it and it is not home, a standard home folder or a dated folder; else the outpost. Capital and outpost votes are weak (any real town outvotes them). Copies of one skill (installed copy, build output) join the repository holding `skills/<name>/`, else the most-used copy. Real: 104 towns → 43 (22 projects, 17 guilds, 2 capitals, 2 outposts); none malformed.
+
+**Themes.** Keyword rules in `config/themes.json`; the name decides first (its last matching word: `slides-to-video` → film), then guild skill names, then their local SKILL.md descriptions; else 工匠镇. The owner's choices go to `~/.agent-town/themes.json` via `POST /api/theme` (loopback, Host/Origin checked), never into git.
+
+**API.** `/api/world` adds `requests` and `towns`; `GET /api/request/:id` returns every turn's events. Request tokens equal the per-turn model calls exactly (30.15 B on real data).
+
+**The v2 renderer** still draws per turn from events; it simply sees fewer, better-named towns until step 3 replaces it.

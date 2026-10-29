@@ -3,10 +3,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadEvents } from "../packages/server/src/load.ts";
-import { projectRoot } from "../packages/server/src/projectRoot.ts";
+import { mainRepoOf, projectRoot } from "../packages/server/src/projectRoot.ts";
 import { writeClaudeSession } from "./helpers/synthLogs.ts";
 
 const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), "at-root-")));
+
+describe("mainRepoOf", () => {
+  it("leads a worktree to its main repository", () => {
+    const d = tmp();
+    mkdirSync(join(d, "main/.git/worktrees/w"), { recursive: true });
+    mkdirSync(join(d, "wt"), { recursive: true });
+    writeFileSync(join(d, "wt/.git"), `gitdir: ${join(d, "main/.git/worktrees/w")}\n`);
+    expect(mainRepoOf(join(d, "wt"))).toBe(join(d, "main"));
+  });
+  it("resolves a relative gitdir", () => {
+    const d = tmp();
+    mkdirSync(join(d, "main/.git/worktrees/w"), { recursive: true });
+    mkdirSync(join(d, "main/.claude/worktrees/w"), { recursive: true });
+    writeFileSync(join(d, "main/.claude/worktrees/w/.git"), "gitdir: ../../../.git/worktrees/w\n");
+    expect(mainRepoOf(join(d, "main/.claude/worktrees/w"))).toBe(join(d, "main"));
+  });
+  it("keeps a normal repository and a garbled .git file", () => {
+    const d = tmp();
+    mkdirSync(join(d, "repo/.git"), { recursive: true });
+    mkdirSync(join(d, "odd"), { recursive: true });
+    writeFileSync(join(d, "odd/.git"), "not a pointer");
+    expect(mainRepoOf(join(d, "repo"))).toBe(join(d, "repo"));
+    expect(mainRepoOf(join(d, "odd"))).toBe(join(d, "odd"));
+  });
+});
 
 describe("projectRoot", () => {
   it("walks up from a subdirectory to the repo with .git", () => {

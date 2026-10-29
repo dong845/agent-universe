@@ -1,0 +1,18 @@
+{
+  "comment": "Town themes (spec v3 6). A town's name is matched first, then its guild skills' names, then their descriptions; the first theme with a keyword equal to a word (or a word starting with a keyword of 4+ letters, or keyword+s) wins. Local overrides live in ~/.agent-town/themes.json, never here.",
+  "themes": [
+    { "id": "publishing", "name": "出版镇", "keywords": ["slide", "deck", "ppt", "pptx", "doc", "docs", "paper", "figure", "publish", "report", "幻灯", "出版"] },
+    { "id": "film", "name": "影视镇", "keywords": ["video", "film", "movie", "remotion", "tok", "clip", "animation", "视频", "影视"] },
+    { "id": "music", "name": "音乐镇", "keywords": ["music", "audio", "song", "sound", "playlist", "音乐"] },
+    { "id": "talent", "name": "人才市集", "keywords": ["job", "jobs", "career", "resume", "cv", "hire", "hiring", "interview", "求职"] },
+    { "id": "harbor", "name": "港口镇", "keywords": ["travel", "trip", "flight", "hotel", "tour", "旅行"] },
+    { "id": "stargazer", "name": "观星镇", "keywords": ["life", "destiny", "fortune", "astro", "astrology", "bazi", "horoscope", "命理"] },
+    { "id": "exchange", "name": "交易所", "keywords": ["invest", "trade", "trading", "stock", "finance", "market", "crypto", "投资"] },
+    { "id": "toyworks", "name": "玩具工坊", "keywords": ["town", "game", "toy", "world", "viz", "visual", "3d"] }
+  ],
+  "default": { "id": "craftsmen", "name": "工匠镇" },
+  "fixed": {
+    "capital": { "id": "capital", "name": "都城" },
+    "outpost": { "id": "outpost", "name": "野外营地" }
+  }
+}

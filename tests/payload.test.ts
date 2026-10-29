@@ -76,3 +76,33 @@ describe("live tasks", () => {
     expect(p.events.filter((e) => e.taskId === "OLD").map((e) => e.kind).sort()).toEqual(["model_call", "task_start"]);
   });
 });
+
+describe("compactPayload requests and towns (v3)", () => {
+  const p = compactPayload(full, stale, NOW);
+  const sum = (ts: { input: number; output: number; cacheRead: number; cacheWrite: number }[]) => ts.reduce((a, t) => a + t.input + t.output + t.cacheRead + t.cacheWrite, 0);
+
+  it("has one request per human-opened turn", () => {
+    const humans = full.filter((e) => e.kind === "task_start" && e.trigger !== "system").length;
+    expect(p.requests.length).toBe(humans);
+    expect(humans).toBeGreaterThan(0);
+  });
+
+  it("request tokens add up to every model call inside a task", () => {
+    expect(sum(p.requests.map((r) => r.tokens))).toBe(sum(full.filter((e) => e.kind === "model_call" && e.taskId && e.tokens).map((e) => e.tokens!)));
+  });
+
+  it("has exactly one town per faction and folder that holds a request", () => {
+    expect(p.towns.map((t) => t.key).sort()).toEqual([...new Set(p.requests.map((r) => `${r.faction}|${r.projectId}`))].sort());
+  });
+});
+
+import { demoPayload } from "../packages/mock/src/world.ts";
+
+describe("demo payload (v3)", () => {
+  it("carries requests and towns built the same way", () => {
+    const d = demoPayload();
+    expect(d.requests.length).toBeGreaterThan(0);
+    expect(d.towns.length).toBeGreaterThan(0);
+    expect(d.towns.every((t) => typeof t.theme === "string" && t.theme.length > 0)).toBe(true);
+  });
+});

@@ -9,6 +9,7 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": ["vite/client"]
   },
   "include": ["src", "../schema/src/event.ts", "../schema/src/aggregate.ts", "../schema/src/insights.ts", "../schema/src/world.ts", "../mock/src"]
