@@ -70,7 +70,10 @@ def run(cat, themes, shared, raw_dir, out_dir, manifest_path, sheet_path, forbid
     first = todo[0]
     raw = generate(first, raw_dir, codex=codex, sessions_dir=sessions_dir, log=log)
     if raw is None:
-        raise NoImageTool("Codex returned no image for the first item: check `codex login` and that this account's plan has the image tool. No paid API is used instead.")
+        from generate import LAST_ERROR
+
+        said = LAST_ERROR.get(first["id"])
+        raise NoImageTool((f"Codex says: {said}" if said else "Codex returned no image for the first item: check `codex login` and that this account's plan has the image tool.") + " No paid API is used instead.")
     results = {}
 
     def finish(item, pre_raw=None):

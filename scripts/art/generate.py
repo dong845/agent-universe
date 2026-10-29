@@ -59,8 +59,17 @@ def _from_rollout(sessions_dir, since, workdir, out):
     return False
 
 
+LAST_ERROR = {}
+
+
+def codex_error(stderr):
+    """Codex's own "ERROR: …" line (usage limit, login, plan), if it printed one"""
+    lines = [l.strip() for l in (stderr or "").splitlines() if l.strip().startswith("ERROR:")]
+    return lines[-1][len("ERROR:"):].strip() if lines else None
+
+
 def generate(item, raw_dir, codex="codex", timeout=600, sessions_dir=None, log=print):
-    """→ the raw PNG path, or None (the reason is logged)"""
+    """→ the raw PNG path, or None (the reason is logged and kept in LAST_ERROR[item id])"""
     theme, name = item["id"].split("/", 1)
     out = Path(raw_dir) / theme / f"{name}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -68,8 +77,13 @@ def generate(item, raw_dir, codex="codex", timeout=600, sessions_dir=None, log=p
     fname = f"{name}.png"
     cmd = [codex, "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-c", 'approval_policy="never"', "-C", str(work), INSTR.format(prompt=item["prompt"], fname=fname)]
     since = time.time() - 1
+    LAST_ERROR.pop(item["id"], None)
     try:
-        subprocess.run(cmd, cwd=work, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+        r = subprocess.run(cmd, cwd=work, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=timeout)
+        err = codex_error(r.stderr)
+        if err:
+            LAST_ERROR[item["id"]] = err
+            log(f"  {item['id']}: codex says: {err}")
     except subprocess.TimeoutExpired:
         log(f"  {item['id']}: codex timed out after {timeout}s")
     except OSError as e:

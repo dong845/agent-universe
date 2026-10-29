@@ -19,6 +19,9 @@ with open(os.environ["FAKE_LOG"], "a") as f:
     f.write(instr.replace("\n", " ") + "\n")
 mode = os.environ.get("FAKE_MODE", "ok")
 fail = os.environ.get("FAKE_FAIL", "")
+if mode == "limit":
+    print("ERROR: You've hit your usage limit. Try again later.", file=sys.stderr)
+    sys.exit(1)
 if mode == "none" or (fail and fail in instr):
     sys.exit(0)
 name = re.search(r"\./([\w.-]+\.png)", instr).group(1)
@@ -96,3 +99,10 @@ def test_a_local_name_in_a_prompt_stops_everything(env):
     with pytest.raises(PrivacyError):
         run(**{**kw, "cat": cat, "forbidden": ["my-secret-repo", "tower"]})
     assert calls() == 0
+
+
+def test_codex_own_error_is_the_reason_given(env, monkeypatch):
+    kw, calls, tmp = env
+    monkeypatch.setenv("FAKE_MODE", "limit")
+    with pytest.raises(NoImageTool, match="usage limit"):
+        run(**kw)
