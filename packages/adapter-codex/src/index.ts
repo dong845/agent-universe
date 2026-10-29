@@ -1,4 +1,5 @@
 // Codex rollouts → unified events. Formats: docs/log-formats.md; rules: docs/decisions.md.
+import { posix } from "node:path";
 import type { AgentTownEvent, Tokens, ToolFile } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
 import { titleOf } from "../../schema/src/title.ts";
@@ -61,18 +62,19 @@ function deltaTokens(last: Record<string, number>): Tokens {
   };
 }
 
-const PATCH_HEADER = /\*\*\* (?:Add|Update|Delete) File: ([^\n]+)/g;
+const PATCH_HEADER = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
 
 /** every file a patch names, untruncated; relative paths resolved against an absolute cwd */
 export function patchFiles(text: unknown, cwd: string): ToolFile[] | undefined {
   if (typeof text !== "string" || !text.includes("*** ")) return undefined;
-  // some shells pass the patch with its line breaks written out as "\n"
-  const lines = text.replace(/\\n/g, "\n");
+  // some shells pass the patch with its line breaks written out as "\n"; a patch with real line
+  // breaks is read as it is, so a "\n" inside its content never starts a header
+  const lines = text.includes("\n") ? text : text.replace(/\\n/g, "\n");
   const out: ToolFile[] = [];
   for (const m of lines.matchAll(PATCH_HEADER)) {
-    let path = m[1].trim().replace(/["'`]+$/, "");
+    let path = m[1].trim().replace(/\\?["'`]+$/, "");
     if (!path || path.length > 1024 || /[\u0000-\u001f]|\\n/.test(path)) continue;
-    if (!path.startsWith("/") && cwd.startsWith("/")) path = (cwd.endsWith("/") ? cwd : cwd + "/") + path.replace(/^\.\//, "");
+    if (cwd.startsWith("/")) path = posix.resolve(cwd, path);
     out.push({ path, access: "edit" });
   }
   return out.length ? out : undefined;

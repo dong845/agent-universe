@@ -78,6 +78,7 @@ describe("buildRequests", () => {
     expect(one(turn("a", 0, [edit("/repo/deck/out.html")])).productKind).toBe("slides");
     expect(one(turn("a", 0, [edit("/repo/a/remotion/Comp.tsx")])).productKind).toBe("video");
     expect(one(turn("a", 0, [edit("/repo/Makefile")])).productKind).toBe("code");
+    expect(one(turn("a", 0, [edit("/repo/app.lock")])).productKind).toBe("data");
     expect(one(turn("a", 0, [edit("/repo/d.json")])).productKind).toBe("data");
     expect(one(turn("a", 0, [{ tool: "Bash" }])).productKind).toBeNull();
   });

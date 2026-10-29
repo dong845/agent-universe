@@ -10,6 +10,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import type { AgentTownEvent } from "../../schema/src/event.ts";
 import { CAPITAL, OUTPOST } from "../../schema/src/towns.ts";
 import { gitRoot, mainRepoOf } from "./projectRoot.ts";
+import { guildSkillsOf } from "./townsFs.ts";
 
 export { CAPITAL, OUTPOST };
 /** the outpost's v2 name; temp work now goes to the outpost */
@@ -22,7 +23,7 @@ const SKILL_DIR = /^(.*[\\/]skills[\\/]([A-Za-z0-9@+_.-]+))(?:[\\/]|$)/;
 /** a logged path worth placing: not a whole patch or command run together into one "path" */
 const sane = (p: string) => p.length <= 1024 && !/[\u0000-\u001f]|\\n/.test(p);
 const FILE_TOOLS = new Set(["Read", "Edit", "MultiEdit", "Write", "NotebookEdit"]);
-const PATCH_FILE = /\*\*\* (?:Add|Update|Delete) File: ([^\n]+)/g;
+const PATCH_FILE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
 
 export interface AssignOptions {
   home: string;
@@ -53,7 +54,7 @@ export function touchedDirs(e: AgentTownEvent): string[] {
   }
   if (e.tool === "apply_patch") {
     // a relative patch path needs an absolute cwd; never resolve against this process's directory
-    return [...e.target.replace(/\\n/g, "\n").matchAll(PATCH_FILE)].map((m) => m[1].trim()).filter((p) => sane(p) && (isAbsolute(p) || isAbsolute(e.projectId))).map((p) => dirname(resolve(e.projectId, p)));
+    return [...(e.target.includes("\n") ? e.target : e.target.replace(/\\n/g, "\n")).matchAll(PATCH_FILE)].map((m) => m[1].trim()).filter((p) => sane(p) && (isAbsolute(p) || isAbsolute(e.projectId))).map((p) => dirname(resolve(e.projectId, p)));
   }
   return [];
 }
@@ -171,10 +172,13 @@ export function assignProjects(events: AgentTownEvent[], o: AssignOptions, reque
     v.set(town, (v.get(town) ?? 0) + 1); // ties: the town touched first wins (Map keeps insertion order)
     box.set(taskId, v);
   };
+  // reading a skill's instructions is using the skill, not working on it: only edits vote for its guild
+  const inSkill = (d: string) => SKILL_DIR.test(d);
   for (const e of events) {
     if (!e.taskId) continue;
-    for (const d of touchedDirs(e)) vote(exact, req(e.taskId), d, e.projectId);
-    for (const d of shellDirs(e, o.home)) vote(inferred, req(e.taskId), d, e.projectId);
+    const reads = e.tool === "Read" || (!!e.files?.length && e.files.every((f) => f.access === "read"));
+    for (const d of touchedDirs(e)) if (!(reads && inSkill(d))) vote(exact, req(e.taskId), d, e.projectId);
+    for (const d of shellDirs(e, o.home)) if (!inSkill(d)) vote(inferred, req(e.taskId), d, e.projectId);
   }
   // Precedence: a real town by exact paths, a real town by inferred paths, then the capital or the
   // outpost. Those are by-products (screenshots, scratch scripts, logs): they decide only when
@@ -237,7 +241,7 @@ function mergeSkillCopies(byTask: Map<string, { town: string }>, byCwd: Map<stri
   const into = new Map<string, string>();
   for (const [k, folders] of copies) {
     const names = [...new Set([k, k.replace(/-/g, "_"), ...folders.map((f) => basename(f))])];
-    const repo = [...uses.keys()].find((t) => isAbsolute(t) && !SKILL_FOLDER.test(t) && names.some((n) => existsSync(join(t, "skills", n, "SKILL.md"))));
+    const repo = [...uses.keys()].find((t) => isAbsolute(t) && !SKILL_FOLDER.test(t) && (names.some((n) => existsSync(join(t, "skills", n, "SKILL.md"))) || guildSkillsOf(t).includes(k)));
     const target = repo ?? folders.reduce((a, b) => ((uses.get(b) ?? 0) > (uses.get(a) ?? 0) ? b : a));
     for (const f of folders) if (f !== target) into.set(f, target);
   }

@@ -251,3 +251,31 @@ describe("assignProjects, real-data fixes", () => {
     expect(startOf(b, "t2").projectId).toBe(join(h, ".claude/skills/delta"));
   });
 });
+
+describe("assignProjects, review fixes", () => {
+  it("reading a skill's instructions does not move a request into the skill's guild (I2)", () => {
+    const { h, opts } = world();
+    const evs = task(join(h, "code/repoB"), [{ tool: "exec_command", target: `sed -n 1,80p ${join(h, "x/skills/alpha/SKILL.md")}` }, { tool: "Read", target: join(h, "x/skills/alpha/SKILL.md"), files: [{ path: join(h, "x/skills/alpha/SKILL.md"), access: "read" }] }, { tool: "exec_command", target: "rg foo src" }], "t1", "codex");
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(join(h, "code/repoB"));
+  });
+
+  it("editing a skill still places the request in its guild", () => {
+    const { h, opts } = world();
+    const evs = task(join(h, "code/repoB"), [{ tool: "Edit", target: join(h, "x/skills/alpha/SKILL.md") }]);
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(join(h, "x/skills/alpha"));
+  });
+
+  it("a copy of a skill joins a repository that is that skill at its root (I3)", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, "code/tbx/.git"), { recursive: true });
+    writeFileSync(join(h, "code/tbx/SKILL.md"), "---\nname: tbx\n---\n");
+    mkdirSync(join(h, ".agents/skills/tbx"), { recursive: true });
+    writeFileSync(join(h, ".agents/skills/tbx/SKILL.md"), "---\nname: tbx\n---\n");
+    const a = task(h, [{ tool: "Edit", target: join(h, "code/tbx/SKILL.md") }], "t1");
+    const b = task(h, [{ tool: "Edit", target: join(h, ".agents/skills/tbx/SKILL.md") }], "t2");
+    assignProjects([...a, ...b], opts);
+    expect(startOf(b, "t2").projectId).toBe(join(h, "code/tbx"));
+  });
+});

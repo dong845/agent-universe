@@ -117,3 +117,10 @@ describe("patchFiles on escaped patches", () => {
     expect(patchFiles("*** Update File: \n*** Add File: " + "x".repeat(2000) + "\n", "/w")).toBeUndefined();
   });
 });
+
+describe("patchFiles never invents files from patch content (review I1)", () => {
+  it("a header written inside an added line is content, not a file", () => {
+    const text = '*** Begin Patch\n*** Update File: tests/a.test.ts\n@@\n+  const t = "*** Update File: /tmp/x.ts\\n@@";\n+  console.log("a\\n*** Add File: b");\n*** End Patch';
+    expect(patchFiles(text, "/repo")).toEqual([{ path: "/repo/tests/a.test.ts", access: "edit" }]);
+  });
+});

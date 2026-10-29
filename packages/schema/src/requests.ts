@@ -40,7 +40,8 @@ function kindOfPath(path: string, cfg: WorldConfig): ProductKind {
   if (/[\\/]remotion[\\/]/.test(p)) return "video";
   if ((ext === "html" || ext === "pdf") && /slides|deck/.test(p)) return "slides";
   for (const k of KIND_ORDER) if (cfg.productExt[k].includes(ext)) return k;
-  return "code";
+  // spec 4.3: no extension → code (Makefile, scripts); any other extension → data
+  return ext ? "data" : "code";
 }
 
 /** the first folder of `path` below `root`, "." for a file directly in it; null when outside it */
