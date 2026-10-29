@@ -132,6 +132,11 @@ describe("request titles that say nothing (owner 2026-10-29)", () => {
     expect(r.map((x) => x.title)).toEqual(["继续", "修好测试", "好的"]);
   });
 
+  it("an option pick (1, A) and a short 继续… are bare too; push is not", () => {
+    const r = rows([start("a", 1, "做两个方案"), start("b", 2, "B"), start("c", 3, "2"), start("d", 4, "继续优化"), start("e", 5, "push")]);
+    expect(r.map((x) => x.title)).toEqual(["做两个方案", "接续：做两个方案", "接续：做两个方案", "接续：做两个方案", "push"]);
+  });
+
   it("a short but meaningful request keeps its own title", () => {
     const r = rows([start("a", 1, "写文档"), start("b", 2, "修 bug"), start("c", 3, "Fix CI")]);
     expect(r.map((x) => x.title)).toEqual(["写文档", "修 bug", "Fix CI"]);

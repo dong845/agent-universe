@@ -31,7 +31,11 @@ export function requestIdsOf(events: AgentTownEvent[]): Map<string, string> {
 
 /** replies that only say "go on": they name no work of their own */
 const BARE = new Set(["可以", "可以的", "继续", "继续吧", "好", "好的", "行", "嗯", "嗯嗯", "是", "是的", "对", "对的", "同意", "开始", "开始吧", "执行", "没问题", "确认", "好的继续", "ok", "okay", "yes", "y", "go", "goahead", "continue", "proceed", "sure", "yep", "lgtm"]);
-export const isBareReply = (title: string): boolean => BARE.has(title.toLowerCase().replace(/[\s\p{P}~]+/gu, ""));
+export const isBareReply = (title: string): boolean => {
+  const t = title.toLowerCase().replace(/[\s\p{P}~]+/gu, "");
+  // a bare word, an option picked from a list ("1", "B"), or a short "继续…" (继续优化, 继续尝试)
+  return BARE.has(t) || /^[a-z0-9]$/.test(t) || (t.startsWith("继续") && t.length <= 4);
+};
 
 const KIND_ORDER: ProductKind[] = ["code", "docs", "slides", "image", "video", "data"];
 const IMAGE_TOOL = /image_gen|imagegen/i;
