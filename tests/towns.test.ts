@@ -26,6 +26,11 @@ describe("pickTheme", () => {
     expect(t("qzx")).toBe("craftsmen");
   });
   it("lets the name win over a description that mentions another theme", () => expect(t("topic-to-video", "", "turn a slide deck into a video")).toBe("film"));
+  it("the last matching word of a name decides: what is made comes last", () => {
+    expect(t("slides-to-video")).toBe("film");
+    expect(t("jobhunt-film")).toBe("film");
+    expect(t("slides_maker")).toBe("publishing");
+  });
   it("does not read a 3-letter keyword inside a longer word", () => expect(t("docker-tools")).toBe("craftsmen"));
 });
 

@@ -204,3 +204,50 @@ describe("assignProjects", () => {
     expect(startOf(evs).projectBy).toBe("inferred");
   });
 });
+
+describe("assignProjects, real-data fixes", () => {
+  it("never makes a town of a malformed path", () => {
+    const { h, opts } = world();
+    const bad = join(h, "code/repoA/x.ts") + String.raw`\n@@\n-a\n+ skills/zz/SKILL.md`;
+    const evs = task(h, [{ tool: "apply_patch", target: "…", files: [{ path: bad, access: "edit" }] }], "t1", "codex");
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(OUTPOST);
+  });
+
+  it("a skill copied into a temp folder is outpost work", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, "scratch/up/skills/alpha"), { recursive: true });
+    const evs = task(h, [{ tool: "Edit", target: join(h, "scratch/up/skills/alpha/SKILL.md") }]);
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(OUTPOST);
+  });
+
+  it("every copy of one skill joins the repository that holds it, per faction", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, "code/kit/.git"), { recursive: true });
+    mkdirSync(join(h, "code/kit/skills/gamma"), { recursive: true });
+    writeFileSync(join(h, "code/kit/skills/gamma/SKILL.md"), "---\nname: gamma\n---\n");
+    for (const d of [".agents/skills/gamma", "Documents/out/build/skills/gamma"]) {
+      mkdirSync(join(h, d), { recursive: true });
+      writeFileSync(join(h, d, "SKILL.md"), "---\nname: gamma\n---\n");
+    }
+    const a = task(h, [{ tool: "Edit", target: join(h, ".agents/skills/gamma/SKILL.md") }], "t1");
+    const b = task(h, [{ tool: "Edit", target: join(h, "Documents/out/build/skills/gamma/SKILL.md") }], "t2", "codex");
+    const c = task(h, [{ tool: "Edit", target: join(h, "code/kit/skills/gamma/SKILL.md") }], "t3");
+    assignProjects([...a, ...b, ...c], opts);
+    expect([startOf(a).projectId, startOf(b, "t2").projectId, startOf(c, "t3").projectId]).toEqual([join(h, "code/kit"), join(h, "code/kit"), join(h, "code/kit")]);
+  });
+
+  it("copies of a skill no repository holds join one folder: the most used", () => {
+    const { h, opts } = world();
+    for (const d of [".claude/skills/delta", "Documents/out/skills/delta"]) {
+      mkdirSync(join(h, d), { recursive: true });
+      writeFileSync(join(h, d, "SKILL.md"), "x");
+    }
+    const e = (p: string) => ({ tool: "Edit", target: join(h, p) });
+    const a = task(h, [e(".claude/skills/delta/SKILL.md"), e(".claude/skills/delta/SKILL.md")], "t1");
+    const b = task(h, [e("Documents/out/skills/delta/SKILL.md")], "t2");
+    assignProjects([...a, ...b], opts);
+    expect(startOf(b, "t2").projectId).toBe(join(h, ".claude/skills/delta"));
+  });
+});

@@ -66,10 +66,12 @@ const PATCH_HEADER = /\*\*\* (?:Add|Update|Delete) File: ([^\n]+)/g;
 /** every file a patch names, untruncated; relative paths resolved against an absolute cwd */
 export function patchFiles(text: unknown, cwd: string): ToolFile[] | undefined {
   if (typeof text !== "string" || !text.includes("*** ")) return undefined;
+  // some shells pass the patch with its line breaks written out as "\n"
+  const lines = text.replace(/\\n/g, "\n");
   const out: ToolFile[] = [];
-  for (const m of text.matchAll(PATCH_HEADER)) {
-    let path = m[1].trim();
-    if (!path) continue;
+  for (const m of lines.matchAll(PATCH_HEADER)) {
+    let path = m[1].trim().replace(/["'`]+$/, "");
+    if (!path || path.length > 1024 || /[\u0000-\u001f]|\\n/.test(path)) continue;
     if (!path.startsWith("/") && cwd.startsWith("/")) path = (cwd.endsWith("/") ? cwd : cwd + "/") + path.replace(/^\.\//, "");
     out.push({ path, access: "edit" });
   }

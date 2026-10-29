@@ -18,7 +18,9 @@ const MARKERS = ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "READ
 /** folders directly under home that hold unrelated things, never a project by themselves */
 const LOOSE = new Set(["Downloads", "Desktop", "Documents", "Pictures", "Movies", "Music", "Public", "Library"]);
 const DATED = /^\d{4}-\d{2}-\d{2}/;
-const SKILL_DIR = /^(.*[\\/]skills[\\/]([^\\/]+))(?:[\\/]|$)/;
+const SKILL_DIR = /^(.*[\\/]skills[\\/]([A-Za-z0-9@+_.-]+))(?:[\\/]|$)/;
+/** a logged path worth placing: not a whole patch or command run together into one "path" */
+const sane = (p: string) => p.length <= 1024 && !/[\u0000-\u001f]|\\n/.test(p);
 const FILE_TOOLS = new Set(["Read", "Edit", "MultiEdit", "Write", "NotebookEdit"]);
 const PATCH_FILE = /\*\*\* (?:Add|Update|Delete) File: ([^\n]+)/g;
 
@@ -42,16 +44,16 @@ export function defaultTempRoots(): string[] {
 export function touchedDirs(e: AgentTownEvent): string[] {
   if (e.kind !== "tool_start") return [];
   // untruncated paths, when the adapter recorded them
-  if (e.files?.length) return e.files.filter((f) => isAbsolute(f.path)).map((f) => dirname(f.path));
+  if (e.files?.length) return e.files.filter((f) => isAbsolute(f.path) && sane(f.path)).map((f) => dirname(f.path));
   if (!e.target) return [];
   if (e.tool && FILE_TOOLS.has(e.tool)) {
-    if (!isAbsolute(e.target)) return [];
+    if (!isAbsolute(e.target) || !sane(e.target)) return [];
     // a target clipped with "…" is still good for its directory
     return [dirname(e.target)];
   }
   if (e.tool === "apply_patch") {
     // a relative patch path needs an absolute cwd; never resolve against this process's directory
-    return [...e.target.matchAll(PATCH_FILE)].map((m) => m[1].trim()).filter((p) => isAbsolute(p) || isAbsolute(e.projectId)).map((p) => dirname(resolve(e.projectId, p)));
+    return [...e.target.replace(/\\n/g, "\n").matchAll(PATCH_FILE)].map((m) => m[1].trim()).filter((p) => sane(p) && (isAbsolute(p) || isAbsolute(e.projectId))).map((p) => dirname(resolve(e.projectId, p)));
   }
   return [];
 }
@@ -118,11 +120,11 @@ export function makePlacer(o: AssignOptions) {
   };
   /** spec v3 4.5, first match wins; d is the real path, raw the logged one */
   const place = (d: string, raw: string, cwd: string): string => {
+    if (isTemp(raw) || isTemp(d)) return OUTPOST;
     const repo = gitRoot(d);
     const skill = SKILL_DIR.exec(d);
     if (skill && !skill[2].startsWith(".")) return repo && inside(skill[1], repo) ? mainRepoOf(repo) : skill[1];
     if (repo) return mainRepoOf(repo);
-    if (isTemp(raw) || isTemp(d)) return OUTPOST;
     if (isTool(raw) || isTool(d)) return CAPITAL;
     const m = marked(d);
     if (m) return m;
@@ -203,10 +205,42 @@ export function assignProjects(events: AgentTownEvent[], o: AssignOptions, reque
     const r = req(e.taskId);
     if (!byTask.has(r) && !byCwd.has(r)) byCwd.set(r, ofCwd(e.projectId));
   }
+  mergeSkillCopies(byTask, byCwd);
   for (const e of events) {
     const r = e.taskId ? req(e.taskId) : undefined;
     const hit = r ? byTask.get(r) : undefined;
     if (e.kind === "task_start") e.projectBy = hit?.by ?? "cwd";
     e.projectId = hit ? hit.town : (r && byCwd.get(r)) || ofCwd(e.projectId);
   }
+}
+
+const SKILL_FOLDER = /[\\/]skills[\\/]([A-Za-z0-9@+_.-]+)$/;
+const skillKey = (name: string) => name.toLowerCase().replace(/_/g, "-");
+
+/**
+ * one guild per skill: a skill folder outside any repository (an installed copy, a build output)
+ * joins the repository that holds the same skill under skills/<name>/, if any town is one; else
+ * all copies join the copy with the most requests
+ */
+function mergeSkillCopies(byTask: Map<string, { town: string }>, byCwd: Map<string, string>): void {
+  const uses = new Map<string, number>();
+  for (const v of byTask.values()) uses.set(v.town, (uses.get(v.town) ?? 0) + 1);
+  for (const t of byCwd.values()) uses.set(t, (uses.get(t) ?? 0) + 1);
+  const copies = new Map<string, string[]>();
+  for (const t of uses.keys()) {
+    const m = SKILL_FOLDER.exec(t);
+    if (!m || !isAbsolute(t)) continue;
+    const k = skillKey(m[1]);
+    copies.set(k, [...(copies.get(k) ?? []), t]);
+  }
+  if (!copies.size) return;
+  const into = new Map<string, string>();
+  for (const [k, folders] of copies) {
+    const names = [...new Set([k, k.replace(/-/g, "_"), ...folders.map((f) => basename(f))])];
+    const repo = [...uses.keys()].find((t) => isAbsolute(t) && !SKILL_FOLDER.test(t) && names.some((n) => existsSync(join(t, "skills", n, "SKILL.md"))));
+    const target = repo ?? folders.reduce((a, b) => ((uses.get(b) ?? 0) > (uses.get(a) ?? 0) ? b : a));
+    for (const f of folders) if (f !== target) into.set(f, target);
+  }
+  for (const v of byTask.values()) v.town = into.get(v.town) ?? v.town;
+  for (const [r, t] of byCwd) byCwd.set(r, into.get(t) ?? t);
 }

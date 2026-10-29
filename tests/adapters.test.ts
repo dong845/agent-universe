@@ -105,3 +105,15 @@ describe("tool_start files (v3 step 1)", () => {
     expect(b.files).toBeUndefined();
   });
 });
+
+import { patchFiles } from "../packages/adapter-codex/src/index.ts";
+
+describe("patchFiles on escaped patches", () => {
+  it("stops a path at a written-out \\n, as some shells pass the patch", () => {
+    const text = String.raw`apply_patch "*** Begin Patch\n*** Update File: /w/src/a.ts\n@@\n-x\n+y\n*** Add File: /w/skills/k/b.py\n+print(1)\n*** End Patch"`;
+    expect(patchFiles(text, "/w")).toEqual([{ path: "/w/src/a.ts", access: "edit" }, { path: "/w/skills/k/b.py", access: "edit" }]);
+  });
+  it("drops a header whose path is not a path", () => {
+    expect(patchFiles("*** Update File: \n*** Add File: " + "x".repeat(2000) + "\n", "/w")).toBeUndefined();
+  });
+});

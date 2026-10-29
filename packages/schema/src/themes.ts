@@ -19,13 +19,16 @@ const hits = (word: string, kw: string) => word === kw || word === kw + "s" || w
 
 /**
  * texts in priority order (the town's name, then its skills' names, then their descriptions): the
- * first text with any match decides, and within it the first theme in the config; else the default
+ * first text with any match decides. Within a text the last matching word wins — in a name like
+ * "slides-to-video" what is made comes last — and for one word the first theme in the config.
  */
 export function pickTheme(texts: string[], cfg: ThemesConfig): string {
   for (const text of texts) {
     const ws = words(text);
-    if (!ws.length) continue;
-    for (const t of cfg.themes) if (t.keywords.some((k) => ws.some((w) => hits(w, k.toLowerCase())))) return t.id;
+    for (let i = ws.length - 1; i >= 0; i--) {
+      const t = cfg.themes.find((th) => th.keywords.some((k) => hits(ws[i], k.toLowerCase())));
+      if (t) return t.id;
+    }
   }
   return cfg.default.id;
 }
