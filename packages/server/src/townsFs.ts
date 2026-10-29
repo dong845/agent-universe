@@ -2,6 +2,7 @@
 // Descriptions are shown on this machine only; they never go into git, tests or prompts.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_WORLD_CONFIG, type WorldConfig } from "../../schema/src/worldConfig.ts";
 
 /** where a skill with this key may live, in both spellings */
 export function skillDirs(home: string, key: string): string[] {
@@ -29,4 +30,28 @@ export function skillDescription(dirs: string[]): string | undefined {
     return first.length > 120 ? first.slice(0, 119) + "…" : first;
   }
   return undefined;
+}
+
+/** config/world.json over the defaults; a missing file or key keeps the default, a wrong type is an error */
+export function loadWorldConfig(path = new URL("../../../config/world.json", import.meta.url)): WorldConfig {
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return DEFAULT_WORLD_CONFIG;
+    throw new Error(`config/world.json: ${(e as Error).message}`);
+  }
+  const out = { ...DEFAULT_WORLD_CONFIG, productExt: { ...DEFAULT_WORLD_CONFIG.productExt } } as WorldConfig;
+  for (const k of ["investigationCalls", "maxStreets"] as const) {
+    if (raw[k] === undefined) continue;
+    if (typeof raw[k] !== "number" || !(raw[k] as number >= 0)) throw new Error(`config/world.json: ${k} must be a number ≥ 0`);
+    out[k] = raw[k] as number;
+  }
+  if (raw.landmarkTiers !== undefined) {
+    const t = raw.landmarkTiers as number[];
+    if (!Array.isArray(t) || t.length !== 3 || t.some((x) => typeof x !== "number")) throw new Error("config/world.json: landmarkTiers must be three numbers");
+    out.landmarkTiers = [t[0], t[1], t[2]];
+  }
+  if (raw.productExt !== undefined) Object.assign(out.productExt, raw.productExt);
+  return out;
 }

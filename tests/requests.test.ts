@@ -42,3 +42,74 @@ describe("requestIdsOf", () => {
     expect(requestIdsOf([e, start("x1", 2, "system")]).get("x1")).toBe("h1");
   });
 });
+
+import { buildRequests } from "../packages/schema/src/requests.ts";
+import { DEFAULT_WORLD_CONFIG } from "../packages/schema/src/worldConfig.ts";
+
+describe("buildRequests", () => {
+  let k = 0;
+  const base = (taskId: string, ts: number): Omit<AgentTownEvent, "kind"> => ({ id: `b${k++}`, ts, faction: "claude-code", projectId: "/repo", sessionId: "s1", taskId, agentId: "main", raw: { file: "f", line: 1 } });
+  /** one turn: start, the given tool calls, a model call, an optional end */
+  const turn = (taskId: string, t0: number, tools: Partial<AgentTownEvent>[], o: { trigger?: "human" | "system"; end?: "ok" | "error" | null; tokens?: number; title?: string } = {}): AgentTownEvent[] => [
+    { ...base(taskId, t0), kind: "task_start", trigger: o.trigger ?? "human", title: o.title },
+    ...tools.map((t, i) => ({ ...base(taskId, t0 + 1 + i), kind: "tool_start" as const, tool: "Bash", ...t })),
+    { ...base(taskId, t0 + 100), kind: "model_call", tokens: { input: o.tokens ?? 10, output: 1, cacheRead: 2, cacheWrite: 3 } },
+    ...(o.end === null ? [] : [{ ...base(taskId, t0 + 200), kind: "task_end" as const, status: o.end ?? "ok" }]),
+  ];
+  const edit = (path: string): Partial<AgentTownEvent> => ({ tool: "Edit", files: [{ path, access: "edit" }] });
+  const rows = (evs: AgentTownEvent[]) => buildRequests(evs, requestIdsOf(evs), DEFAULT_WORLD_CONFIG);
+  const one = (evs: AgentTownEvent[]) => rows(evs)[0];
+
+  it("classifies by edits, then by the number of calls", () => {
+    expect(one(turn("a", 0, Array(19).fill({ tool: "Bash" }))).class).toBe("chat");
+    expect(one(turn("a", 0, Array(20).fill({ tool: "Bash" }))).class).toBe("investigation");
+    expect(one(turn("a", 0, [])).class).toBe("empty");
+    expect(one(turn("a", 0, [edit("/repo/a.ts")])).class).toBe("produced");
+  });
+
+  it("an image generation alone is a produced image", () => {
+    const r = one(turn("a", 0, [{ tool: "image_generation_call" }]));
+    expect([r.class, r.productKind]).toEqual(["produced", "image"]);
+  });
+
+  it("votes the product kind by edited files, ties in table order", () => {
+    expect(one(turn("a", 0, [edit("/repo/a.md"), edit("/repo/b.md"), edit("/repo/c.ts")])).productKind).toBe("docs");
+    expect(one(turn("a", 0, [edit("/repo/a.md"), edit("/repo/c.ts")])).productKind).toBe("code");
+    expect(one(turn("a", 0, [edit("/repo/deck/out.html")])).productKind).toBe("slides");
+    expect(one(turn("a", 0, [edit("/repo/a/remotion/Comp.tsx")])).productKind).toBe("video");
+    expect(one(turn("a", 0, [edit("/repo/Makefile")])).productKind).toBe("code");
+    expect(one(turn("a", 0, [edit("/repo/d.json")])).productKind).toBe("data");
+    expect(one(turn("a", 0, [{ tool: "Bash" }])).productKind).toBeNull();
+  });
+
+  it("names the most-edited top directory, '.' for a root file, null outside a real folder", () => {
+    expect(one(turn("a", 0, [edit("/repo/src/a.ts"), edit("/repo/src/b.ts"), edit("/repo/docs/c.md")])).topDir).toBe("src");
+    expect(one(turn("a", 0, [edit("/repo/a.ts")])).topDir).toBe(".");
+    const out = turn("a", 0, [edit("/elsewhere/a.ts")]).map((e) => ({ ...e, projectId: "野外营地" }));
+    expect(one(out).topDir).toBeNull();
+  });
+
+  it("folds a system turn's calls, tokens and outcome into the request", () => {
+    const evs = [...turn("h", 0, [{ tool: "Bash" }], { tokens: 10, title: "Do it" }), ...turn("x", 1000, [edit("/repo/a.ts")], { trigger: "system", tokens: 5, end: "error" })];
+    const [r] = rows(evs);
+    expect(rows(evs)).toHaveLength(1);
+    expect(r).toMatchObject({ requestId: "h", class: "produced", calls: 2, turns: 2, ok: false, title: "Do it", taskIds: ["h", "x"], startTs: 0, endTs: 1200 });
+    expect(r.tokens).toEqual({ input: 15, output: 2, cacheRead: 4, cacheWrite: 6 });
+  });
+
+  it("ok is null while any turn has no end", () => {
+    expect(one(turn("a", 0, [], { end: null })).ok).toBeNull();
+    expect(one(turn("a", 0, [])).ok).toBe(true);
+  });
+
+  it("lists the skills used, in order of first use", () => {
+    const r = one(turn("a", 0, [{ tool: "Skill", target: "beta" }, { tool: "Read", files: [{ path: "/u/skills/alpha/SKILL.md", access: "read" }] }, { tool: "Skill", target: "beta" }]));
+    expect(r.skills).toEqual(["beta", "alpha"]);
+  });
+
+  it("counts failed calls and spawned agents", () => {
+    const evs = turn("a", 0, [{ tool: "Bash" }]);
+    evs.push({ ...base("a", 50), kind: "tool_end", status: "error" }, { ...base("a", 51), kind: "tool_end", status: "denied" }, { ...base("a", 52), kind: "agent_spawn" });
+    expect(one(evs)).toMatchObject({ fails: 2, spawns: 1 });
+  });
+});

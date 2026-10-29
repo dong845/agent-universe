@@ -41,3 +41,23 @@ describe("skill descriptions (local files)", () => {
   it("reads a plain scalar", () => expect(skillDescription(skillDirs(h, "plain"))).toBe("Builds things"));
   it("gives nothing when no SKILL.md exists", () => expect(skillDescription(skillDirs(h, "absent"))).toBeUndefined());
 });
+
+import { loadWorldConfig } from "../packages/server/src/townsFs.ts";
+import { DEFAULT_WORLD_CONFIG } from "../packages/schema/src/worldConfig.ts";
+
+describe("loadWorldConfig", () => {
+  const d = mkdtempSync(join(tmpdir(), "at-cfg-"));
+  it("the shipped file equals the defaults", () => expect(loadWorldConfig()).toEqual(DEFAULT_WORLD_CONFIG));
+  it("merges a partial file and keeps a missing file at the defaults", () => {
+    writeFileSync(join(d, "w.json"), JSON.stringify({ investigationCalls: 5, productExt: { docs: ["adoc"] } }));
+    const c = loadWorldConfig(join(d, "w.json") as unknown as URL);
+    expect(c.investigationCalls).toBe(5);
+    expect(c.productExt.docs).toEqual(["adoc"]);
+    expect(c.productExt.code).toEqual(DEFAULT_WORLD_CONFIG.productExt.code);
+    expect(loadWorldConfig(join(d, "none.json") as unknown as URL)).toEqual(DEFAULT_WORLD_CONFIG);
+  });
+  it("refuses a wrong type loudly", () => {
+    writeFileSync(join(d, "bad.json"), JSON.stringify({ landmarkTiers: [1, 2] }));
+    expect(() => loadWorldConfig(join(d, "bad.json") as unknown as URL)).toThrow(/landmarkTiers/);
+  });
+});
