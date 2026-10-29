@@ -11,7 +11,8 @@ import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
 import { loadRoles } from "../../schema/src/roles.ts";
 import { countUnknown, newStats, type ReadStats } from "../../schema/src/util.ts";
 import { homedir } from "node:os";
-import { assignProjects, defaultTempRoots, type AssignOptions } from "./assign.ts";
+import { requestIdsOf } from "../../schema/src/requests.ts";
+import { assignProjects, defaultTempRoots, defaultToolRoots, type AssignOptions } from "./assign.ts";
 
 /** the cache entry format; the parser sources and role rules are hashed into every key as well (producerHash) */
 const CACHE_VERSION = 3;
@@ -35,6 +36,8 @@ export interface Totals {
 
 export interface Loaded {
   events: AgentTownEvent[];
+  /** taskId → requestId: a human turn and the system turns that continue it (spec v3 4.1) */
+  requestOf: Map<string, string>;
   /** source file → mtimeMs, for liveness */
   mtimes: Map<string, number>;
   /** per Claude session id / Codex rollout file name, for the D5 probe cross-check */
@@ -234,7 +237,8 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
     }
   }
   events.sort((a, b) => a.ts - b.ts);
-  // which town each task belongs to; cached events keep the raw cwd, so this is redone every load
-  assignProjects(events, o.assign ?? { home: homedir(), tempRoots: defaultTempRoots() });
-  return { events, mtimes, totals, modified, stats, copied, perUnit, units: { claude: claudeUnits, codexRollouts: heads.length }, parsed, cached };
+  // which town each request belongs to; cached events keep the raw cwd, so this is redone every load
+  const requestOf = requestIdsOf(events);
+  assignProjects(events, o.assign ?? { home: homedir(), tempRoots: defaultTempRoots(), toolRoots: defaultToolRoots(homedir()) }, requestOf);
+  return { events, requestOf, mtimes, totals, modified, stats, copied, perUnit, units: { claude: claudeUnits, codexRollouts: heads.length }, parsed, cached };
 }
