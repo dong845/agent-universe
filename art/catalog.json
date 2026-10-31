@@ -2,7 +2,7 @@
  "comment": "Generic art catalogue (spec v3 7). Descriptions name themes and buildings only, never a project, a path or a conversation. scripts/art/prompts.py wraps each description in style, view and background.",
  "style": "Warm clay toy style: soft matte painted clay, rounded edges, gentle warm light from the upper left, soft ambient occlusion, muted terracotta, cream, sage and warm wood palette.",
  "view": "Strict isometric game-asset view (2:1 dimetric, camera looking from the south-east at 30 degrees elevation), the whole object fully visible and centred with generous margin, standing on its own small flat footprint.",
- "background": "Background: one flat uniform solid magenta colour #FF00FF filling the entire image, no ground beyond the footprint, no cast shadow on the background, no scenery, no text, no letters, no numbers, no logos. Square image.",
+ "background": "Background: one flat uniform solid magenta colour #FF00FF filling the entire image, no ground beyond the footprint, no cast shadow on the background, no scenery, no text, no letters, no numbers, no logos. The building itself uses no magenta, hot pink or pink-purple colours. Square image.",
  "factions": {
   "claude-code": "Its roof tiles and banners are terracotta red.",
   "codex": "Its roof tiles and banners are slate blue."

@@ -19,7 +19,7 @@ with open(os.environ["FAKE_LOG"], "a") as f:
     f.write(instr.replace("\n", " ") + "\n")
 mode = os.environ.get("FAKE_MODE", "ok")
 fail = os.environ.get("FAKE_FAIL", "")
-if mode == "limit":
+if mode == "limit" or (mode == "limit_after_first" and "a tower" not in instr):
     print("ERROR: You've hit your usage limit. Try again later.", file=sys.stderr)
     sys.exit(1)
 if mode == "none" or (fail and fail in instr):
@@ -135,3 +135,33 @@ def test_interim_import_refuses_a_failing_image(env):
     Image.new("RGB", (300, 300), (255, 0, 255)).save(src / "blank.png")
     rep = import_dir(src, {"blank.png": "t/house_code_a", "missing.png": "t/house_code_b"}, kw["out_dir"], kw["manifest_path"])
     assert rep["imported"] == [] and [f[0] for f in rep["failed"]] == ["t/house_code_a", "t/house_code_b"]
+
+
+def test_a_crash_in_one_item_still_saves_the_others(env, monkeypatch):
+    import run as runmod
+
+    kw, calls, tmp = env
+    real_qa = runmod.qa
+
+    def flaky(rgba, category, _seen=[0]):
+        _seen[0] += 1
+        if _seen[0] == 3:
+            raise RuntimeError("boom")
+        return real_qa(rgba, category)
+
+    monkeypatch.setattr(runmod, "qa", flaky)
+    rep = run(**kw)
+    m = json.loads((tmp / "manifest.json").read_text())
+    assert len(m) == rep["made"] and rep["made"] >= 4
+    assert any("boom" in " ".join(r) for _, r in rep["failed"]) or rep["made"] == 5
+    assert (tmp / "sheet.png").exists()
+
+
+def test_the_batch_stops_when_codex_keeps_refusing(env, monkeypatch):
+    kw, calls, tmp = env
+    monkeypatch.setenv("FAKE_MODE", "limit_after_first")
+    rep = run(**{**kw, "concurrency": 1})
+    assert rep["stopped"] and "usage limit" in rep["stopped"]
+    # three landmark tiers are made, then three refusals in a row stop it: 6 calls, not 9
+    assert calls() == 6
+    assert any(i == "t/house_code_b" and r[0].startswith("stopped") for i, r in rep["failed"])

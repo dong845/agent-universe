@@ -1,6 +1,7 @@
 """Cut-out sprite → two WebP sizes and a manifest entry with its footprint anchor (spec v3 7.2)."""
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -45,4 +46,11 @@ def pack(rgba, item, out_dir, big=512, small=128):
 
 
 def write_manifest(entries, path):
-    Path(path).write_text(json.dumps(entries, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+    """atomic: a kill mid-write leaves the old manifest, never half a file"""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(entries, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)

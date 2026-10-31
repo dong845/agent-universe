@@ -73,11 +73,12 @@ def generate(item, raw_dir, codex="codex", timeout=600, sessions_dir=None, log=p
     theme, name = item["id"].split("/", 1)
     out = Path(raw_dir) / theme / f"{name}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix="agent-town-art-"))
     fname = f"{name}.png"
-    cmd = [codex, "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-c", 'approval_policy="never"', "-C", str(work), INSTR.format(prompt=item["prompt"], fname=fname)]
+    cmd = [codex, "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-c", 'approval_policy="never"', "-C", "", INSTR.format(prompt=item["prompt"], fname=fname)]
     since = time.time() - 1
     LAST_ERROR.pop(item["id"], None)
+    work = Path(tempfile.mkdtemp(prefix="agent-town-art-"))
+    cmd[cmd.index("-C") + 1] = str(work)
     try:
         r = subprocess.run(cmd, cwd=work, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=timeout)
         err = codex_error(r.stderr)
@@ -88,6 +89,7 @@ def generate(item, raw_dir, codex="codex", timeout=600, sessions_dir=None, log=p
         log(f"  {item['id']}: codex timed out after {timeout}s")
     except OSError as e:
         log(f"  {item['id']}: codex could not start: {e}")
+        shutil.rmtree(work, ignore_errors=True)
         return None
     try:
         made = work / fname

@@ -18,6 +18,13 @@ def cutout(img, hard=90.0, soft=170.0, margin=4):
     r, g, b = im[..., 0], im[..., 1], im[..., 2]
     chroma = np.minimum(r, b) - g  # high on magenta, near zero or negative on warm and neutral colours
     dist = np.sqrt(((im - KEY) ** 2).sum(-1))
+    # Codex draws the object centred with a margin: a band just inside the border must be plain
+    # magenta, or a shaded background would leave a halo the border rule cannot see
+    h, w = dist.shape
+    b0, b1 = max(1, int(0.03 * min(h, w))), max(2, int(0.08 * min(h, w)))
+    band = np.concatenate([dist[b0:b1].ravel(), dist[h - b1 : h - b0].ravel(), dist[:, b0:b1].ravel(), dist[:, w - b1 : w - b0].ravel()])
+    if (band < 60).mean() < 0.9:
+        raise CutoutError("background not uniform: the band inside the border is not plain magenta")
     cand = (dist < soft) | (chroma > 120)
     lab, _ = ndimage.label(cand)
     border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
@@ -31,6 +38,11 @@ def cutout(img, hard=90.0, soft=170.0, margin=4):
     else:
         holes = set()
     bg = np.isin(lab, list(border | holes))
+    # a shaded background (darkening towards the building) leaves a halo: on 20 real Codex images at
+    # most 0.8 % of the background lies further than 40 from #FF00FF (the anti-aliased rim)
+    outer = np.isin(lab, list(border))
+    if (dist[outer] > 40).mean() > 0.03:
+        raise CutoutError("background not uniform: it shades away from plain magenta")
     alpha = np.where(bg, np.clip((dist - hard) / (soft - hard), 0, 1), 1.0)
     alpha[bg & (chroma > 120)] = np.minimum(alpha[bg & (chroma > 120)], 0.0)
     if (alpha > 0.05).sum() == 0:
