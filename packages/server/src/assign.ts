@@ -20,7 +20,9 @@ const MARKERS = ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "READ
 const LOOSE = new Set(["Downloads", "Desktop", "Documents", "Pictures", "Movies", "Music", "Public", "Library"]);
 const DATED = /^\d{4}-\d{2}-\d{2}/;
 /** folders tools write their output into: never a town of their own, the folder holding them is */
-const OUTPUT = new Set(["assets", ".assets", "generated", "output", "outputs", "out", "build", "dist", "tmp", "temp", "cache", ".cache", "renders", "frames", "images", "video", "video_out", "media", "export", "exports"]);
+const OUTPUT = new Set(["assets", ".assets", "generated", "output", "outputs", "build", "dist", "tmp", "temp", "cache", ".cache", "renders", "video_out", "exports"]);
+/** names that are output folders inside a deck in Downloads/Desktop/Documents, but may be projects elsewhere */
+const OUTPUT_IN_LOOSE = new Set(["video", "videos", "images", "media", "frames", "out", "export"]);
 const SKILL_DIR = /^(.*[\\/]skills[\\/]([A-Za-z0-9@+_.-]+))(?:[\\/]|$)/;
 /** a logged path worth placing: not a whole patch or command run together into one "path" */
 const sane = (p: string) => p.length <= 1024 && !/[\u0000-\u001f]|\\n/.test(p);
@@ -115,9 +117,14 @@ export function makePlacer(o: AssignOptions) {
   /** home itself, its standard folders and dated scratch folders hold unrelated things */
   const loose = (d: string) => atHome(d) || (atHome(dirname(d)) && LOOSE.has(basename(d))) || DATED.test(basename(d));
   /** an output folder (assets/generated, .assets, build…) lifted to the folder that holds it */
+  const underLoose = (p: string) => {
+    for (let x = p; !atHome(x) && dirname(x) !== x; x = dirname(x)) if (atHome(dirname(x)) && LOOSE.has(basename(x))) return true;
+    return false;
+  };
+  const isOutput = (x: string) => OUTPUT.has(basename(x).toLowerCase()) || (OUTPUT_IN_LOOSE.has(basename(x).toLowerCase()) && underLoose(x));
   const lift = (d: string) => {
     let x = d;
-    while (OUTPUT.has(basename(x).toLowerCase()) && !atHome(x) && dirname(x) !== x) x = dirname(x);
+    while (isOutput(x) && !gitRoot(x) && !marked(x) && !atHome(dirname(x)) && dirname(x) !== x) x = dirname(x);
     return x;
   };
   /** the nearest folder at or above d, and below home, holding a project marker */

@@ -144,8 +144,11 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
   let names = [...byFolder.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([n]) => n);
   if (names.length > cfg.maxStreets) names = [...names.filter((n) => n !== "其他").slice(0, cfg.maxStreets - 1), "其他"];
   const streetName = (r: RequestRow) => (names.includes(streetOf(r.topDir)) ? streetOf(r.topDir) : "其他");
-  const keep = new Set(produced.filter((r) => !isLive(r)).sort((a, b) => work(b) - work(a) || (a.requestId < b.requestId ? -1 : 1)).slice(0, Math.min(cfg.maxHouses, Math.ceil(produced.filter((r) => !isLive(r)).length / 2))).map((r) => r.requestId));
-  for (const r of produced) if (isLive(r)) keep.add(r.requestId);
+  // work in progress first (most recent first), then the larger half of the finished work, at most maxHouses in all
+  const liveOnes = produced.filter(isLive).sort((a, b) => b.startTs - a.startTs || (a.requestId < b.requestId ? -1 : 1)).slice(0, cfg.maxHouses);
+  const done = produced.filter((r) => !isLive(r));
+  const room = Math.max(0, Math.min(cfg.maxHouses - liveOnes.length, Math.ceil(done.length / 2)));
+  const keep = new Set([...liveOnes, ...done.sort((a, b) => work(b) - work(a) || (a.requestId < b.requestId ? -1 : 1)).slice(0, room)].map((r) => r.requestId));
   const drawnWork = produced.filter((r) => keep.has(r.requestId)).map(work).sort((a, b) => a - b);
   const sizeOf = (w: number) => (w >= drawnWork[Math.floor(drawnWork.length * 0.8)] ? 1.5 : w >= drawnWork[Math.floor(drawnWork.length * 0.4)] ? 1.28 : 1.08);
   const streets: Street[] = [];
@@ -168,6 +171,7 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
     }
     sign ??= { x: 8 * Math.cos(mid) * Math.sqrt(3), z: -8 * Math.sin(mid) * Math.sqrt(3) };
     drawn.forEach((r, j) => {
+      if (!slots[j]) return; // no room left in the wedge: counted, not drawn
       const [q, rr] = slots[j];
       take(q, rr, "lot");
       const p = at(q, rr);
@@ -177,7 +181,8 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
         size: isLive(r) ? 1.28 : sizeOf(work(r)), info: { kind: "house", requestId: r.requestId }, from: isLive(r) ? r.startTs : r.endTs, street: name, ...(isLive(r) ? { live: true } : {}),
       });
     });
-    streets.push({ name, x: sign.x, z: sign.z, drawn: drawn.length, minor: all.length - drawn.length });
+    const placed = Math.min(drawn.length, slots.length);
+    streets.push({ name, x: sign.x, z: sign.z, drawn: placed, minor: all.length - placed });
   });
 
   // ---- tents for the biggest investigations, on the outskirts --------------------------------------

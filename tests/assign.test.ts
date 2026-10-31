@@ -305,3 +305,16 @@ describe("assignProjects, output folders", () => {
     expect(startOf(a).projectId).toBe(OUTPOST);
   });
 });
+
+describe("assignProjects, output folders never swallow a project", () => {
+  it("a repository or a project folder whose name looks like an output folder stays its own town", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, "code/media/.git"), { recursive: true });
+    mkdirSync(join(h, "work/video/src"), { recursive: true });
+    const a = task(join(h, "code/media"), [], "t1");
+    const b = task(join(h, "work/video"), [{ tool: "Edit", target: join(h, "work/video/src/a.ts") }], "t2");
+    assignProjects([...a, ...b], opts);
+    expect(startOf(a).projectId).toBe(join(h, "code/media"));
+    expect(startOf(b, "t2").projectId).toBe(join(h, "work/video"));
+  });
+});

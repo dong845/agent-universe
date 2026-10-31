@@ -51,3 +51,21 @@ describe("a request in progress", () => {
     expect(h[0].from).toBe(1);
   });
 });
+
+describe("review fixes", () => {
+  const town = { key: "codex|/p", faction: "codex", projectId: "/p", name: "p", kind: "project", guildOf: [], theme: "craftsmen", counts: { produced: 0, investigation: 0, chat: 0, empty: 0 }, workCounts: {}, lastEditTs: null } as TownRow;
+  const req = (i: number, live = false): RequestRow => ({ requestId: `${live ? "L" : "R"}${i}`, faction: "codex", projectId: "/p", sessionId: "s", startTs: i, endTs: i + 1, ok: live ? null : true, class: "produced", productKind: "code", tokens: { input: i, output: 1, cacheRead: 0, cacheWrite: 0 }, calls: 1, fails: 0, spawns: 0, skills: [], topDir: "src", turns: 1, taskIds: [`T${live ? "L" : "R"}${i}`] });
+
+  it("requests in progress count inside the 20-house cap, and never crash the layout", () => {
+    const rs = [...Array.from({ length: 60 }, (_, i) => req(i)), ...Array.from({ length: 40 }, (_, i) => req(i, true))];
+    const live = new Set(rs.filter((r) => r.requestId.startsWith("L")).map((r) => r.requestId));
+    const l = layoutTown(town, rs, { ...LAYOUT_DEFAULTS, live });
+    const houses = l.spots.filter((s) => s.info.kind === "house");
+    expect(houses.length).toBeLessThanOrEqual(20);
+    expect(houses.filter((h) => h.live).length).toBe(20); // the work in progress comes first
+  });
+
+  it("an old #task link to a turn the world does not know opens nothing", () => {
+    expect(requestOfTask({ kind: "task", district: "codex|/p", taskId: "nope" }, [])).toBeNull();
+  });
+});

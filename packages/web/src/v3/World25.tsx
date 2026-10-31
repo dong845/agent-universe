@@ -90,12 +90,16 @@ function Islands({ w }: { w: World25 }) {
       r.current!.computeBoundingSphere();
     }
   }, [cells]);
+  // materials made once: a new one in `args` would make R3F rebuild the meshes on every clock tick,
+  // dropping their instance matrices (the islands collapsed while time played)
+  const mats = useMemo(() => ({ col: new MeshStandardMaterial({ roughness: 0.95, flatShading: true }), cap: new MeshStandardMaterial({ roughness: 0.9, flatShading: true }), foam: new MeshBasicMaterial({ color: "#e9f6f1", transparent: true, opacity: 0.55 }) }), []);
+  useEffect(() => () => { for (const m of Object.values(mats)) m.dispose(); }, [mats]);
   const n = Math.max(1, cells.length);
   return (
     <>
-      <instancedMesh key={`c${n}`} ref={cols} args={[geo.col, new MeshStandardMaterial({ roughness: 0.95, flatShading: true }), n]} receiveShadow />
-      <instancedMesh key={`p${n}`} ref={caps} args={[geo.cap, new MeshStandardMaterial({ roughness: 0.9, flatShading: true }), n]} receiveShadow />
-      <instancedMesh key={`f${n}`} ref={foam} args={[geo.foam, new MeshBasicMaterial({ color: "#e9f6f1", transparent: true, opacity: 0.55 }), n]} />
+      <instancedMesh key={`c${n}`} ref={cols} args={[geo.col, mats.col, n]} receiveShadow />
+      <instancedMesh key={`p${n}`} ref={caps} args={[geo.cap, mats.cap, n]} receiveShadow />
+      <instancedMesh key={`f${n}`} ref={foam} args={[geo.foam, mats.foam, n]} />
       <mesh rotation-x={-Math.PI / 2} position-y={-0.85}>
         <planeGeometry args={[6000, 6000]} />
         <meshStandardMaterial color="#7ec4c4" roughness={0.6} />
@@ -142,6 +146,7 @@ function SpriteGroup({ id, url, list, art, ghost }: { id: string; url: string; l
   }, [url, id]);
   // a house still being built is drawn faded
   const material = useMemo(() => (tex ? (ghost ? new MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, alphaTest: 0.05, toneMapped: false, depthWrite: false }) : new MeshBasicMaterial({ map: tex, alphaTest: 0.5, alphaToCoverage: true, toneMapped: false })) : null), [tex, ghost]);
+  useEffect(() => () => material?.dispose(), [material]);
   useEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
@@ -188,7 +193,9 @@ function Shadows({ placed }: { placed: Placed[] }) {
     ref.current!.count = placed.length;
     ref.current!.instanceMatrix.needsUpdate = true;
   }, [placed]);
-  return <instancedMesh key={placed.length} ref={ref} args={[PLANE, new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), Math.max(1, placed.length)]} frustumCulled={false} />;
+  const mat = useMemo(() => new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), [tex]);
+  useEffect(() => () => mat.dispose(), [mat]);
+  return <instancedMesh key={placed.length} ref={ref} args={[PLANE, mat, Math.max(1, placed.length)]} frustumCulled={false} />;
 }
 
 /** the camera: fixed direction, pan and zoom; flies to a point when asked */

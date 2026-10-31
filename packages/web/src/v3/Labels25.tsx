@@ -30,6 +30,8 @@ interface L {
 }
 
 const els = new Map<string, HTMLDivElement>();
+/** label sizes, measured once: the text never changes while the world is loaded */
+const sizes = new Map<string, { w: number; h: number }>();
 const v = new Vector3();
 /** the area the HUD and the time bar cover: no label goes there */
 const RESERVED = (w: number, h: number) => [{ x: w / 2 - 260, y: 0, w: 520, h: 80 }, { x: w / 2 - 470, y: h - 70, w: 940, h: 70 }];
@@ -58,8 +60,13 @@ export function LabelProjector25({ labels }: { labels: L[] }) {
     const p = new Vector3(x, y, z).project(camera);
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height };
   };
+  let last = "";
   useFrame(() => {
     const zoom = (camera as OrthographicCamera).zoom;
+    // nothing moved: the labels are where they were
+    const key = `${camera.position.x.toFixed(3)},${camera.position.z.toFixed(3)},${zoom.toFixed(4)},${size.width},${size.height},${labels.length}`;
+    if (key === last) return;
+    last = key;
     const crowd: LabelBox[] = RESERVED(size.width, size.height).map((r, i) => ({ id: `reserved${i}`, rect: r, priority: Infinity }));
     for (const l of labels) {
       const el = els.get(l.id);
@@ -77,7 +84,9 @@ export function LabelProjector25({ labels }: { labels: L[] }) {
       }
       el.style.visibility = "visible";
       el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
-      const w = el.offsetWidth, h = el.offsetHeight;
+      let sz = sizes.get(l.id);
+      if (!sz) sizes.set(l.id, (sz = { w: el.offsetWidth, h: el.offsetHeight }));
+      const { w, h } = sz;
       crowd.push({ id: l.id, rect: { x: x - w / 2 - 3, y: y - h - 2, w: w + 6, h: h + 4 }, priority: l.priority });
     }
     const keep = declutter(crowd);

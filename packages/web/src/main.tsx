@@ -39,7 +39,8 @@ if (q.get("paused") === "1") store.setPlaying(false);
 const open = (h: string) => {
   const s = fromHash(h);
   const w = useStore.getState().w25;
-  return s && w ? requestOfTask(s, w.requests.values()) ?? s : s;
+  // an old link to a turn this world does not know opens nothing (the per-turn view is gone)
+  return s && w ? requestOfTask(s, w.requests.values()) : s;
 };
 const fromUrl = open(location.hash);
 if (fromUrl) store.select(fromUrl);

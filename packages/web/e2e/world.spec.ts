@@ -47,6 +47,34 @@ test("the world loads, draws islands and buildings, and has no console errors", 
   expect(errors).toEqual([]);
 });
 
+/** share of the canvas that is not open sea */
+async function landShare(page: Page): Promise<number> {
+  const png = await page.locator("canvas").screenshot();
+  return page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let land = 0;
+    for (let i = 0; i < d.length; i += 16) if (Math.abs(d[i] - 126) + Math.abs(d[i + 1] - 196) + Math.abs(d[i + 2] - 196) > 60) land++;
+    return land / (d.length / 16);
+  }, png.toString("base64"));
+}
+
+test("the islands stay drawn while time plays", async ({ page }) => {
+  await open(page, [], focusTown(TOWN));
+  const before = await landShare(page);
+  await page.evaluate(() => { (window as any).__agentTown.setSpeed(8); (window as any).__agentTown.play(); });
+  await page.waitForTimeout(3000);
+  expect(await page.evaluate(() => (window as any).__agentTown.state().t)).toBeGreaterThan(1000);
+  expect(await landShare(page)).toBeGreaterThan(before * 0.8);
+});
+
 test("every town has a banner; the visible ones never overlap", async ({ page }) => {
   await open(page, []);
   const ids = await page.$$eval(".banner", (els) => els.map((e) => (e as HTMLElement).dataset.label));
