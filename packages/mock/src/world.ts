@@ -146,7 +146,8 @@ export function worldScenario(): AgentTownEvent[] {
 /** the demo world as the browser loads it (?demo=1): every event in full, live = tasks with tool calls */
 export function demoPayload(): WorldPayload {
   const events = worldScenario();
-  const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId).map((e) => e.taskId!))];
+  // the live window's tasks; history tasks have steps too now, but they are finished
+  const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId && !e.sessionId.endsWith(":history")).map((e) => e.taskId!))];
   const requests = buildRequests(events, requestIdsOf(events), DEFAULT_WORLD_CONFIG);
   const towns = buildTowns(requests, events, { themes: themesConfig as ThemesConfig, overrides: {}, guildSkillsOf: () => [], describe: () => undefined });
   return { events, buildingRows: [], liveTaskIds: live, generatedAt: Math.max(...events.map((e) => e.ts)), source: "demo", requests, towns };

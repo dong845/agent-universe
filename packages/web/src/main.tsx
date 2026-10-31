@@ -24,14 +24,12 @@ store.load(payload);
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));
-const look = q.get("look");
-if (look === "toy" || look === "dusk" || look === "board") store.setLook(look);
 // ?focus=primary opens flown into the main live town instead of the whole world
 // read the live state: `store` above is the snapshot taken before load(), so its fields are stale
 const focusQ = q.get("focus");
 if (focusQ === "primary") store.setFocus(useStore.getState().primary?.district.key ?? null);
 // ?focus=<faction>|<project> opens flown into that town
-else if (focusQ && useStore.getState().world.districts.some((d) => d.key === focusQ)) store.setFocus(focusQ);
+else if (focusQ && useStore.getState().w25?.towns.has(focusQ)) store.setFocus(focusQ);
 if (q.has("t")) store.setTime(Number(q.get("t")));
 if (q.get("paused") === "1") store.setPlaying(false);
 // #task=… / #site=… / #agent=… reopen a selection; selecting writes the hash back

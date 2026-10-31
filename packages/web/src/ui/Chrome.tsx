@@ -64,21 +64,22 @@ export function TimelineBar() {
   );
 }
 
-/** world navigation: back to the whole map, or fly to the next town with a live task */
+/** world navigation: back to the whole map, or fly to the next town with a request in progress */
 export function Nav() {
   const focus = useStore((s) => s.focus);
-  const runtimes = useStore((s) => s.runtimes);
-  const live = runtimes.filter((r) => r.timeline).map((r) => r.district);
-  const current = runtimes.find((r) => r.district.key === focus)?.district;
+  const w = useStore((s) => s.w25);
+  const liveIds = useStore((s) => s.live);
+  const live = w ? [...w.towns.values()].filter((t) => [...w.requests.values()].some((r) => `${r.faction}|${r.projectId}` === t.key && r.taskIds.some((id) => liveIds.has(id)))) : [];
+  const current = focus ? w?.towns.get(focus) : undefined;
   const next = () => {
-    const i = live.findIndex((d) => d.key === focus);
+    const i = live.findIndex((t) => t.key === focus);
     useStore.getState().setFocus(live[(i + 1) % live.length]?.key ?? null);
   };
   return (
     <div className="nav">
       <button onClick={() => useStore.getState().setFocus(null)} className={focus ? "" : "on"} data-testid="nav-world">全景</button>
-      <button onClick={next} disabled={!live.length} data-testid="nav-live">当前活跃工地{live.length ? ` (${live.length})` : ""}</button>
-      {current ? <span className="where">{current.faction === "codex" ? "Codex" : "Claude Code"} · {current.name}</span> : <span className="where">世界 · {useStore.getState().world.districts.length} 个街区</span>}
+      <button onClick={next} disabled={!live.length} data-testid="nav-live">进行中{live.length ? ` (${live.length})` : ""}</button>
+      {current ? <span className="where">{current.faction === "codex" ? "Codex" : "Claude Code"} · {current.name}</span> : <span className="where">世界 · {w?.towns.size ?? 0} 个镇</span>}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 // What the user clicked (spec 4): a finished task's house, a live site, or one agent. The camera
 // pushes in to it and the diary opens; the URL hash keeps it across a reload.
 export type Selection =
+  | { kind: "request"; district: string; requestId: string }
+  | { kind: "town"; district: string }
   | { kind: "task"; district: string; taskId: string }
   | { kind: "site"; district: string }
   | { kind: "agent"; district: string; agentId: string };
@@ -16,6 +18,8 @@ const enc = (s: string) => encodeURIComponent(s).replace(/~/g, "%7E");
 export function toHash(s: Selection | null): string {
   if (!s) return "";
   if (s.kind === "site") return `#site=${enc(s.district)}`;
+  if (s.kind === "town") return `#town=${enc(s.district)}`;
+  if (s.kind === "request") return `#req=${enc(s.district)}~${enc(s.requestId)}`;
   return `#${s.kind}=${enc(s.district)}~${enc(s.kind === "task" ? s.taskId : s.agentId)}`;
 }
 

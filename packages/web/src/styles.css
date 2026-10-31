@@ -190,3 +190,13 @@ canvas { display: block; }
 .diary .agent .task { color: #6b5848; font-size: 12px; margin: 4px 0; }
 .diary .more { margin-top: 6px; width: 100%; }
 .diary .target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* v3: street signs, town banners by kind, legend */
+.street { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; background: rgba(110, 80, 50, 0.88); color: #fff6e6; border: 1.5px solid #4a3320; border-radius: 7px; padding: 1px 8px; font-size: 11px; }
+.street span { color: #f1dcbc; margin-left: 5px; }
+.banner span { margin-left: 6px; }
+.town-guild b::before { content: "⚑ "; }
+.legend b { display: block; margin-bottom: 2px; }
+
+.legend { top: auto; right: auto; left: 14px; bottom: 96px; max-width: 520px; }
+.label span { margin-left: 5px; font-weight: 400; color: #8a6a4a; }
