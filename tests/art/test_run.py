@@ -106,3 +106,32 @@ def test_codex_own_error_is_the_reason_given(env, monkeypatch):
     monkeypatch.setenv("FAKE_MODE", "limit")
     with pytest.raises(NoImageTool, match="usage limit"):
         run(**kw)
+
+
+def test_interim_art_is_imported_and_later_replaced(env):
+    from import_raw import import_dir
+    from synth import sprite
+
+    kw, calls, tmp = env
+    src = tmp / "interim"
+    src.mkdir()
+    sprite().save(src / "hut.png")
+    rep = import_dir(src, {"hut.png": "t/house_code_a"}, kw["out_dir"], kw["manifest_path"])
+    m = json.loads((tmp / "manifest.json").read_text())
+    assert rep == {"imported": ["t/house_code_a"], "failed": []}
+    assert m["t/house_code_a"]["source"] == "interim" and m["t/house_code_a"]["promptHash"] == "interim"
+    assert (tmp / "out" / "t" / "house_code_a.webp").exists()
+    # a real batch later makes every item, the interim one included
+    assert run(**kw)["made"] == 5
+
+
+def test_interim_import_refuses_a_failing_image(env):
+    from import_raw import import_dir
+    from PIL import Image
+
+    kw, calls, tmp = env
+    src = tmp / "interim"
+    src.mkdir()
+    Image.new("RGB", (300, 300), (255, 0, 255)).save(src / "blank.png")
+    rep = import_dir(src, {"blank.png": "t/house_code_a", "missing.png": "t/house_code_b"}, kw["out_dir"], kw["manifest_path"])
+    assert rep["imported"] == [] and [f[0] for f in rep["failed"]] == ["t/house_code_a", "t/house_code_b"]

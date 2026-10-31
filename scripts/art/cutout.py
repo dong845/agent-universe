@@ -1,6 +1,7 @@
-"""Magenta chroma-key cut-out (spec v3 7.2). Only the background connected to the image border is
-removed, so a magenta-ish detail inside a building survives; the edge is softened and the magenta
-spill is pulled out of the rim only."""
+"""Magenta chroma-key cut-out (spec v3 7.2). Removed: the magenta background connected to the image
+border, and any enclosed patch that is (nearly) pure #FF00FF — background seen through a gap, since
+Codex never paints that colour on purpose. A purple or pink detail inside the building survives. The
+edge is softened and the magenta spill is pulled out of the rim only."""
 import numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -22,7 +23,14 @@ def cutout(img, hard=90.0, soft=170.0, margin=4):
     border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
     if not border:
         raise CutoutError("no background connected to the border: not a magenta-keyed image")
-    bg = np.isin(lab, list(border))
+    # enclosed patches whose typical pixel is pure magenta are holes, not details
+    n = lab.max()
+    if n:
+        med = ndimage.median(dist, lab, index=np.arange(1, n + 1))
+        holes = {i + 1 for i, m in enumerate(np.atleast_1d(med)) if m < 45}
+    else:
+        holes = set()
+    bg = np.isin(lab, list(border | holes))
     alpha = np.where(bg, np.clip((dist - hard) / (soft - hard), 0, 1), 1.0)
     alpha[bg & (chroma > 120)] = np.minimum(alpha[bg & (chroma > 120)], 0.0)
     if (alpha > 0.05).sum() == 0:

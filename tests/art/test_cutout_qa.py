@@ -16,13 +16,32 @@ def test_a_clean_sprite_passes():
     assert qa(out, "house") == []
 
 
-def test_magenta_inside_the_building_stays():
+def test_background_seen_through_a_gap_is_removed_too():
+    # pure #FF00FF enclosed by the building is the background showing through (a tent opening, the
+    # space under a bench): Codex never paints that colour on purpose
     out = cutout(sprite(window=True))
     a = alpha(out)
     h, w = a.shape
-    # the window sits in the middle of the body
-    assert a[int(h * 0.45), w // 2] == 255
+    assert a[int(h * 0.45), w // 2] == 0
     assert qa(out, "house") == []
+
+
+def test_a_purple_detail_inside_the_building_stays():
+    from PIL import ImageDraw
+
+    im = sprite()
+    ImageDraw.Draw(im).ellipse([236, 260, 276, 300], fill=(150, 80, 170))  # purple flowers
+    out = cutout(im)
+    arr = np.asarray(out)
+    ys, xs = np.nonzero((arr[..., 0] == 150) & (arr[..., 2] == 170))
+    assert len(ys) > 100 and arr[ys, xs, 3].min() == 255
+
+
+def test_qa_catches_magenta_left_inside():
+    clean = np.asarray(cutout(sprite())).copy()
+    h, w = clean.shape[:2]
+    clean[int(h * 0.5) : int(h * 0.5) + 30, w // 2 - 15 : w // 2 + 15] = (255, 0, 255, 255)
+    assert "magenta inside" in qa(Image.fromarray(clean, "RGBA"), "house")
 
 
 def test_an_uneven_background_is_caught():

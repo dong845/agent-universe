@@ -1,0 +1,282 @@
+{
+ "publishing/house_code_a": {
+  "anchor": [
+   0.5229,
+   0.8454
+  ],
+  "category": "house",
+  "footprint": 0.8973,
+  "h": 1205,
+  "id": "publishing/house_code_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 808
+ },
+ "publishing/house_data_a": {
+  "anchor": [
+   0.4996,
+   0.7123
+  ],
+  "category": "house",
+  "footprint": 0.9925,
+  "h": 1049,
+  "id": "publishing/house_data_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 1196
+ },
+ "publishing/house_docs_a": {
+  "anchor": [
+   0.5004,
+   0.7409
+  ],
+  "category": "house",
+  "footprint": 0.9867,
+  "h": 1095,
+  "id": "publishing/house_docs_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 1130
+ },
+ "publishing/house_image_a": {
+  "anchor": [
+   0.4957,
+   0.7493
+  ],
+  "category": "house",
+  "footprint": 0.9349,
+  "h": 1108,
+  "id": "publishing/house_image_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 1167
+ },
+ "publishing/house_slides_a": {
+  "anchor": [
+   0.4862,
+   0.7059
+  ],
+  "category": "house",
+  "footprint": 0.9639,
+  "h": 969,
+  "id": "publishing/house_slides_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 1162
+ },
+ "publishing/house_video_a": {
+  "anchor": [
+   0.5,
+   0.7736
+  ],
+  "category": "house",
+  "footprint": 0.99,
+  "h": 1121,
+  "id": "publishing/house_video_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 1005
+ },
+ "publishing/landmark_1_t2": {
+  "anchor": [
+   0.4713,
+   0.7685
+  ],
+  "category": "landmark",
+  "footprint": 0.9355,
+  "h": 1149,
+  "id": "publishing/landmark_1_t2",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "publishing",
+  "w": 1116
+ },
+ "shared/misc_notice": {
+  "anchor": [
+   0.4837,
+   0.765
+  ],
+  "category": "misc",
+  "footprint": 0.9596,
+  "h": 1083,
+  "id": "shared/misc_notice",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1040
+ },
+ "shared/misc_tent_a": {
+  "anchor": [
+   0.4987,
+   0.6868
+  ],
+  "category": "misc",
+  "footprint": 0.9905,
+  "h": 933,
+  "id": "shared/misc_tent_a",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1160
+ },
+ "shared/prop_lamp_crates": {
+  "anchor": [
+   0.4994,
+   0.8224
+  ],
+  "category": "prop",
+  "footprint": 0.9885,
+  "h": 1115,
+  "id": "shared/prop_lamp_crates",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 781
+ },
+ "shared/prop_tree_cypress": {
+  "anchor": [
+   0.4992,
+   0.8592
+  ],
+  "category": "prop",
+  "footprint": 0.9858,
+  "h": 1149,
+  "id": "shared/prop_tree_cypress",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 636
+ },
+ "shared/prop_tree_round": {
+  "anchor": [
+   0.4947,
+   0.8645
+  ],
+  "category": "prop",
+  "footprint": 0.7007,
+  "h": 1013,
+  "id": "shared/prop_tree_round",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 755
+ },
+ "shared/public_compact_claude-code": {
+  "anchor": [
+   0.4996,
+   0.7143
+  ],
+  "category": "public",
+  "footprint": 0.9926,
+  "h": 1077,
+  "id": "shared/public_compact_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1220
+ },
+ "shared/public_edit_claude-code": {
+  "anchor": [
+   0.4996,
+   0.7554
+  ],
+  "category": "public",
+  "footprint": 0.9901,
+  "h": 1150,
+  "id": "shared/public_edit_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1116
+ },
+ "shared/public_hall_claude-code": {
+  "anchor": [
+   0.4996,
+   0.7368
+  ],
+  "category": "public",
+  "footprint": 0.991,
+  "h": 1172,
+  "id": "shared/public_hall_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1221
+ },
+ "shared/public_online_claude-code": {
+  "anchor": [
+   0.4791,
+   0.7942
+  ],
+  "category": "public",
+  "footprint": 0.9407,
+  "h": 1199,
+  "id": "shared/public_online_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1028
+ },
+ "shared/public_plan_claude-code": {
+  "anchor": [
+   0.5085,
+   0.7333
+  ],
+  "category": "public",
+  "footprint": 0.9577,
+  "h": 1080,
+  "id": "shared/public_plan_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1182
+ },
+ "shared/public_read_claude-code": {
+  "anchor": [
+   0.4994,
+   0.8258
+  ],
+  "category": "public",
+  "footprint": 0.9892,
+  "h": 1207,
+  "id": "shared/public_read_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 830
+ },
+ "shared/public_run_claude-code": {
+  "anchor": [
+   0.4996,
+   0.68
+  ],
+  "category": "public",
+  "footprint": 0.9927,
+  "h": 971,
+  "id": "shared/public_run_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1232
+ },
+ "shared/public_spawn_claude-code": {
+  "anchor": [
+   0.4792,
+   0.7036
+  ],
+  "category": "public",
+  "footprint": 0.8913,
+  "h": 937,
+  "id": "shared/public_spawn_claude-code",
+  "promptHash": "interim",
+  "source": "interim",
+  "theme": "shared",
+  "w": 1224
+ }
+}

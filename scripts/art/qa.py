@@ -45,6 +45,10 @@ def qa(rgba, category):
     pink = (np.minimum(r, b) - g > 60) & (np.abs(r - b) < 60)
     if (pink & rim).sum() > 0.005 * max(op.sum(), 1):
         problems.append("magenta fringe")
+    # pure magenta anywhere in the opaque part: background left inside (a gap the cut-out missed)
+    pure = op & (np.sqrt(((rgb - np.array([255, 0, 255])) ** 2).sum(-1)) < 60)
+    if pure.sum() > max(20, 0.0005 * op.sum()):
+        problems.append("magenta inside")
     w, h = rgba.size
     if not 0.45 <= w / h <= 2.2:
         problems.append("aspect")
