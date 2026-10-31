@@ -1,0 +1,22 @@
+{
+ "printhouse.png": "publishing/landmark_1_t2",
+ "house_code.png": "publishing/house_code_a",
+ "house_docs.png": "publishing/house_docs_a",
+ "house_slides.png": "publishing/house_slides_a",
+ "house_image.png": "publishing/house_image_a",
+ "house_video.png": "publishing/house_video_a",
+ "house_data.png": "publishing/house_data_a",
+ "pub_read.png": "shared/public_read_claude-code",
+ "pub_edit.png": "shared/public_edit_claude-code",
+ "pub_run.png": "shared/public_run_claude-code",
+ "pub_plan.png": "shared/public_plan_claude-code",
+ "pub_online.png": "shared/public_online_claude-code",
+ "pub_spawn.png": "shared/public_spawn_claude-code",
+ "pub_compact.png": "shared/public_compact_claude-code",
+ "pub_hall.png": "shared/public_hall_claude-code",
+ "tent.png": "shared/misc_tent_a",
+ "notice.png": "shared/misc_notice",
+ "tree_a.png": "shared/prop_tree_round",
+ "tree_b.png": "shared/prop_tree_cypress",
+ "lamp_crates.png": "shared/prop_lamp_crates"
+}

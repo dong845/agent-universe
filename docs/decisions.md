@@ -293,3 +293,15 @@ Spec: `docs/superpowers/specs/2026-10-29-world-v3-design.md`. Owner picked: 2.5D
 **API.** `/api/world` adds `requests` and `towns`; `GET /api/request/:id` returns every turn's events. Request tokens equal the per-turn model calls exactly (30.15 B on real data).
 
 **The v2 renderer** still draws per turn from events; it simply sees fewer, better-named towns until step 3 replaces it.
+
+## D16 World v3, step 2: art pipeline (2026-10-31)
+
+Plan: `docs/superpowers/plans/2026-10-29-world-v3-step2-art.md`. Python under `scripts/art/` (numpy/scipy/Pillow), tests `node --run test:art` (synthetic images only).
+
+**Flow.** `art/catalog.json` (generic: style, view, background, 3 themes × 6 landmark ideas × 3 tiers + 6 house kinds × 2 variants, 12 public buildings × 2 faction colours, misc, props) → `prompts.py` (refuses any prompt carrying a local town name; only short plain catalogue words like "music" are exempt) → `generate.py` (`codex exec` on the subscription, each run in its own folder; falls back to the image in that run's own rollout) → `cutout.py` → `qa.py` → `pack.py` (512 px and 128 px WebP, manifest with the footprint anchor) → contact sheet. `node --run art -- --themes … --shared [--only|--redo GLOB]`; refuses to start without the local server (no town names to check against).
+
+**Cut-out.** Magenta connected to the border is background; so is any enclosed patch whose median pixel is pure #FF00FF (background seen through a gap — tent openings, under benches; found by looking at the sheet after every check had passed). Purple and pink details stay. Spill is removed on the 3-px rim only.
+
+**Checks.** Clear border; kept share 15–95 %; no pink on the rim; no pure magenta inside; aspect 0.45–2.2; buildings only: the footprint's half-width grows 1.5–3.0 px per px of height (calibrated on 18 real Codex buildings at the right angle: 1.67–2.63; front-on ≈ 0, top-down ≈ 1). Up to 2 rerolls; failures go to the sheet's 待你看 row, never into the manifest.
+
+**First batch: blocked.** Codex answered "You've hit your usage limit … try again at Nov 28th, 2026" (plan go). The driver now reports Codex's own error. Owner chose: no paid API; go on with the 20 images already drawn for the demo, imported through the same cut-out and checks as **interim** (`art/interim-map.json`, `scripts/art/import_raw.py`; promptHash "interim", so the next real batch redraws them). In the repo: 40 WebP, 1.3 MB. Known: the forge's smoke is faintly pink (the catalogue now asks for no smoke).

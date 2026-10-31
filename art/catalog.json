@@ -1,0 +1,199 @@
+{
+ "comment": "Generic art catalogue (spec v3 7). Descriptions name themes and buildings only, never a project, a path or a conversation. scripts/art/prompts.py wraps each description in style, view and background.",
+ "style": "Warm clay toy style: soft matte painted clay, rounded edges, gentle warm light from the upper left, soft ambient occlusion, muted terracotta, cream, sage and warm wood palette.",
+ "view": "Strict isometric game-asset view (2:1 dimetric, camera looking from the south-east at 30 degrees elevation), the whole object fully visible and centred with generous margin, standing on its own small flat footprint.",
+ "background": "Background: one flat uniform solid magenta colour #FF00FF filling the entire image, no ground beyond the footprint, no cast shadow on the background, no scenery, no text, no letters, no numbers, no logos. The building itself uses no magenta, hot pink or pink-purple colours. Square image.",
+ "factions": {
+  "claude-code": "Its roof tiles and banners are terracotta red.",
+  "codex": "Its roof tiles and banners are slate blue."
+ },
+ "themes": {
+  "publishing": {
+   "name": "出版镇",
+   "town": "It belongs to a cozy medieval PUBLISHING AND PRINTING town: cream plaster walls, timber framing, terracotta tile roofs, paper and ink details.",
+   "landmarks": [
+    {
+     "idea": "a PRINT HOUSE with a great wooden printing press under an open stone arch and paper sheets drying on lines across its balcony"
+    },
+    {
+     "idea": "a LIBRARY-SCRIPTORIUM with a tall round book tower, reading balconies and arched windows full of shelves"
+    },
+    {
+     "idea": "a TYPE FOUNDRY with a tall brick chimney, glowing crucibles and racks of small metal type blocks"
+    },
+    {
+     "idea": "a BOOKBINDERS' GUILDHALL whose roof is shaped like a giant open book, with leather hides drying outside"
+    },
+    {
+     "idea": "a PAPER MILL beside a small stream with a big turning water wheel and stacks of fresh paper"
+    },
+    {
+     "idea": "a NEWS TOWER with a clock face without numerals and a pulley lowering paper bundles from its balcony"
+    }
+   ],
+   "houses": {
+    "code": [
+     "a narrow two-storey workshop cottage with a small clockwork turret on the roof, with a hanging wooden sign shaped like a GEAR over the door.",
+     "a squat stone-and-timber cottage with a round gear-shaped window and a workbench of tools, with a hanging wooden sign shaped like a GEAR over the door."
+    ],
+    "docs": [
+     "a scribe's cottage with a round bay window full of stacked manuscripts and a quill and inkpot on a bench, with a hanging wooden sign shaped like a rolled SCROLL over the door.",
+     "a tall narrow cottage with an outdoor lectern and stacked folios under a little porch, with a hanging wooden sign shaped like a rolled SCROLL over the door."
+    ],
+    "slides": [
+     "a wide low gallery-like cottage with a big open front, with a wooden EASEL holding a blank framed board at the door.",
+     "a cottage with a large shuttered display window and a second easel under its eaves, with a wooden EASEL holding a blank framed board at the door."
+    ],
+    "image": [
+     "a painter's cottage with a big north-facing skylight and blank canvases leaning on the wall, with a gilded PICTURE FRAME hanging as the sign over the door.",
+     "a small atelier with a glass-roofed annex and a pot of brushes by the step, with a gilded PICTURE FRAME hanging as the sign over the door."
+    ],
+    "video": [
+     "a compact cinema cottage with a striped awning and a little lantern projector by the door, with a big wooden FILM REEL mounted on the roof as its sign.",
+     "a cottage with a tiny projection booth turret and a rolled film strip hung like bunting, with a big wooden FILM REEL mounted on the roof as its sign."
+    ],
+    "data": [
+     "a sturdy squat storehouse cottage with a loading door and a hanging lantern, with a neat STACK OF WOODEN CRATES and barrels by the door as its sign.",
+     "a ledger house with a hoist beam and a small weighing scale by the door, with a neat STACK OF WOODEN CRATES and barrels by the door as its sign."
+    ]
+   }
+  },
+  "film": {
+   "name": "影视镇",
+   "town": "It belongs to a cozy early-cinema FILM STUDIO town: warm ochre stucco, red-and-cream striped awnings, stage lamps and wooden film reels.",
+   "landmarks": [
+    {
+     "idea": "a ROUND DOMED CINEMA with a red-and-cream striped canopy, marquee lamps and a giant film reel on its roof"
+    },
+    {
+     "idea": "a timber SOUND-STAGE BARN with its great doors open on a painted set and a camera crane outside"
+    },
+    {
+     "idea": "an OPEN-AIR AMPHITHEATRE with a big blank screen, stone seats in a half circle and rows of lanterns"
+    },
+    {
+     "idea": "a tall FILM-REEL CLOCK TOWER where two huge reels turn a strip of film around the tower"
+    },
+    {
+     "idea": "a RECORDING STUDIO in a bell tower with a giant old microphone as its weather vane"
+    },
+    {
+     "idea": "a PADDLE-STEAMER CINEMA moored at a little wooden pier with a screen on its deck"
+    }
+   ],
+   "houses": {
+    "code": [
+     "an ochre stucco workshop with a little electric pylon on the roof, with a hanging wooden sign shaped like a GEAR over the door.",
+     "a rounded stucco cottage with a porthole window and a cable reel by the door, with a hanging wooden sign shaped like a GEAR over the door."
+    ],
+    "docs": [
+     "a script-writer's cottage with a striped awning over a typewriter desk on the porch, with a hanging wooden sign shaped like a rolled SCROLL over the door.",
+     "a stucco cottage with a chalkboard easel and stacks of bound scripts, with a hanging wooden sign shaped like a rolled SCROLL over the door."
+    ],
+    "slides": [
+     "a storyboard cottage with a pinned wall of blank cards under a small canopy, with a wooden EASEL holding a blank framed board at the door.",
+     "a cottage with a wide bay window and a director's chair outside, with a wooden EASEL holding a blank framed board at the door."
+    ],
+    "image": [
+     "a photographer's cottage with a big bellows camera on a tripod outside, with a gilded PICTURE FRAME hanging as the sign over the door.",
+     "a small darkroom house with a red lamp and prints hanging on a line, with a gilded PICTURE FRAME hanging as the sign over the door."
+    ],
+    "video": [
+     "a tiny cinema house with marquee bulbs around its door, with a big wooden FILM REEL mounted on the roof as its sign.",
+     "a projection cottage with a beam lamp on the roof and a film strip balcony rail, with a big wooden FILM REEL mounted on the roof as its sign."
+    ],
+    "data": [
+     "a film-can storehouse with round tins stacked in the window, with a neat STACK OF WOODEN CRATES and barrels by the door as its sign.",
+     "a prop warehouse with a sliding barn door and a costume rack, with a neat STACK OF WOODEN CRATES and barrels by the door as its sign."
+    ]
+   }
+  },
+  "craftsmen": {
+   "name": "工匠镇",
+   "town": "It belongs to a cozy medieval CRAFTSMEN town: grey stone bases, warm wood beams, moss-green shingle roofs, tools and timber.",
+   "landmarks": [
+    {
+     "idea": "a GUILD WORKSHOP HALL with a big wooden treadwheel crane lifting a beam"
+    },
+    {
+     "idea": "a CLOCK TOWER with small workshops built around its stone base"
+    },
+    {
+     "idea": "a WINDMILL WORKSHOP with turning sails and a carpenter's yard"
+    },
+    {
+     "idea": "a BRIDGE HOUSE built across a small stream with a mill race below"
+    },
+    {
+     "idea": "a LUMBER YARD with a water-powered sawmill and stacked planks"
+    },
+    {
+     "idea": "a BELL FOUNDRY with a large bronze bell hanging in a timber frame outside"
+    }
+   ],
+   "houses": {
+    "code": [
+     "a stone-based workshop cottage with a small gear turret, with a hanging wooden sign shaped like a GEAR over the door.",
+     "a timber cottage with a lathe under an open lean-to, with a hanging wooden sign shaped like a GEAR over the door."
+    ],
+    "docs": [
+     "a stone cottage with a writing nook window and a shelf of ledgers, with a hanging wooden sign shaped like a rolled SCROLL over the door.",
+     "a timber cottage with a covered porch desk and rolled plans, with a hanging wooden sign shaped like a rolled SCROLL over the door."
+    ],
+    "slides": [
+     "a joiner's showroom cottage with a wide open front, with a wooden EASEL holding a blank framed board at the door.",
+     "a cottage with a display shelf of carved models outside, with a wooden EASEL holding a blank framed board at the door."
+    ],
+    "image": [
+     "a woodcarver's cottage with carved panels on the walls, with a gilded PICTURE FRAME hanging as the sign over the door.",
+     "a cottage with a stained glass window and a pot of brushes, with a gilded PICTURE FRAME hanging as the sign over the door."
+    ],
+    "video": [
+     "a puppet-theatre cottage with a little curtained stage, with a big wooden FILM REEL mounted on the roof as its sign.",
+     "a cottage with a magic-lantern booth on its roof, with a big wooden FILM REEL mounted on the roof as its sign."
+    ],
+    "data": [
+     "a tool storehouse with barrels and sacks, with a neat STACK OF WOODEN CRATES and barrels by the door as its sign.",
+     "a granary cottage with a hoist and sacks, with a neat STACK OF WOODEN CRATES and barrels by the door as its sign."
+    ]
+   }
+  }
+ },
+ "shared": {
+  "public": {
+   "read": "A single public building: a small round LIBRARY tower with tall arched windows showing bookshelves inside and an open book carved over the door.",
+   "edit": "A single public building: a BLACKSMITH FORGE with an open front showing a glowing furnace, an anvil with a hammer in front and a stone chimney (no smoke).",
+   "run": "A single public building: a busy MACHINE WORKSHOP with a big turning water wheel and gears on the side, a conveyor of crates and a work lamp.",
+   "test": "A single public building: a TESTING RANGE with a row of straw targets, a little judging stand with a roof and a pennant pole.",
+   "online": "A single public building: a little POST AND MESSENGER HOUSE with a tall wooden signal mast with pennants and a carrier-pigeon loft on the roof.",
+   "external": "A single public building: an EMBASSY TRADING POST with flags of many colours, a covered caravan cart and crates of foreign goods.",
+   "plan": "A single public building: a small COUNCIL HALL with a big wooden planning board on its front wall covered in pinned blank notes and a round table under a porch.",
+   "image": "A single public building: a PAINTERS' STUDIO with very large windows, easels with blank canvases outside and a skylight roof.",
+   "screen": "A single public building: a CONTROL TOWER with a big round brass dial without numerals, levers and pulleys on its balcony.",
+   "spawn": "A single public building: a long BARRACKS LODGE where helpers set out, a rack of satchels and walking sticks and a banner pole.",
+   "compact": "A single public building: a GRANARY WAREHOUSE with a hoist beam lifting a sack and neat sacks and bundles stacked by the big door.",
+   "hall": "A single public building: the town's TASK HALL, a handsome civic building with a bell in a small belfry, wide steps, double doors and a lantern on each side."
+  },
+  "misc": {
+   "tent_a": "A single small canvas EXPEDITION TENT with a telescope on a tripod, a folding map table and a small campfire ring on packed earth.",
+   "tent_b": "A single SURVEY CAMP: a lean-to canvas shelter with a lantern, a theodolite on a tripod and rolled maps in a basket.",
+   "notice": "A single wooden NOTICE BOARD on two posts with a small tiled roof, covered with many small blank pinned papers, a bench beside it.",
+   "scaffold_1": "A building site at its start: a rectangle of foundation stones, a few timber posts, a pile of planks and a wheelbarrow.",
+   "scaffold_2": "A building site half done: a timber frame two storeys high with ladders, a pulley and stacked bricks.",
+   "scaffold_3": "A building site nearly done: stone walls and a roof frame wrapped in wooden scaffolding, a small crane lifting tiles.",
+   "capital_claude-code": "A single grand CASTLE HALL of a capital city with terracotta red roofs, tall banners, a wide stair and a courtyard fountain.",
+   "capital_codex": "A single grand CASTLE HALL of a capital city with slate blue roofs, tall banners, a wide stair and a courtyard fountain.",
+   "outpost": "A single WILD OUTPOST: two patched tents around a campfire, a wooden signpost with blank arrows and a rack of supplies."
+  },
+  "props": {
+   "tree_round": "A single round leafy deciduous tree in soft sage green on a tiny grass tuft.",
+   "tree_cypress": "A small cluster of two tall slim cypress trees in deep green on a tiny grass tuft.",
+   "tree_pine": "A single small pine tree with layered branches on a tiny grass tuft.",
+   "bush": "A single round flowering bush with small pale pink and cream blossoms on a tiny grass tuft.",
+   "rocks": "A small group of three rounded mossy grey rocks on a tiny grass tuft.",
+   "lamp_crates": "A single iron street lamp post with a warm glowing lantern next to two small wooden crates and a barrel.",
+   "flowerbed": "A single low stone-edged flower bed with mixed small flowers.",
+   "well": "A single round stone WELL with a small wooden roof, a bucket and a rope."
+  }
+ }
+}
