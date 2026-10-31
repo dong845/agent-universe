@@ -149,3 +149,9 @@ export function taskOfSelection(sel: Selection | null, events: AgentTownEvent[],
   return found;
 }
 
+
+/** a request's turns, each as its own diary, in the order they started; turns with no events are left out */
+export function requestDiaries(events: AgentTownEvent[], taskIds: string[], live: Set<string>): Diary[] {
+  const have = new Set(events.map((e) => e.taskId));
+  return taskIds.filter((t) => have.has(t)).map((t) => diaryOf(events, t, live.has(t))).sort((a, b) => a.start - b.start);
+}

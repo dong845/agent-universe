@@ -1,5 +1,6 @@
 // Hover cards (plan "悬停查看 token"): HTML over the canvas, following the mouse, shown 150 ms after
 // the pointer settles. Every number comes from the ledger as of the playback clock.
+import { SpotCard } from "../v3/Cards25.tsx";
 import { useEffect, useState } from "react";
 import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent, Tokens } from "../../../schema/src/event.ts";
@@ -223,7 +224,7 @@ export function HoverCard() {
         top: pointer.y > window.innerHeight - 300 ? Math.max(8, pointer.y - 280) : pointer.y + 16,
       }}
     >
-      <CardBody target={shown} />
+      {shown.kind === "spot" ? <SpotCard district={shown.district} spot={shown.spot} /> : <CardBody target={shown} />}
     </div>
   );
 }

@@ -1,15 +1,10 @@
-import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useStore } from "./store.ts";
 import { Diary } from "./ui/Diary.tsx";
 import { HoverCard } from "./ui/HoverCard.tsx";
 import { Hud, Nav, TimelineBar } from "./ui/Chrome.tsx";
-import { CameraRig, DetailTracker } from "./world/Camera.tsx";
-import { LabelProjector, ScreenLabels } from "./world/Labels.tsx";
-import { LOOKS } from "./world/looks.ts";
-import { Lights, Post } from "./world/Stage.tsx";
-import { Town } from "./world/Town.tsx";
-import { LiteTowns, WorldScenery } from "./world/World.tsx";
+import { Labels25, LabelProjector25, useLabels } from "./v3/Labels25.tsx";
+import { Camera25, VIEW, World25View } from "./v3/World25.tsx";
 
 /** advances the playback clock once per rendered frame */
 function Clock() {
@@ -17,59 +12,40 @@ function Clock() {
   return null;
 }
 
-/** full-detail towns from the tracker; every other town is far massing */
-function Towns() {
-  const runtimes = useStore((s) => s.runtimes);
-  const detail = useStore((s) => s.detail);
-  return (
-    <>
-      {runtimes.filter((r) => detail.has(r.district.key)).map((r) => (
-        <Town key={r.district.key} rt={r} />
-      ))}
-      <LiteTowns keys={detail} />
-    </>
-  );
-}
-
+/** what every kind of thing in the world means (spec v3 5) */
 function Legend() {
   return (
-    <div className="legend">
-      <div><i className="sq c-input-bg" />输入 token</div>
-      <div><i className="sq c-output-bg" />输出 token</div>
-      <div><i className="sq c-cache-bg" />缓存读取</div>
-      <div><i className="sq" style={{ background: "#16a34a" }} /><i className="sq" style={{ background: "#eab308" }} /><i className="sq" style={{ background: "#dc2626" }} />背包 = 上下文占用</div>
-      <div><i className="dash" />虚线框 = 子代理</div>
-      <div>灰烟 = 测试失败 · 乌云 = 返工</div>
+    <div className="legend" data-testid="legend">
+      <b>怎么看</b>
+      <div>岛 = 一个项目或技能公会 · 地标 = 这个镇的身份，随成品长大</div>
+      <div>房子 = 一件主要成品（门口挂牌：齿轮=代码，卷轴=文档，画架=幻灯，画框=图片，胶片=影音，木箱=数据）</div>
+      <div>帐篷 = 一次大的调查 · 告示板 = 问答次数 · 小改动只在街牌上计数</div>
+      <div>公共建筑 = 这里发生过的一类工作（数字=次数）</div>
     </div>
   );
 }
 
-// profiling switches: ?dpr=1 ?post=0 ?shadow=0
 const Q = new URLSearchParams(location.search);
 const DPR: [number, number] = Q.has("dpr") ? [1, Number(Q.get("dpr"))] : [1, 2];
+const C = VIEW.clone().multiplyScalar(1000);
 
 export function App() {
-  const look = LOOKS[useStore((s) => s.look)];
   const source = useStore((s) => s.source);
+  const w = useStore((s) => s.w25);
+  const labels = useLabels(w);
   return (
-    <div
-      className={`app ${look.labelClass}`}
-      style={{ background: look.sky }}
-      onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}
-    >
-      {/* 5× the old offset from the controls' target (0,0,8): the same orthographic view, and a big world never crosses the near plane */}
-      <Canvas shadows={Q.get("shadow") !== "0"} orthographic gl={{ alpha: true, antialias: false }} camera={{ position: [700, 750, 708], zoom: 4, near: 1, far: 6000 }} dpr={DPR}>
-        <Lights />
-        <WorldScenery />
-        <Towns />
+    <div className="app" style={{ background: "#cfe6e4" }} onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}>
+      <Canvas orthographic gl={{ antialias: true }} camera={{ position: [C.x, C.y, C.z], zoom: 1, near: 1, far: 5000 }} dpr={DPR}>
+        {w ? (
+          <>
+            <World25View w={w} />
+            <Camera25 w={w} />
+            <LabelProjector25 labels={labels} />
+          </>
+        ) : null}
         <Clock />
-        <LabelProjector />
-        <CameraRig />
-        <DetailTracker />
-        {Q.get("post") === "0" ? null : <Post />}
-        <OrbitControls makeDefault target={[0, 0, 8]} enableDamping maxPolarAngle={Math.PI / 2.3} minZoom={0.8} maxZoom={90} />
       </Canvas>
-      <ScreenLabels />
+      <Labels25 labels={labels} />
       <Hud />
       <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       <Nav />

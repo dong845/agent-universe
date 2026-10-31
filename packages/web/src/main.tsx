@@ -2,7 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, type Progress } from "./data.ts";
-import { fromHash, toHash, type Selection } from "./selection.ts";
+import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
+import { quadOf } from "./v3/World25.tsx";
+import { spritesAt } from "./v3/world25Data.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { useStore, type HoverTarget } from "./store.ts";
@@ -24,24 +26,29 @@ store.load(payload);
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));
-const look = q.get("look");
-if (look === "toy" || look === "dusk" || look === "board") store.setLook(look);
 // ?focus=primary opens flown into the main live town instead of the whole world
 // read the live state: `store` above is the snapshot taken before load(), so its fields are stale
 const focusQ = q.get("focus");
 if (focusQ === "primary") store.setFocus(useStore.getState().primary?.district.key ?? null);
 // ?focus=<faction>|<project> opens flown into that town
-else if (focusQ && useStore.getState().world.districts.some((d) => d.key === focusQ)) store.setFocus(focusQ);
+else if (focusQ && useStore.getState().w25?.towns.has(focusQ)) store.setFocus(focusQ);
 if (q.has("t")) store.setTime(Number(q.get("t")));
 if (q.get("paused") === "1") store.setPlaying(false);
 // #task=… / #site=… / #agent=… reopen a selection; selecting writes the hash back
-const fromUrl = fromHash(location.hash);
+// an old #task=… link (one turn) opens the request that turn belongs to
+const open = (h: string) => {
+  const s = fromHash(h);
+  const w = useStore.getState().w25;
+  // an old link to a turn this world does not know opens nothing (the per-turn view is gone)
+  return s && w ? requestOfTask(s, w.requests.values()) : s;
+};
+const fromUrl = open(location.hash);
 if (fromUrl) store.select(fromUrl);
 useStore.subscribe((s, p) => {
   if (s.selected !== p.selected) history.replaceState(null, "", toHash(s.selected) || location.pathname + location.search);
 });
 // a pasted link or back/forward changes only the hash: no reload, so read it here too
-window.addEventListener("hashchange", () => useStore.getState().select(fromHash(location.hash)));
+window.addEventListener("hashchange", () => useStore.getState().select(open(location.hash)));
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") useStore.getState().back();
 });
@@ -56,6 +63,18 @@ declare global {
   }
 }
 window.__agentTown = {
+  /** every drawn house and tent of a town (or all towns) with the screen point at its picture's centre */
+  spots: (town?: string) => {
+    const w = useStore.getState().w25;
+    const proj = (window as unknown as { __agentTownProject?: (x: number, y: number, z: number) => { x: number; y: number } }).__agentTownProject;
+    if (!w || !proj) return [];
+    const ts = useStore.getState().t0 + useStore.getState().t;
+    return [...spritesAt(w, ts).values()].flat().filter((p) => (p.spot.info.kind === "house" || p.spot.info.kind === "tent") && (!town || p.town === town)).map((p) => {
+      const q = quadOf(p, w.resolved.get(p.spot)!);
+      const at = proj(q.c.x, q.c.y, q.c.z);
+      return { town: p.town, kind: p.spot.info.kind, requestId: (p.spot.info as { requestId: string }).requestId, x: at.x, y: at.y };
+    });
+  },
   state: () => {
     const s = useStore.getState();
     const cam = (window as unknown as { __agentTownCamera?: { zoom: number } }).__agentTownCamera;

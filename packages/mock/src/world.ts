@@ -36,6 +36,8 @@ export const MOCK_PROJECTS: MockProject[] = [
 ];
 
 const DAY = 86_400_000;
+/** demo folders and the kind of file each holds */
+const FOLDERS: [string, string][] = [["src", "ts"], ["src", "ts"], ["docs", "md"], ["test", "ts"], ["scripts", "py"], ["assets", "png"], ["config", "json"]];
 
 function rand(seed: number): () => number {
   let s = seed >>> 0;
@@ -64,6 +66,21 @@ function history(p: MockProject): AgentTownEvent[] {
     b.taskStart(sec, `历史任务 #${i + 1}`);
     // a task's tokens as one call: cache-heavy like real sessions
     b.think("main", sec + 30, tk(Math.round(tokens * 0.02), Math.round(tokens * 0.86), Math.round(tokens * 0.08), Math.round(tokens * 0.04)));
+    // what it did: mostly finished work in a few folders, some long investigations, some questions
+    const shape = r();
+    if (shape < 0.58) {
+      const edits = 1 + Math.floor(r() * 5);
+      for (let k = 0; k < edits; k++) {
+        const [dir, ext] = FOLDERS[Math.floor(r() * FOLDERS.length)];
+        b.tool("main", sec + 40 + k * 20, 0.3, "Edit", "smith", `${dir}/file${Math.floor(r() * 30)}.${ext}`);
+      }
+    } else if (shape < 0.72) {
+      const reads = 20 + Math.floor(r() * 25);
+      for (let k = 0; k < reads; k++) b.tool("main", sec + 40 + k * 5, 0.2, "Read", "scout", `src/file${Math.floor(r() * 30)}.ts`);
+    } else if (shape < 0.9) {
+      const reads = 1 + Math.floor(r() * 4);
+      for (let k = 0; k < reads; k++) b.tool("main", sec + 40 + k * 5, 0.2, "Read", "scout", `docs/notes${k}.md`);
+    }
     b.taskEnd(sec + minutes * 60, r() < 0.18 ? "error" : "ok");
   });
   return b.events;
@@ -129,7 +146,8 @@ export function worldScenario(): AgentTownEvent[] {
 /** the demo world as the browser loads it (?demo=1): every event in full, live = tasks with tool calls */
 export function demoPayload(): WorldPayload {
   const events = worldScenario();
-  const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId).map((e) => e.taskId!))];
+  // the live window's tasks; history tasks have steps too now, but they are finished
+  const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId && !e.sessionId.endsWith(":history")).map((e) => e.taskId!))];
   const requests = buildRequests(events, requestIdsOf(events), DEFAULT_WORLD_CONFIG);
   const towns = buildTowns(requests, events, { themes: themesConfig as ThemesConfig, overrides: {}, guildSkillsOf: () => [], describe: () => undefined });
   return { events, buildingRows: [], liveTaskIds: live, generatedAt: Math.max(...events.map((e) => e.ts)), source: "demo", requests, towns };

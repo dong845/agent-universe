@@ -279,3 +279,42 @@ describe("assignProjects, review fixes", () => {
     expect(startOf(b, "t2").projectId).toBe(join(h, "code/tbx"));
   });
 });
+
+describe("assignProjects, output folders", () => {
+  it("a run started inside an output folder (assets/generated, .assets, build) counts for the folder that holds it", () => {
+    const { h, opts } = world();
+    for (const d of ["Downloads/trip-deck/assets/generated", "work/explainer/.assets", "work/site/build", "Downloads/pitch/video", "Downloads/pitch/video_out"]) mkdirSync(join(h, d), { recursive: true });
+    const v = task(join(h, "Downloads/pitch/video"), [{ tool: "Write", target: join(h, "Downloads/pitch/video/v.mp4") }], "t4", "codex");
+    const vo = task(join(h, "Downloads/pitch/video_out"), [{ tool: "Write", target: join(h, "Downloads/pitch/video_out/v.mp4") }], "t5", "codex");
+    assignProjects([...v, ...vo], opts);
+    expect([startOf(v, "t4").projectId, startOf(vo, "t5").projectId]).toEqual([join(h, "Downloads/pitch"), join(h, "Downloads/pitch")]);
+    const a = task(join(h, "Downloads/trip-deck/assets/generated"), [{ tool: "Write", target: join(h, "Downloads/trip-deck/assets/generated/a.png") }], "t1", "codex");
+    const b = task(join(h, "work/explainer/.assets"), [{ tool: "Write", target: join(h, "work/explainer/.assets/b.png") }], "t2", "codex");
+    const c = task(join(h, "work/site/build"), [], "t3", "codex");
+    assignProjects([...a, ...b, ...c], opts);
+    expect(startOf(a).projectId).toBe(join(h, "Downloads/trip-deck"));
+    expect(startOf(b, "t2").projectId).toBe(join(h, "work/explainer"));
+    expect(startOf(c, "t3").projectId).toBe(join(h, "work/site"));
+  });
+
+  it("an output folder directly in a loose folder still goes to the outpost", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, "Downloads/assets"), { recursive: true });
+    const a = task(join(h, "Downloads/assets"), [{ tool: "Write", target: join(h, "Downloads/assets/x.png") }], "t1", "codex");
+    assignProjects(a, opts);
+    expect(startOf(a).projectId).toBe(OUTPOST);
+  });
+});
+
+describe("assignProjects, output folders never swallow a project", () => {
+  it("a repository or a project folder whose name looks like an output folder stays its own town", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, "code/media/.git"), { recursive: true });
+    mkdirSync(join(h, "work/video/src"), { recursive: true });
+    const a = task(join(h, "code/media"), [], "t1");
+    const b = task(join(h, "work/video"), [{ tool: "Edit", target: join(h, "work/video/src/a.ts") }], "t2");
+    assignProjects([...a, ...b], opts);
+    expect(startOf(a).projectId).toBe(join(h, "code/media"));
+    expect(startOf(b, "t2").projectId).toBe(join(h, "work/video"));
+  });
+});

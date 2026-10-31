@@ -6,7 +6,10 @@ import type { BuildingId } from "../../schema/src/world.ts";
 import { buildTimeline, type Timeline } from "./orchestrator/timeline.ts";
 import { buildWorld, districtKey, type District, type World } from "./orchestrator/worldgen.ts";
 import type { Selection } from "./selection.ts";
-import type { LookId } from "./world/looks.ts";
+import manifest from "../../../art/manifest.json" with { type: "json" };
+import type { Manifest } from "./v3/art.ts";
+import type { Spot } from "./v3/townLayout.ts";
+import { buildWorld25, type World25 } from "./v3/world25Data.ts";
 
 export type HoverTarget =
   | { kind: "figure"; district: string; agentId: string }
@@ -15,7 +18,8 @@ export type HoverTarget =
   | { kind: "building"; district: string; id: BuildingId }
   | { kind: "house"; district: string; taskId: string }
   | { kind: "district"; district: string }
-  | { kind: "faction"; faction: Faction };
+  | { kind: "faction"; faction: Faction }
+  | { kind: "spot"; district: string; spot: Spot };
 
 export const SPEEDS = [1, 2, 4, 8, 16, 64] as const;
 /** plan: hover-card numbers refresh at most 4 times a second */
@@ -50,7 +54,6 @@ interface Store {
   speed: number;
   hovered: HoverTarget | null;
   pointer: { x: number; y: number };
-  look: LookId;
   /** district key the camera flies to; null = the whole world */
   focus: string | null;
   /** what was clicked: the camera pushes in to it and the diary shows it */
@@ -70,8 +73,9 @@ interface Store {
   /** camera close enough for detail (labels, figures, ambient occlusion) */
   near: boolean;
   setNear(n: boolean): void;
-  setLook(l: LookId): void;
   setFocus(k: string | null): void;
+  /** the v3 world: layouts, islands and sprites from the payload's towns and requests */
+  w25: World25 | null;
   load(p: WorldPayload): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
@@ -120,9 +124,9 @@ export const useStore = create<Store>((set, get) => ({
   speed: 1,
   hovered: null,
   pointer: { x: 0, y: 0 },
-  look: "toy",
   focus: null,
   selected: null,
+  w25: null,
   live: new Set(),
   replay: null,
   select(s) {
@@ -165,9 +169,6 @@ export const useStore = create<Store>((set, get) => ({
   setNear(n) {
     if (n !== get().near) set({ near: n });
   },
-  setLook(l) {
-    set({ look: l });
-  },
   setFocus(k) {
     set({ focus: k });
   },
@@ -190,7 +191,8 @@ export const useStore = create<Store>((set, get) => ({
     }
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
     saved = null;
-    set({ events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
+    const w25 = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
+    set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
   },
   setTime(t) {
     const c = Math.max(0, Math.min(get().duration, t));
