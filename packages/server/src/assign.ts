@@ -19,6 +19,8 @@ const MARKERS = ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "READ
 /** folders directly under home that hold unrelated things, never a project by themselves */
 const LOOSE = new Set(["Downloads", "Desktop", "Documents", "Pictures", "Movies", "Music", "Public", "Library"]);
 const DATED = /^\d{4}-\d{2}-\d{2}/;
+/** folders tools write their output into: never a town of their own, the folder holding them is */
+const OUTPUT = new Set(["assets", ".assets", "generated", "output", "outputs", "out", "build", "dist", "tmp", "temp", "cache", ".cache", "renders", "frames", "images", "video", "video_out", "media", "export", "exports"]);
 const SKILL_DIR = /^(.*[\\/]skills[\\/]([A-Za-z0-9@+_.-]+))(?:[\\/]|$)/;
 /** a logged path worth placing: not a whole patch or command run together into one "path" */
 const sane = (p: string) => p.length <= 1024 && !/[\u0000-\u001f]|\\n/.test(p);
@@ -112,6 +114,12 @@ export function makePlacer(o: AssignOptions) {
   const atHome = (d: string) => homes.includes(d);
   /** home itself, its standard folders and dated scratch folders hold unrelated things */
   const loose = (d: string) => atHome(d) || (atHome(dirname(d)) && LOOSE.has(basename(d))) || DATED.test(basename(d));
+  /** an output folder (assets/generated, .assets, build…) lifted to the folder that holds it */
+  const lift = (d: string) => {
+    let x = d;
+    while (OUTPUT.has(basename(x).toLowerCase()) && !atHome(x) && dirname(x) !== x) x = dirname(x);
+    return x;
+  };
   /** the nearest folder at or above d, and below home, holding a project marker */
   const marked = (d: string): string | undefined => {
     for (let x = d; !atHome(x) && dirname(x) !== x; x = dirname(x)) {
@@ -131,7 +139,7 @@ export function makePlacer(o: AssignOptions) {
     if (m) return m;
     // the folder the session started in, when the file lies under it and it is not a loose folder
     if (isAbsolute(cwd)) {
-      const c = real(cwd);
+      const c = lift(real(cwd));
       if ((inside(d, c) || inside(raw, cwd)) && !loose(c) && !isTemp(c) && !isTool(c)) return c;
     }
     return OUTPOST;
@@ -147,7 +155,7 @@ export function makePlacer(o: AssignOptions) {
   /** a working directory → its town by the same rules; a non-path cwd ("unknown") stays as it is */
   const ofCwd = (cwd: string): string => {
     if (!isAbsolute(cwd)) return cwd;
-    const c = real(cwd);
+    const c = lift(real(cwd));
     const t = place(c, cwd, "");
     if (t !== OUTPOST) return t;
     return loose(c) || isTemp(c) || isTemp(cwd) ? OUTPOST : c;
