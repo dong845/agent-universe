@@ -9,6 +9,7 @@ import { useStore } from "../store.ts";
 import { districtKey } from "../orchestrator/worldgen.ts";
 import { diaryOf, taskOfSelection, type Diary as DiaryT, type DiaryStep } from "./diaryModel.ts";
 import { TokenRows } from "./HoverCard.tsx";
+import { RequestDiary, TownPanel } from "../v3/Cards25.tsx";
 
 /** steps rendered at once; the rest behind a "还有 N 步" button */
 const FIRST_STEPS = 200;
@@ -55,7 +56,23 @@ function Steps({ steps }: { steps: DiaryStep[] }) {
   );
 }
 
+/** the diary beside the world: a request's story, a town's summary, or (older links) one turn */
 export function Diary() {
+  const selected = useStore((s) => s.selected);
+  if (selected?.kind === "request" || selected?.kind === "town") {
+    return (
+      <aside className="diary" data-testid="diary">
+        <header>
+          <button className="back" onClick={() => useStore.getState().back()} aria-label="返回">← 返回</button>
+        </header>
+        {selected.kind === "request" ? <RequestDiary district={selected.district} requestId={selected.requestId} /> : <TownPanel district={selected.district} />}
+      </aside>
+    );
+  }
+  return <TaskDiary />;
+}
+
+function TaskDiary() {
   const selected = useStore((s) => s.selected);
   const events = useStore((s) => s.events);
   const live = useStore((s) => s.live);

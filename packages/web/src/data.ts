@@ -30,6 +30,25 @@ export async function loadWorld(isDemo: boolean, onProgress: (p: Progress) => vo
   return (await r.json()) as WorldPayload;
 }
 
+const requests = new Map<string, Promise<AgentTownEvent[]>>();
+
+/** every event of a request's turns: from the server, or from the demo's in-memory events */
+export function fetchRequest(requestId: string, taskIds: string[]): Promise<AgentTownEvent[]> {
+  let p = requests.get(requestId);
+  if (!p) {
+    const ids = new Set(taskIds);
+    p = demo
+      ? Promise.resolve(demo.events.filter((e) => e.taskId && ids.has(e.taskId)))
+      : fetch(`/api/request/${encodeURIComponent(requestId)}`).then(async (r) => {
+          if (!r.ok) throw new Error(`request ${requestId}: ${r.status}`);
+          return ((await r.json()) as { events: AgentTownEvent[] }).events;
+        });
+    p.catch(() => requests.delete(requestId)); // a failed fetch can be retried
+    requests.set(requestId, p);
+  }
+  return p;
+}
+
 const tasks = new Map<string, Promise<AgentTownEvent[]>>();
 
 /** one task's full events: from the server, or from the demo's in-memory events */

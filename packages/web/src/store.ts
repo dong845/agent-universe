@@ -8,6 +8,7 @@ import { buildWorld, districtKey, type District, type World } from "./orchestrat
 import type { Selection } from "./selection.ts";
 import manifest from "../../../art/manifest.json" with { type: "json" };
 import type { Manifest } from "./v3/art.ts";
+import type { Spot } from "./v3/townLayout.ts";
 import { buildWorld25, type World25 } from "./v3/world25Data.ts";
 
 export type HoverTarget =
@@ -17,7 +18,8 @@ export type HoverTarget =
   | { kind: "building"; district: string; id: BuildingId }
   | { kind: "house"; district: string; taskId: string }
   | { kind: "district"; district: string }
-  | { kind: "faction"; faction: Faction };
+  | { kind: "faction"; faction: Faction }
+  | { kind: "spot"; district: string; spot: Spot };
 
 export const SPEEDS = [1, 2, 4, 8, 16, 64] as const;
 /** plan: hover-card numbers refresh at most 4 times a second */
@@ -189,7 +191,7 @@ export const useStore = create<Store>((set, get) => ({
     }
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
     saved = null;
-    const w25 = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest) : null;
+    const w25 = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
     set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
   },
   setTime(t) {

@@ -13,9 +13,12 @@ export interface World25 {
   centers: Map<string, { x: number; z: number }>;
   /** the sprite for each spot; missing when nothing can stand in (that spot is not drawn) */
   resolved: Map<Spot, ResolvedArt>;
+  /** requests in progress */
+  live: Set<string>;
 }
 
-export function buildWorld25(towns: TownRow[], requests: RequestRow[], manifest: Manifest): World25 {
+export function buildWorld25(towns: TownRow[], requests: RequestRow[], manifest: Manifest, liveTasks: Set<string> = new Set()): World25 {
+  const live = new Set(requests.filter((r) => r.taskIds.some((t) => liveTasks.has(t))).map((r) => r.requestId));
   const byTown = new Map<string, RequestRow[]>();
   for (const r of requests) {
     const k = `${r.faction}|${r.projectId}`;
@@ -25,7 +28,7 @@ export function buildWorld25(towns: TownRow[], requests: RequestRow[], manifest:
   const layouts = new Map<string, TownLayout>();
   const resolved = new Map<Spot, ResolvedArt>();
   for (const t of towns) {
-    const l = layoutTown(t, byTown.get(t.key) ?? [], LAYOUT_DEFAULTS);
+    const l = layoutTown(t, byTown.get(t.key) ?? [], { ...LAYOUT_DEFAULTS, live });
     for (const s of l.spots) {
       if (s.art.category === "landmark") s.art = { ...s.art, idea: ideas.get(t.key) ?? 1 };
       const a = resolveArt(manifest, s.art);
@@ -34,7 +37,7 @@ export function buildWorld25(towns: TownRow[], requests: RequestRow[], manifest:
     layouts.set(t.key, l);
   }
   const centers = placeIslands(towns.map((t) => ({ key: t.key, faction: t.faction, kind: t.kind, radius: layouts.get(t.key)!.radius, weight: t.counts.produced })));
-  return { towns: new Map(towns.map((t) => [t.key, t])), requests: new Map(requests.map((r) => [r.requestId, r])), layouts, centers, resolved };
+  return { towns: new Map(towns.map((t) => [t.key, t])), requests: new Map(requests.map((r) => [r.requestId, r])), layouts, centers, resolved, live };
 }
 
 export interface Placed {
@@ -45,7 +48,7 @@ export interface Placed {
   z: number;
 }
 
-/** the spots standing at absolute time `ts`, grouped by sprite id */
+/** the spots standing at absolute time `ts`, grouped by sprite id (and "|live" for the ones in progress) */
 export function spritesAt(w: World25, ts: number): Map<string, Placed[]> {
   const out = new Map<string, Placed[]>();
   for (const [key, l] of w.layouts) {
@@ -54,9 +57,10 @@ export function spritesAt(w: World25, ts: number): Map<string, Placed[]> {
       if ((s.from !== undefined && s.from > ts) || (s.until !== undefined && s.until <= ts)) continue;
       const a = w.resolved.get(s);
       if (!a) continue;
-      const list = out.get(a.id) ?? [];
+      const g = s.live ? `${a.id}|live` : a.id;
+      const list = out.get(g) ?? [];
       list.push({ spot: s, town: key, x: c.x + s.x, z: c.z + s.z });
-      out.set(a.id, list);
+      out.set(g, list);
     }
   }
   return out;

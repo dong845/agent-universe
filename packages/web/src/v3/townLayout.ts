@@ -13,6 +13,8 @@ export interface LayoutConfig {
   minWork: number;
   tiers: [number, number, number];
   maxStreets: number;
+  /** requests in progress: always drawn, as a house under construction */
+  live?: Set<string>;
 }
 
 export const LAYOUT_DEFAULTS: LayoutConfig = { maxHouses: 20, maxTents: 6, minWork: 5, tiers: [1, 10, 40], maxStreets: 6 };
@@ -34,6 +36,8 @@ export interface Spot {
   size: number;
   /** the hex cell, "q,r" */
   cell: string;
+  /** a request still in progress */
+  live?: boolean;
   info: SpotInfo;
   /** shown from this time on (the request's end; the moment the landmark reached its tier) */
   from?: number;
@@ -97,8 +101,10 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
   const at = (q: number, r: number) => ({ ...cellPos(q, r), cell: `${q},${r}` });
 
   const mine = requests.filter((r) => `${r.faction}|${r.projectId}` === town.key).sort((a, b) => a.endTs - b.endTs || (a.requestId < b.requestId ? -1 : 1));
-  const produced = mine.filter((r) => r.class === "produced");
-  const investigations = mine.filter((r) => r.class === "investigation");
+  const isLive = (r: RequestRow) => cfg.live?.has(r.requestId) ?? false;
+  // a request in progress stands as a house from its start, whatever it has made so far
+  const produced = mine.filter((r) => r.class === "produced" || isLive(r));
+  const investigations = mine.filter((r) => r.class === "investigation" && !isLive(r));
   const chats = mine.filter((r) => r.class === "chat" || r.class === "empty").length;
 
   // ---- the square: landmark (by tiers of finished work), task hall, notice board ----------------
@@ -138,7 +144,8 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
   let names = [...byFolder.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([n]) => n);
   if (names.length > cfg.maxStreets) names = [...names.filter((n) => n !== "其他").slice(0, cfg.maxStreets - 1), "其他"];
   const streetName = (r: RequestRow) => (names.includes(streetOf(r.topDir)) ? streetOf(r.topDir) : "其他");
-  const keep = new Set(produced.slice().sort((a, b) => work(b) - work(a) || (a.requestId < b.requestId ? -1 : 1)).slice(0, Math.min(cfg.maxHouses, Math.ceil(produced.length / 2))).map((r) => r.requestId));
+  const keep = new Set(produced.filter((r) => !isLive(r)).sort((a, b) => work(b) - work(a) || (a.requestId < b.requestId ? -1 : 1)).slice(0, Math.min(cfg.maxHouses, Math.ceil(produced.filter((r) => !isLive(r)).length / 2))).map((r) => r.requestId));
+  for (const r of produced) if (isLive(r)) keep.add(r.requestId);
   const drawnWork = produced.filter((r) => keep.has(r.requestId)).map(work).sort((a, b) => a - b);
   const sizeOf = (w: number) => (w >= drawnWork[Math.floor(drawnWork.length * 0.8)] ? 1.5 : w >= drawnWork[Math.floor(drawnWork.length * 0.4)] ? 1.28 : 1.08);
   const streets: Street[] = [];
@@ -167,7 +174,7 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
       spots.push({
         art: { category: "house", theme: town.theme, kind: r.productKind ?? "code", variant: hash(r.requestId) < 0.5 ? "a" : "b" },
         ...p, x: p.x + (hash(r.requestId, 1) - 0.5) * 0.3, z: p.z + (hash(r.requestId, 2) - 0.5) * 0.3,
-        size: sizeOf(work(r)), info: { kind: "house", requestId: r.requestId }, from: r.endTs, street: name,
+        size: isLive(r) ? 1.28 : sizeOf(work(r)), info: { kind: "house", requestId: r.requestId }, from: isLive(r) ? r.startTs : r.endTs, street: name, ...(isLive(r) ? { live: true } : {}),
       });
     });
     streets.push({ name, x: sign.x, z: sign.z, drawn: drawn.length, minor: all.length - drawn.length });

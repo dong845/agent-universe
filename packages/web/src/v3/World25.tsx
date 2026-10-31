@@ -3,8 +3,9 @@
 // one picture are drawn together (one instanced mesh per picture).
 import { MapControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
+import { opaqueAt, pixelsOf } from "./pick.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Color, CylinderGeometry, InstancedMesh, Matrix4, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3, type OrthographicCamera } from "three";
+import { Color, CylinderGeometry, InstancedMesh, Mesh, Raycaster, RingGeometry, Vector2, Matrix4, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3, type OrthographicCamera } from "three";
 import { useStore } from "../store.ts";
 import { cellPos, hash } from "./townLayout.ts";
 import { spritesAt, type Placed, type World25 } from "./world25Data.ts";
@@ -129,7 +130,7 @@ function texture(url: string): Promise<Texture> {
   return t;
 }
 
-function SpriteGroup({ id, url, list, art }: { id: string; url: string; list: Placed[]; art: { anchor: [number, number]; footprint: number; aspect: number } }) {
+function SpriteGroup({ id, url, list, art, ghost }: { id: string; url: string; list: Placed[]; art: { anchor: [number, number]; footprint: number; aspect: number }; ghost?: boolean }) {
   const ref = useRef<InstancedMesh>(null);
   const [tex, setTex] = useState<Texture | null>(null);
   useEffect(() => {
@@ -139,7 +140,8 @@ function SpriteGroup({ id, url, list, art }: { id: string; url: string; list: Pl
       live = false;
     };
   }, [url, id]);
-  const material = useMemo(() => (tex ? new MeshBasicMaterial({ map: tex, alphaTest: 0.5, alphaToCoverage: true, toneMapped: false }) : null), [tex]);
+  // a house still being built is drawn faded
+  const material = useMemo(() => (tex ? (ghost ? new MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, alphaTest: 0.05, toneMapped: false, depthWrite: false }) : new MeshBasicMaterial({ map: tex, alphaTest: 0.5, alphaToCoverage: true, toneMapped: false })) : null), [tex, ghost]);
   useEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
@@ -272,10 +274,86 @@ export function World25View({ w }: { w: World25 }) {
       <directionalLight color="#fff0d8" intensity={2.2} position={[-20, 30, 6]} />
       <Islands w={w} />
       <Shadows placed={buildings} />
-      {[...groups].map(([id, list]) => {
-        const a = arts.get(id)!;
-        return <SpriteGroup key={id} id={id} url={a.url} list={list} art={a} />;
+      {[...groups].map(([g, list]) => {
+        const ghost = g.endsWith("|live");
+        const a = arts.get(ghost ? g.slice(0, -5) : g)!;
+        return <SpriteGroup key={g} id={g} url={a.url} list={list} art={a} ghost={ghost} />;
       })}
+      <LiveRings placed={[...groups].filter(([g]) => g.endsWith("|live")).flatMap(([, l]) => l)} />
+      <Picker />
     </>
   );
+}
+
+/** a soft pulsing ring under every house still being built */
+function LiveRings({ placed }: { placed: Placed[] }) {
+  const ref = useRef<InstancedMesh>(null);
+  const mat = useMemo(() => new MeshBasicMaterial({ color: "#f59e0b", transparent: true, opacity: 0.7, depthWrite: false }), []);
+  useFrame(({ clock }) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const k = 1 + 0.18 * Math.sin(clock.elapsedTime * 3);
+    const m = new Matrix4();
+    const rot = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
+    placed.forEach((p, i) => {
+      m.compose(new Vector3(p.x, 0.05, p.z), rot, new Vector3(p.spot.size * k, p.spot.size * k, 1));
+      mesh.setMatrixAt(i, m);
+    });
+    mesh.count = placed.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    mat.opacity = 0.45 + 0.3 * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 3));
+  });
+  return <instancedMesh key={placed.length} ref={ref} args={[RING, mat, Math.max(1, placed.length)]} frustumCulled={false} />;
+}
+const RING = new RingGeometry(0.62, 0.78, 40);
+
+/** pointer → the sprite under it (opaque pixels only): hover card, and click to select */
+function Picker() {
+  const { gl, camera, scene, size } = useThree();
+  useEffect(() => {
+    const ray = new Raycaster();
+    const ndc = new Vector2();
+    const hit = (e: PointerEvent): { town: string; placed: Placed } | null => {
+      const r = gl.domElement.getBoundingClientRect();
+      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const sprites = scene.children.filter((o): o is Mesh => o.name === "sprite") as unknown as InstancedMesh[];
+      for (const h of ray.intersectObjects(sprites, false)) {
+        const d = (h.object as InstancedMesh).userData as { list?: Placed[]; tex?: Texture };
+        const p = h.instanceId !== undefined ? d.list?.[h.instanceId] : undefined;
+        if (!p || !d.tex?.image || !h.uv) continue;
+        const px = pixelsOf(d.tex.image as HTMLImageElement);
+        if (opaqueAt(px.data, px.w, px.h, h.uv)) return { town: p.town, placed: p };
+      }
+      return null;
+    };
+    let down: { x: number; y: number } | null = null;
+    const move = (e: PointerEvent) => {
+      const h = hit(e);
+      const s = useStore.getState();
+      s.setPointer(e.clientX, e.clientY);
+      const cur = s.hovered?.kind === "spot" ? s.hovered.spot : null;
+      if ((h?.placed.spot ?? null) !== cur) s.setHovered(h ? { kind: "spot", district: h.town, spot: h.placed.spot } : null);
+      gl.domElement.style.cursor = h && h.placed.spot.info.kind !== "prop" ? "pointer" : "";
+    };
+    const pdown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY });
+    const up = (e: PointerEvent) => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return; // a drag pans, it does not select
+      const h = hit(e);
+      if (!h || h.placed.spot.info.kind === "prop") return;
+      const info = h.placed.spot.info;
+      useStore.getState().select(info.kind === "house" || info.kind === "tent" ? { kind: "request", district: h.town, requestId: info.requestId } : { kind: "town", district: h.town });
+    };
+    const el = gl.domElement;
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerdown", pdown);
+    el.addEventListener("pointerup", up);
+    (window as unknown as { __agentTownPick?: unknown }).__agentTownPick = (x: number, y: number) => hit({ clientX: x, clientY: y } as PointerEvent);
+    return () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerdown", pdown);
+      el.removeEventListener("pointerup", up);
+    };
+  }, [gl, camera, scene, size]);
+  return null;
 }
