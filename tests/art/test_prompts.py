@@ -50,3 +50,8 @@ def test_check_private():
 def test_unknown_theme_names_itself():
     with pytest.raises(KeyError, match="nope"):
         items(CAT, ["nope"], shared=False)
+
+
+def test_prompts_keep_magenta_off_the_building():
+    for i in items(CAT, BATCH1, shared=True):
+        assert "uses no magenta" in i["prompt"], i["id"]

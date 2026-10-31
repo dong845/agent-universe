@@ -41,3 +41,22 @@ def test_no_footprint_is_an_error(tmp_path):
     im.paste((200, 90, 60, 255), (20, 5, 80, 30))
     with pytest.raises(ValueError, match="footprint"):
         pack(im, ITEM, tmp_path)
+
+
+def test_a_write_killed_half_way_keeps_the_old_manifest(tmp_path, monkeypatch):
+    import pathlib
+
+    m = tmp_path / "manifest.json"
+    write_manifest({"a": {"id": "a"}}, m)
+    before = m.read_bytes()
+    real = pathlib.Path.write_text
+
+    def half(self, text, *a, **k):
+        real(self, text[: len(text) // 2], *a, **k)
+        raise OSError("killed")
+
+    monkeypatch.setattr(pathlib.Path, "write_text", half)
+    with pytest.raises(OSError):
+        write_manifest({"a": {"id": "a"}, "b": {"id": "b"}}, m)
+    monkeypatch.undo()
+    assert m.read_bytes() == before

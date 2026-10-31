@@ -44,8 +44,9 @@ def test_qa_catches_magenta_left_inside():
     assert "magenta inside" in qa(Image.fromarray(clean, "RGBA"), "house")
 
 
-def test_an_uneven_background_is_caught():
-    assert "edge not clear" in qa(cutout(sprite(bg="gradient")), "house")
+def test_an_uneven_background_is_refused():
+    with pytest.raises(CutoutError, match="not uniform"):
+        cutout(sprite(bg="gradient"))
 
 
 def test_a_front_on_view_is_caught():
@@ -89,3 +90,17 @@ def test_a_top_down_view_is_caught():
 
     ImageDraw.Draw(im).polygon([(256, 80), (432, 256), (256, 432), (80, 256)], fill=(200, 90, 60))
     assert "view" in qa(cutout(im), "house")
+
+
+def test_a_background_that_darkens_towards_the_building_is_refused():
+    # magenta at the image border, darkening to purple near the building: a halo the border rule cannot see
+    im = sprite()
+    arr = np.asarray(im).astype(float)
+    h, w = arr.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    d = np.hypot(yy - h / 2, xx - w / 2) / (w / 2)
+    bg = (arr == [255, 0, 255]).all(-1)
+    shade = np.clip(1 - d, 0, 1)[..., None] * (np.array([90, 60, 90]) - np.array([255, 0, 255])) + np.array([255, 0, 255])
+    arr[bg] = shade[bg]
+    with pytest.raises(CutoutError, match="not uniform"):
+        cutout(Image.fromarray(arr.astype(np.uint8)))

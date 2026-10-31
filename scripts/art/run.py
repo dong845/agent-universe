@@ -25,10 +25,32 @@ class NoImageTool(RuntimeError):
     pass
 
 
-def _process(item, raw_dir, out_dir, codex, sessions_dir, log, tries):
+class _Breaker:
+    """stop the batch after `limit` Codex refusals in a row (usage limit, login): every further call would fail too"""
+
+    def __init__(self, limit=3):
+        self.limit, self.row, self.reason = limit, 0, None
+
+    def note(self, item_id):
+        from generate import LAST_ERROR
+
+        said = LAST_ERROR.get(item_id)
+        if said:
+            self.row += 1
+            if self.row >= self.limit:
+                self.reason = said
+        else:
+            self.row = 0
+
+
+def _process(item, raw_dir, out_dir, codex, sessions_dir, log, tries, breaker=None):
     reasons, raw = [], None
     for attempt in range(tries):
+        if breaker and breaker.reason:
+            return None, [f"stopped: {breaker.reason}"], raw
         raw = generate(item, raw_dir, codex=codex, sessions_dir=sessions_dir, log=log)
+        if breaker:
+            breaker.note(item["id"])
         if raw is None:
             reasons = ["no image"]
             continue
@@ -62,7 +84,7 @@ def run(cat, themes, shared, raw_dir, out_dir, manifest_path, sheet_path, forbid
         return e and e["promptHash"] == hashlib.sha256(i["prompt"].encode()).hexdigest()[:16] and (Path(out_dir) / theme / f"{name}.webp").exists()
 
     todo = [i for i in its if (redo and fnmatch.fnmatch(i["id"], redo)) or not done(i)]
-    report = {"made": 0, "skipped": len(its) - len(todo), "failed": []}
+    report = {"made": 0, "skipped": len(its) - len(todo), "failed": [], "stopped": None}
     if not todo:
         return report
     log(f"{len(todo)} to make, {report['skipped']} already made")
@@ -75,6 +97,7 @@ def run(cat, themes, shared, raw_dir, out_dir, manifest_path, sheet_path, forbid
         said = LAST_ERROR.get(first["id"])
         raise NoImageTool((f"Codex says: {said}" if said else "Codex returned no image for the first item: check `codex login` and that this account's plan has the image tool.") + " No paid API is used instead.")
     results = {}
+    breaker = _Breaker()
 
     def finish(item, pre_raw=None):
         if pre_raw is not None:
@@ -86,12 +109,19 @@ def run(cat, themes, shared, raw_dir, out_dir, manifest_path, sheet_path, forbid
                 log(f"  {item['id']}: try 1 failed checks: {', '.join(problems)}")
             except (CutoutError, ValueError) as e:
                 log(f"  {item['id']}: try 1: {e}")
-            return _process(item, raw_dir, out_dir, codex, sessions_dir, log, rerolls)
-        return _process(item, raw_dir, out_dir, codex, sessions_dir, log, rerolls + 1)
+            return _process(item, raw_dir, out_dir, codex, sessions_dir, log, rerolls, breaker)
+        return _process(item, raw_dir, out_dir, codex, sessions_dir, log, rerolls + 1, breaker)
+
+    def safe(item, pre_raw=None):
+        # one item's crash (a broken file, an out-of-memory) is that item's failure, not the batch's
+        try:
+            return finish(item, pre_raw)
+        except Exception as e:  # noqa: BLE001
+            return None, [f"crashed: {type(e).__name__}: {e}"], pre_raw
 
     with cf.ThreadPoolExecutor(max_workers=max(1, concurrency)) as ex:
-        futs = {ex.submit(finish, first, raw): first}
-        futs.update({ex.submit(finish, i): i for i in todo[1:]})
+        futs = {ex.submit(safe, first, raw): first}
+        futs.update({ex.submit(safe, i): i for i in todo[1:]})
         for fut in cf.as_completed(futs):
             item = futs[fut]
             entry, reasons, last_raw = fut.result()
@@ -110,6 +140,7 @@ def run(cat, themes, shared, raw_dir, out_dir, manifest_path, sheet_path, forbid
     make_sheet(made, failed, sheet_path)
     report["made"] = len(made)
     report["failed"] = [(i, r) for i, r, _ in failed]
+    report["stopped"] = breaker.reason
     return report
 
 
