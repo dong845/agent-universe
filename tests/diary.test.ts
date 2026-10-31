@@ -70,10 +70,13 @@ describe("diaryOf: edge cases", () => {
 
   it("the same task while live: running", () => expect(diaryOf(open, "T", true).outcome).toBe("running"));
 
-  it("a demo history task has no steps to replay", () => {
+  it("a demo history task with steps can be replayed; one with none cannot", () => {
     const w = worldScenario();
-    const hist = w.find((e) => e.kind === "task_start" && e.taskId!.startsWith("h:"))!.taskId!;
-    expect(diaryOf(w.filter((e) => e.taskId === hist), hist, false).replayable).toBe(false);
+    const hist = [...new Set(w.filter((e) => e.kind === "task_start" && e.taskId!.startsWith("h:")).map((e) => e.taskId!))];
+    const steps = (t: string) => w.some((e) => e.taskId === t && e.kind === "tool_start");
+    const busy = hist.find(steps)!, idle = hist.find((t) => !steps(t))!;
+    expect(diaryOf(w.filter((e) => e.taskId === busy), busy, false).replayable).toBe(true);
+    expect(diaryOf(w.filter((e) => e.taskId === idle), idle, false).replayable).toBe(false);
   });
 
   it("refuses an empty task loudly", () => expect(() => diaryOf([], "X", false)).toThrow("no events for task X"));

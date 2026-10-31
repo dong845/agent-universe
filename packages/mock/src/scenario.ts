@@ -70,7 +70,10 @@ export class Builder {
   /** a tool call from start to its result */
   tool(agentId: string, sec: number, durSec: number, tool: string, role: Role, target: string, status: Status = "ok") {
     const toolUseId = hashId(this.cfg.prefix, agentId, tool, String(sec));
-    this.events.push({ ...this.base(agentId, sec), id: hashId(this.cfg.prefix, toolUseId, "start"), kind: "tool_start", tool, toolUseId, role, target });
+    // file tools name their file exactly, as the adapters record it (v3 `files`)
+    const access = tool === "Read" ? "read" : ["Edit", "Write", "MultiEdit"].includes(tool) ? "edit" : null;
+    const path = target.startsWith("/") ? target : `${this.cfg.projectId}/${target}`;
+    this.events.push({ ...this.base(agentId, sec), id: hashId(this.cfg.prefix, toolUseId, "start"), kind: "tool_start", tool, toolUseId, role, target, ...(access ? { files: [{ path, access }] } : {}) });
     const end = { ...this.base(agentId, sec + durSec), id: hashId(this.cfg.prefix, toolUseId, "end"), kind: "tool_end" as const, toolUseId, status, durationMs: Math.round(durSec * 1000) };
     this.events.push(end);
     return toolUseId;
