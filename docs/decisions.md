@@ -305,3 +305,21 @@ Plan: `docs/superpowers/plans/2026-10-29-world-v3-step2-art.md`. Python under `s
 **Checks.** Clear border; kept share 15–95 %; no pink on the rim; no pure magenta inside; aspect 0.45–2.2; buildings only: the footprint's half-width grows 1.5–3.0 px per px of height (calibrated on 18 real Codex buildings at the right angle: 1.67–2.63; front-on ≈ 0, top-down ≈ 1). Up to 2 rerolls; failures go to the sheet's 待你看 row, never into the manifest.
 
 **First batch: blocked.** Codex answered "You've hit your usage limit … try again at Nov 28th, 2026" (plan go). The driver now reports Codex's own error. Owner chose: no paid API; go on with the 20 images already drawn for the demo, imported through the same cut-out and checks as **interim** (`art/interim-map.json`, `scripts/art/import_raw.py`; promptHash "interim", so the next real batch redraws them). In the repo: 40 WebP, 1.3 MB. Known: the forge's smoke is faintly pink (the catalogue now asks for no smoke).
+
+## D17 World v3, step 3: the 2.5D world (2026-10-31)
+
+Plan: `docs/superpowers/plans/2026-10-31-world-v3-step3-world.md`. The v1/v2 3D world (buildings, figures, sites, looks, post-processing) is deleted; `orchestrator/timeline.ts` stays for step 4.
+
+**Town layout** (`v3/townLayout.ts`, from the demo the owner approved): landmark at the centre (growth stage by finished work 1 / 10 / 40, each stage shown from when it was reached); task hall, notice board (Q&A count) on ring 1; paving on ring 2; one public building per kind of work done ≥ 5 times on ring 3; from ring 4 one wedge per top folder (≤ 6, the rest "其他"); houses = the larger half of finished requests by tokens, at most 20 (the rest counted on the street sign); tents = the 6 investigations with the most calls on the edge; trees towards the coast. A request in progress always stands as a house from its start, faded with a pulsing ring (scaffold art not drawn yet).
+
+**Archipelago** (`v3/archipelago.ts`): Claude west, Codex east, 24-unit strait; each side capital first at the strait, then guilds, projects by finished work, outpost farthest out; spiral placement, 6 units of sea between islands.
+
+**Art** (`v3/art.ts`): stated fallbacks — theme → 工匠镇 → 出版镇; variant b → a → any house of the theme; landmark nearest tier → any idea; public building other faction → the hall; capital → hall; outpost → tent. A stand-in says 示意图 in the hover card. Landmark ideas 1–6 per theme by stable key order.
+
+**Rendering**: fixed camera (azimuth 45°, elevation 30°), pan and zoom only; zoom = px per world unit (0.5–160; a town ≈ 16, a request 80). One instanced mesh per picture, one shared facing; quads raised toward the camera so the ground never cuts them; MSAA + alpha-to-coverage. Banners always (bigger towns win overlaps; the HUD and time bar are kept clear); building names and street signs once their island is ≥ 300 px across. Picking reads the picture's alpha, so a transparent corner never steals a click.
+
+**Interaction**: hover card per request (title, the user's own words for a bare 可以/继续, product, outcome, time, 4 token parts, calls/failures/subagents/turns, skills); click flies to the house and opens the request's diary (one section per turn); a public building, landmark, hall or notice board opens the town's summary. `#req=<town>~<id>`, `#town=<key>`; old `#task=` links open the request holding that turn.
+
+**Real data found**: Codex runs started by image tools inside output folders (`assets/generated`, `.assets`, `video`…) became towns; output folders are now lifted to the folder holding them (45 towns, all named after real projects or decks).
+
+**Measured** (M4, production build, real data, 1440×900): world view 60 fps p95 17 ms; largest town 60 fps p95 17 ms. Browser tests: 6, on demo data (the demo's history now has real shapes; only its live window is live). Not tested in the browser: houses appearing while scrubbing (no demo request ends inside the timeline) — unit-tested on the time filter.
