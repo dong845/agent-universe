@@ -13,7 +13,8 @@ async function open(page: Page, errors: string[], q = "", hash = "") {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`/?demo=1&paused=1${q}${hash}`);
   await page.waitForFunction(() => !!(window as any).__galaxyKeys && !!(window as any).__agentTown);
-  await page.waitForFunction(() => (window as any).__agentTownFlying && !(window as any).__agentTownFlying(), null, { timeout: 20_000 });
+  // a focused planet wears the kit city, which the tests' software renderer draws slowly (a real GPU: ~2.5 s)
+  await page.waitForFunction(() => (window as any).__agentTownFlying && !(window as any).__agentTownFlying(), null, { timeout: 90_000 });
   await page.waitForTimeout(1500);
 }
 type Box = { x: number; y: number; width: number; height: number };
@@ -68,13 +69,18 @@ test("a paused link holds the sky still; playing moves the planets along their o
   const a = await at();
   await page.waitForTimeout(1500);
   expect(await at()).toEqual(a);
+  const sec0: number = await page.evaluate(() => (window as any).__agentTown.orbitSec());
   await page.evaluate(() => (window as any).__agentTown.play());
-  await page.waitForTimeout(3000);
+  // the orbit clock runs and the planet's drawn position follows it (how far it gets in 3 s depends on
+  // how many frames the software renderer manages, so the distance is only required to be non-zero)
+  await page.waitForFunction((s0) => (window as any).__agentTown.orbitSec() > s0 + 0.3, sec0, { timeout: 30_000 });
+  await page.waitForTimeout(500);
   const b = await at();
-  expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThan(0.5);
+  expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThan(0.01);
 });
 
 test("hovering a house on a planet shows its request; clicking opens the diary; Escape closes it", async ({ page }) => {
+  test.slow();
   const errors: string[] = [];
   await open(page, errors, `&focus=${encodeURIComponent((await (async () => { await page.goto("/?demo=1&paused=1"); await page.waitForFunction(() => !!(window as any).__galaxyKeys); return (await keys(page))[0]; })()))}`);
   const town = await page.evaluate(() => (window as any).__agentTown.state().focus);
@@ -111,8 +117,15 @@ test("clicking a planet enters its city: buildings named, back to space works", 
   const errors: string[] = [];
   await open(page, errors);
   const k = (await keys(page))[0];
+  // fly to the planet first: from the overview it is a few pixels across, and a click there is a coin toss
+  await page.evaluate((key) => (window as any).__agentTown.focus(key), k);
+  // the software renderer the tests use draws the focused planet's kit city at a frame or two a second
+  // (a real GPU: ~2.5 s, 60 fps at DPR 2)
+  await page.waitForFunction(() => !(window as any).__agentTownFlying(), null, { timeout: 90_000 });
+  await page.waitForTimeout(800);
   const s = await page.evaluate((key) => (window as any).__galaxyScreen.get(key), k);
-  await page.mouse.click(s.x, s.y);
+  expect(s.px).toBeGreaterThan(30);
+  await page.mouse.click(s.x, s.y + s.px * 0.5);
   await expect(page.getByTestId("leave-city")).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(1500);
   // the city's public buildings carry their plain names

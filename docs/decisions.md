@@ -367,3 +367,9 @@ Owner: smaller robots, a prettier city, and the open items done.
   - DPR 1: space 60 fps, the biggest city 60, the live city 60 (p95 16.8 ms).
   - DPR 2, before: space 34, cities 29. Two causes found by measuring: 4× multisampling under the post effects (space 34 → 60 without it), and the ground beyond the city computing its noise per pixel over most of the screen (cities 37 → 54 when moved to the vertex shader of a dense disc). Shadows from tiles and props were not the cost (tried; kept off anyway, map 1024).
   - DPR 2, after: space 60, cities 53–55 (p95 33 ms). Multisampling is now off at DPR ≥ 1.5 (`?msaa=N` overrides).
+
+## D21 The faction marks (2026-11-01)
+
+Owner: the home-made Claude and Codex emblems (D18: a sunburst, three rings) "didn't feel right"; chose solid versions of the official marks, made in Blender. Sources in `art/logos/`, from Wikimedia Commons: `claude.svg` (File:Claude_AI_symbol.svg, Claude's spark) and `openai.svg` (File:OpenAI_logo_2025_(symbol).svg, OpenAI's blossom — Codex is OpenAI's). `scripts/models/emblems.py` imports each SVG as curves, extrudes and bevels it, centres it, scales its larger side to 1 and stands it facing the camera side → `public/models/emblems.glb` (0.4 MB; nodes `E_claude-code`, `E_codex`). The labels draw the same SVG paths. The marks belong to Anthropic and OpenAI and only label each side in this local tool; nothing here is published (the repository has no remote).
+
+Where they show: before every planet and star name; around each star (a faint hologram that fades as the camera comes close); above every task hall, in space and in the city; on the main robot's head.

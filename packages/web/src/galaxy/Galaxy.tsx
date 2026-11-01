@@ -11,7 +11,8 @@ import { pieceOf, StudioEnvironment } from "../city/CityKit.tsx";
 import * as THREE from "three";
 import { absTime, useStore } from "../store.ts";
 import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, type Galaxy, type Planet, type StarSystem } from "./galaxyData.ts";
-import { emblemGeometry } from "./emblem.ts";
+import { useGLTF } from "@react-three/drei";
+import { EMBLEM_NODE, EMBLEMS_URL } from "./emblem.ts";
 import { useEnter } from "../city/cityReplay.ts";
 import { ATMO, BELT, PLANET, RING, SHELL, SKY, STAR, STARS } from "./shaders.ts";
 
@@ -41,16 +42,30 @@ const hullMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.4
 const glowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.4, 2.4), toneMapped: false });
 const beamMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.6, 1.6), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
 export const MATS = { hull: hullMat, glow: glowMat, beam: beamMat };
-const EMBLEM = {
-  "claude-code": { badge: emblemGeometry("claude-code", "badge"), corona: emblemGeometry("claude-code", "corona") },
-  codex: { badge: emblemGeometry("codex", "badge"), corona: emblemGeometry("codex", "corona") },
-};
+/** the solid faction emblems Blender builds from the marks' SVGs, one geometry per faction */
+function useEmblemGeometry(faction: StarSystem["faction"]): THREE.BufferGeometry {
+  const gltf = useGLTF(EMBLEMS_URL);
+  return useMemo(() => {
+    const o = gltf.scene.getObjectByName(EMBLEM_NODE[faction]) as THREE.Mesh | undefined;
+    if (!o?.isMesh) throw new Error(`${EMBLEMS_URL} has no mesh "${EMBLEM_NODE[faction]}"`);
+    // the node may sit off the origin in the file; its geometry is already centred
+    return o.geometry;
+  }, [gltf, faction]);
+}
+useGLTF.preload(EMBLEMS_URL);
 const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, fog: false });
 
-/** the faction emblem, always facing the camera, turning slowly in its own plane */
-export function Emblem({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number }) {
-  const base = use === "corona" ? 0.5 : 0.95;
-  const mat = useMemo(() => emblemMat(FACTION_HEX[faction], use === "corona" ? 1.6 : 2.4, base), [faction, use, base]);
+type EmblemProps = { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number };
+/** the faction's mark, always facing the camera, turning slowly in its own plane */
+export function Emblem(props: EmblemProps) {
+  return <Suspense fallback={null}><EmblemMark {...props} /></Suspense>;
+}
+
+function EmblemMark({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: EmblemProps) {
+  const geometry = useEmblemGeometry(faction);
+  // a badge is a solid glowing mark; a star's corona is a faint hologram that adds to the light
+  const base = use === "corona" ? 0.45 : 1;
+  const mat = useMemo(() => (use === "corona" ? emblemMat(FACTION_HEX[faction], 1.6, base) : new THREE.MeshBasicMaterial({ color: col(FACTION_HEX[faction], 1.9), toneMapped: false, fog: false })), [faction, use, base]);
   useEffect(() => () => mat.dispose(), [mat]);
   const ref = useRef<THREE.Mesh>(null);
   const w = useMemo(() => new THREE.Vector3(), []);
@@ -68,7 +83,7 @@ export function Emblem({ faction, use, scale, position = [0, 0, 0], speed = 0.05
   });
   return (
     <Billboard position={position}>
-      <mesh ref={ref} geometry={EMBLEM[faction][use]} material={mat} scale={scale} raycast={noRay} />
+      <mesh ref={ref} geometry={geometry} material={mat} scale={scale} raycast={noRay} />
     </Billboard>
   );
 }

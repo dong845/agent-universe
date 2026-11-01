@@ -76,6 +76,8 @@ window.__agentTown = {
   },
   /** a town's finished requests, biggest first (by calls) */
   requestsOf: (k: string) => [...(useStore.getState().w25?.requests.values() ?? [])].filter((r) => `${r.faction}|${r.projectId}` === k && r.class === "produced").sort((a, b) => b.calls - a.calls).map((r) => r.requestId),
+  /** seconds on the orbit clock */
+  orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
   setSpeed: (n: number) => useStore.getState().setSpeed(n),

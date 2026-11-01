@@ -13,7 +13,7 @@ import { declutter, type LabelBox } from "../ui/format.ts";
 import { SpotCard } from "../v3/Cards25.tsx";
 import { WORK_NAMES } from "../v3/townLayout.ts";
 import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
-import { emblemPaths } from "./emblem.ts";
+import { MARKS } from "./emblem.ts";
 import { CityScene } from "../city/City.tsx";
 import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx";
 import { cityTowns, REPLAY_SPEEDS, useEnter, useReplay } from "../city/cityReplay.ts";
@@ -146,11 +146,11 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
   return null;
 }
 
-const PATHS = { "claude-code": emblemPaths("claude-code"), codex: emblemPaths("codex") };
 function Badge({ f }: { f: "claude-code" | "codex" }) {
+  const m = MARKS[f];
   return (
-    <svg className="g-badge" viewBox="0 0 24 24" aria-hidden="true" style={{ color: FACTION_COLOR[f] }}>
-      {PATHS[f].map((d, i) => <path key={i} d={d} fill="currentColor" fillRule="evenodd" />)}
+    <svg className="g-badge" viewBox={m.viewBox} aria-hidden="true" style={{ color: FACTION_COLOR[f] }}>
+      {m.paths.map((d, i) => <path key={i} d={d} fill="currentColor" />)}
     </svg>
   );
 }
