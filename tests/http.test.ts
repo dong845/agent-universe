@@ -209,3 +209,53 @@ describe("attention: stream, hook endpoint", () => {
     expect((await fetch(`${b}/api/hook?src=other`, { method: "POST", body: "{}" })).status).toBe(400);
   });
 });
+
+describe("share page export route", () => {
+  let s: ReturnType<typeof createServer>;
+  let b = "";
+  const dist = join(root, "dist-share");
+  beforeAll(async () => {
+    mkdirSync(join(dist, "assets"), { recursive: true });
+    mkdirSync(join(dist, "models"), { recursive: true });
+    writeFileSync(join(dist, "index.html"), '<!doctype html><html><head><script type="module" crossorigin src="/assets/i.js"></script></head><body><div id="root"></div></body></html>');
+    writeFileSync(join(dist, "assets", "i.js"), "1");
+    writeFileSync(join(dist, "models", "city.glb"), "c");
+    writeFileSync(join(dist, "models", "robot.glb"), "r");
+    s = createServer({
+      load: (onProgress) => loadEventsAsync({ claudeRoot: join(root, "claude"), codexRoot: join(root, "codex"), cacheDir: null, onProgress, assign: { home: root, tempRoots: [] } }),
+      staticDir: dist,
+      themesFile,
+      shareSecretFile: join(root, "agent-town", "share-secret-2"),
+      shareMaxBytes: 1_000_000,
+    });
+    await new Promise<void>((r) => s.server.listen(0, "127.0.0.1", r));
+    b = `http://127.0.0.1:${(s.server.address() as AddressInfo).port}`;
+    for (let i = 0; i < 100 && s.state().phase !== "ready"; i++) await new Promise((r) => setTimeout(r, 20));
+  });
+  afterAll(() => s.server.close());
+
+  it("exports one HTML file with names hidden by default", async () => {
+    const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: [] }) });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-disposition")).toMatch(/attachment; filename="agent-town-share-\d{4}-\d{2}-\d{2}\.html"/);
+    const html = await r.text();
+    expect(html).toContain('id="agent-town-share"');
+    expect(html).not.toContain("第一个任务");
+    expect(html).not.toContain(root);
+  });
+  it("includes up to 5 replays, and refuses more", async () => {
+    const w = await (await fetch(`${b}/api/world`)).json();
+    const rid = w.requests[0].requestId;
+    const ok = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: [rid] }) });
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toContain('"shareReplays":[{"requestId"');
+    const many = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: ["a", "b", "c", "d", "e", "f"] }) });
+    expect(many.status).toBe(400);
+  });
+  it("answers 413 above the size limit, naming the largest part", async () => {
+    writeFileSync(join(dist, "models", "city.glb"), Buffer.alloc(1_200_000, 1));
+    const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: [] }) });
+    expect(r.status).toBe(413);
+    expect((await r.json()).error).toContain("city");
+  });
+});

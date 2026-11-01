@@ -245,13 +245,19 @@ export const useStore = create<Store>((set, get) => ({
       t0 = first;
       t = duration;
     }
+    if (source === "share" && p.requests.length) {
+      // a shared world has no events: its clock spans its requests and opens at the end, finished
+      t0 = Math.min(...p.requests.map((r) => r.startTs));
+      duration = Math.max(...p.requests.map((r) => r.endTs)) - t0;
+      t = duration;
+    }
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
     saved = null;
     const built = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
     const { share, shareNames } = get();
     const w25 = built && share && shareNames ? maskWorld(built, shareNames) : built;
     if (share) set({ realW25: built });
-    set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
+    set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "demo" ? get().playing : false });
   },
   setTime(t) {
     const c = Math.max(0, Math.min(get().duration, t));

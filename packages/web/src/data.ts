@@ -3,6 +3,7 @@ import { demoPayload } from "../../mock/src/world.ts";
 import type { AgentTownEvent } from "../../schema/src/event.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
 import type { Attention } from "../../schema/src/attention.ts";
+import { embeddedWorld } from "./share/embedded.ts";
 
 export type Progress = { phase: "loading"; done: number; total: number } | { phase: "error"; message: string };
 
@@ -11,6 +12,9 @@ export class ServerDown extends Error {}
 let demo: WorldPayload | null = null;
 
 export async function loadWorld(isDemo: boolean, onProgress: (p: Progress) => void): Promise<WorldPayload> {
+  // a shared page: the world is inside the file
+  const shared = embeddedWorld();
+  if (shared) return shared;
   if (isDemo) return (demo = demoPayload());
   for (;;) {
     let s: { phase: string; done: number; total: number; error?: string };
@@ -38,7 +42,10 @@ export function fetchRequest(requestId: string, taskIds: string[]): Promise<Agen
   let p = requests.get(requestId);
   if (!p) {
     const ids = new Set(taskIds);
-    p = demo
+    const shared = embeddedWorld();
+    p = shared
+      ? Promise.resolve(shared.shareReplays?.find((r) => r.requestId === requestId)?.events ?? [])
+      : demo
       ? Promise.resolve(demo.events.filter((e) => e.taskId && ids.has(e.taskId)))
       : fetch(`/api/request/${encodeURIComponent(requestId)}`).then(async (r) => {
           if (!r.ok) throw new Error(`request ${requestId}: ${r.status}`);

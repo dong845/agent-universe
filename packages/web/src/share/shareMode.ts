@@ -5,7 +5,8 @@ import { demoCodeNames } from "./display.ts";
 
 export async function enterShare(realNames: boolean): Promise<void> {
   const st = useStore.getState();
-  if (realNames) return st.setShare(true, null);
+  // a shared page's names were masked by the exporter already
+  if (realNames || st.source === "share") return st.setShare(true, null);
   const keys = [...((st.realW25 ?? st.w25)?.towns.keys() ?? [])];
   const names = st.source === "real" ? ((await (await fetch("/api/share/names")).json()) as Record<string, string>) : demoCodeNames(keys);
   useStore.getState().setShare(true, names);

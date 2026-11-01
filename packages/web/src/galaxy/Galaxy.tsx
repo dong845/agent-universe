@@ -13,6 +13,7 @@ import { absTime, useStore } from "../store.ts";
 import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, type Galaxy, type Planet, type StarSystem } from "./galaxyData.ts";
 import { useGLTF } from "@react-three/drei";
 import { EMBLEM_NODE, EMBLEMS_URL, neutralEmblemGeometry } from "./emblem.ts";
+import { isViewer } from "../share/embedded.ts";
 import { useEnter } from "../city/cityReplay.ts";
 import { ATMO, BELT, PLANET, RING, SHELL, SKY, STAR, STARS } from "./shaders.ts";
 
@@ -52,7 +53,8 @@ function useEmblemGeometry(faction: StarSystem["faction"]): THREE.BufferGeometry
     return o.geometry;
   }, [gltf, faction]);
 }
-useGLTF.preload(EMBLEMS_URL);
+// a shared page never carries the official marks (they are drawn only on this machine)
+if (!isViewer()) useGLTF.preload(EMBLEMS_URL);
 const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, fog: false });
 
 type EmblemProps = { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number };

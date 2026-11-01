@@ -22,6 +22,8 @@ import { absTime } from "../store.ts";
 import { NeedsYou, Toast } from "../ui/NeedsYou.tsx";
 import { Settings } from "../ui/Settings.tsx";
 import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
+import { ExportShare } from "../share/ExportDialog.tsx";
+import { ShareReplays } from "../share/ShareReplays.tsx";
 
 const T = themes as ThemesConfig;
 const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
@@ -401,7 +403,7 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Town 分享 · 只读" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
@@ -409,10 +411,12 @@ export function GalaxyApp() {
       {Q.get("fps") === "1" ? <FpsMeter /> : null}
       <GalaxyHoverCard g={g} />
       <Diary />
-      <TimelineBar />
+      {source === "share" ? null : <TimelineBar />}
       <RecordDialog />
       <NeedsYou />
       {source === "real" ? <Settings /> : null}
+      {source === "real" && !cp ? <ExportShare /> : null}
+      {source === "share" ? <ShareReplays /> : null}
       <Toast />
     </div>
   );

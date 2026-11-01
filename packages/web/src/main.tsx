@@ -24,6 +24,8 @@ try {
 }
 const store = useStore.getState();
 store.load(payload);
+// a shared page: always in share mode (names were masked by the exporter; our own emblems; no diary)
+if (payload.source === "share") store.setShare(true, null);
 // real data: newer worlds and the "需要你" list arrive as the logs change
 if (payload.source === "real") subscribe({ world: (p) => useStore.getState().reload(p), attention: (a) => useStore.getState().setAttention(a) });
 

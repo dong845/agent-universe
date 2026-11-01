@@ -15,7 +15,8 @@ import { readOverrides } from "./townsFs.ts";
 import { readSettings, writeSettings, type Settings } from "./settings.ts";
 import { hooksInstalled, installHooks, uninstallHooks, type HookAgent } from "./hooks.ts";
 import { makeShareIds, shareSecret } from "./shareKeys.ts";
-import { codeNames } from "../../schema/src/share.ts";
+import { codeNames, sharePayload } from "../../schema/src/share.ts";
+import { buildShareHtml, SHARE_MAX_BYTES, ShareTooBig } from "./exportShare.ts";
 import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
@@ -44,6 +45,8 @@ export interface ServerOptions {
   hookFiles?: Record<HookAgent, string>;
   /** the secret behind code names and share ids (default ~/.agent-town/share-secret, created once) */
   shareSecretFile?: string;
+  /** the share page's hard size limit (default 40 MB) */
+  shareMaxBytes?: number;
 }
 
 /** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
@@ -224,6 +227,7 @@ export function createServer(o: ServerOptions) {
     if (path === "/api/settings" && req.method === "GET") return json(res, 200, { ...readSettings(settingsFile), hooks: { claude: hooksInstalled(hookFiles.claude), codex: hooksInstalled(hookFiles.codex) }, hookFiles });
     if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
     if (path === "/api/hooks" && req.method === "POST") return switchHooks(req, res);
+    if (path === "/api/export/share" && req.method === "POST") return exportShare(req, res);
     if (path === "/api/share/names") {
       if (!payload) return json(res, 503, state);
       return json(res, 200, codeNames(payload.towns.map((t) => t.key), shareIds().name));
@@ -327,6 +331,39 @@ export function createServer(o: ServerOptions) {
         json(res, 200, { on: b.on, file: hookFiles[agent], ...r });
       } catch (e) {
         json(res, 409, { error: `没有改动 ${hookFiles[agent]}：${e instanceof Error ? e.message : String(e)}` });
+      }
+    });
+  };
+
+  /**
+   * POST /api/export/share {realNames, replays: requestId[] (≤ 5)}: the share page as one HTML file
+   * (spec D), built from the production build this server serves. Everything goes through sharePayload.
+   */
+  const exportShare = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 8192) body += c; });
+    req.on("end", () => {
+      if (!payload) return json(res, 503, state);
+      if (!o.staticDir) return json(res, 409, { error: "导出分享页需要网页构建：先运行 node --run start" });
+      let b: { realNames?: unknown; replays?: unknown };
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      const ids = Array.isArray(b.replays) ? b.replays.filter((x): x is string => typeof x === "string") : [];
+      if (ids.length > 5) return json(res, 400, { error: "最多带 5 个重放" });
+      try {
+        const replays = ids.map((id) => ({ requestId: id, events: byRequest.get(id) ?? [] })).filter((r) => r.events.length);
+        const shared = sharePayload(payload, { ids: shareIds(), realNames: b.realNames === true, replays });
+        const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES);
+        const d = new Date();
+        const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-town-share-${day}.html"`, "cache-control": "no-store" });
+        res.end(html);
+      } catch (e) {
+        if (e instanceof ShareTooBig) return json(res, 413, { error: e.message, bytes: e.bytes, parts: e.parts });
+        json(res, 500, { error: e instanceof Error ? e.message : String(e) });
       }
     });
   };

@@ -10,17 +10,22 @@ export function Hud() {
   const events = useStore((s) => s.events);
   const unended = useStore((s) => s.unended);
   const ledger = useStore((s) => s.ledger);
+  const source = useStore((s) => s.source);
+  const w = useStore((s) => s.w25);
   const abs = absTime(t);
-  const all = ledger.tokensAt(keys.global(), abs);
-  const claude = ledger.tokensAt(keys.faction({ faction: "claude-code" }), abs);
-  const codex = ledger.tokensAt(keys.faction({ faction: "codex" }), abs);
-  const openCount = openTasks(events, abs, unended);
+  // a shared world carries no events: its totals are its requests' own
+  const fromRequests = (f?: string) => [...(w?.requests.values() ?? [])].filter((r) => !f || r.faction === f).reduce((a, r) => a + totalOf(r.tokens), 0);
+  const shared = source === "share";
+  const all = shared ? fromRequests() : totalOf(ledger.tokensAt(keys.global(), abs));
+  const claude = shared ? fromRequests("claude-code") : totalOf(ledger.tokensAt(keys.faction({ faction: "claude-code" }), abs));
+  const codex = shared ? fromRequests("codex") : totalOf(ledger.tokensAt(keys.faction({ faction: "codex" }), abs));
+  const openCount = shared ? 0 : openTasks(events, abs, unended);
   return (
     <div className="hud" data-testid="hud">
-      <div><span>全局 token</span><b data-testid="hud-total">{formatCount(totalOf(all))}</b></div>
+      <div><span>全局 token</span><b data-testid="hud-total">{formatCount(all)}</b></div>
       <div><span>等效花费</span><b>未配置价格</b></div>
-      <div><span>Claude Code</span><b>{formatCount(totalOf(claude))}</b></div>
-      <div><span>Codex</span><b>{formatCount(totalOf(codex))}</b></div>
+      <div><span>Claude Code</span><b>{formatCount(claude)}</b></div>
+      <div><span>Codex</span><b>{formatCount(codex)}</b></div>
       <div><span>进行中任务</span><b data-testid="hud-open">{openCount}</b></div>
     </div>
   );

@@ -40,3 +40,16 @@ describe("store.reload", () => {
     expect(useStore.getState().attention).toHaveLength(1);
   });
 });
+
+describe("a shared world (no events)", () => {
+  it("opens at the end of its record, so every finished product counts", async () => {
+    const { sharePayload } = await import("../packages/schema/src/share.ts");
+    const { makeShareIds } = await import("../packages/server/src/shareKeys.ts");
+    const { absTime } = await import("../packages/web/src/store.ts");
+    const p = sharePayload(demoPayload(), { ids: makeShareIds("t"), realNames: false, replays: [] });
+    useStore.getState().load(p);
+    const st = useStore.getState();
+    expect(st.playing).toBe(false);
+    expect(absTime(st.t)).toBe(Math.max(...p.requests.map((r) => r.endTs)));
+  });
+});
