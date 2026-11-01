@@ -30,7 +30,7 @@ try {
 const store = useStore.getState();
 store.load(payload);
 // a shared page: always in share mode (names were masked by the exporter; our own emblems; no diary)
-if (payload.source === "share") store.setShare(true, null);
+if (payload.source === "share") store.setShare(true, null, true);
 // real data: newer worlds and the "需要你" list arrive as the logs change
 // A newer world rebuilds the page's world (~0.2 s on a big record): at most one every 30 s, never during
 // a recording. The 需要你 list has its own small message and is applied at once.
@@ -84,7 +84,7 @@ window.__agentTown = {
     const s = useStore.getState();
     const cam = (window as unknown as { __agentTownCamera?: { zoom: number } }).__agentTownCamera;
     const ctl = (window as unknown as { __agentTownControls?: { target: { x: number; z: number } } }).__agentTownControls;
-    return { t: s.t, abs: absTime(s.t), city: s.city, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, replay: s.replay, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
+    return { t: s.t, abs: absTime(s.t), historyAt: s.historyAt, city: s.city, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, replay: s.replay, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
   },
   play: () => {
     orbit.frozen = false;
@@ -97,7 +97,7 @@ window.__agentTown = {
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
   /** share mode on/off (demo: stand-in code names; real data: the server's code names) */
-  setShare: (on: boolean) => (on ? enterShare(false) : leaveShare()),
+  setShare: (on: boolean, show = { townNames: false, titles: false }) => (on ? enterShare(show) : leaveShare()),
   /** share mode on? */
   shareOn: () => useStore.getState().share,
   /** the "需要你" list, as the server's stream would set it */

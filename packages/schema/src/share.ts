@@ -18,8 +18,10 @@ export interface ShareIds {
 
 export interface ShareOptions {
   ids: ShareIds;
-  /** the owner switched "显示真实名称" on: town names, titles and skill names stay (paths never do) */
-  realNames: boolean;
+  /** project names (and skill names, street folders) stay; off: code names (owner 2026-11-01: on by default) */
+  townNames: boolean;
+  /** request titles stay — they are the owner's own words; off: what kind of request it was */
+  titles: boolean;
   /** requests whose replay goes along, with their full events (reduced here) */
   replays: { requestId: string; events: AgentTownEvent[] }[];
 }
@@ -44,7 +46,7 @@ export function codeNames(keys: string[], name: (key: string) => string): Record
 }
 
 export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
-  const { ids, realNames } = o;
+  const { ids, townNames, titles } = o;
   const townKey = (faction: string, projectId: string) => `${faction}|${projectId}`;
   const proj = (faction: string, projectId: string) => ids.town(townKey(faction, projectId));
   const names = codeNames(p.towns.map((t) => t.key), ids.name);
@@ -55,14 +57,14 @@ export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
       key: townKey(t.faction, projectId),
       faction: t.faction,
       projectId,
-      name: realNames ? t.name : names[t.key],
+      name: townNames ? t.name : names[t.key],
       kind: t.kind,
-      guildOf: realNames ? [...t.guildOf] : [],
+      guildOf: townNames ? [...t.guildOf] : [],
       theme: t.theme,
       counts: { ...t.counts },
       workCounts: { ...t.workCounts },
       lastEditTs: t.lastEditTs,
-      ...(realNames && t.skillNote ? { skillNote: t.skillNote } : {}),
+      ...(townNames && t.skillNote ? { skillNote: t.skillNote } : {}),
     };
   });
 
@@ -74,15 +76,16 @@ export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
     startTs: r.startTs,
     endTs: r.endTs,
     ok: r.ok,
-    title: realNames && r.title ? r.title : maskedTitle(r),
+    title: titles && r.title ? r.title : maskedTitle(r),
     class: r.class,
     productKind: r.productKind,
     tokens: { ...r.tokens },
     calls: r.calls,
     fails: r.fails,
     spawns: r.spawns,
-    skills: realNames ? [...r.skills] : [],
-    topDir: null,
+    skills: townNames ? [...r.skills] : [],
+    // the folder a request changed most names a street; a folder name is structure, shown with the project names
+    topDir: townNames ? r.topDir : null,
     turns: r.turns,
     taskIds: r.taskIds.map(ids.id),
   }));

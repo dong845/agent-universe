@@ -9,17 +9,20 @@ import { useStore } from "../store.ts";
 import { toast } from "../ui/NeedsYou.tsx";
 import { fileName } from "./recordFormat.ts";
 import { MAX_RECORD_MS, RecordCompositor, useRecorder } from "./recorder.ts";
-import { enterShare, leaveShare } from "./shareMode.ts";
+import { enterShare, leaveShare, type ShareShow } from "./shareMode.ts";
 
 /** the dialog and the running recording, outside the Canvas */
-export const useRecordUi = create<{ dialog: boolean; running: boolean; realNames: boolean; open(): void; close(): void; setRunning(r: boolean, realNames?: boolean): void }>((set) => ({
+export const useRecordUi = create<{ dialog: boolean; running: boolean; show: ShareShow; open(): void; close(): void; setRunning(r: boolean, show?: ShareShow): void }>((set) => ({
   dialog: false,
   running: false,
-  realNames: false,
+  show: { townNames: true, titles: false },
   open: () => set({ dialog: true }),
   close: () => set({ dialog: false }),
-  setRunning: (running, realNames = false) => set({ running, realNames, dialog: false }),
+  setRunning: (running, show = { townNames: true, titles: false }) => set({ running, show, dialog: false }),
 }));
+
+/** what the banner says is hidden */
+export const hiddenText = (s: ShareShow) => (!s.townNames && !s.titles ? " · 已隐藏项目名和请求标题" : !s.townNames ? " · 已隐藏项目名" : !s.titles ? " · 已隐藏请求标题" : "");
 
 let glCanvas: HTMLCanvasElement | null = null;
 /** inside the Canvas: knows the WebGL canvas, and paints frames while recording */
@@ -47,11 +50,11 @@ async function finish(townKey: string | null) {
   toast(`已保存 ${a.download}（${(out.blob.size / 1e6).toFixed(1)} MB）`);
 }
 
-async function begin(realNames: boolean, format: "mp4" | "gif") {
+async function begin(show: ShareShow, format: "mp4" | "gif") {
   if (!glCanvas) return toast("画面还没准备好");
   try {
-    await enterShare(realNames);
-    useRecordUi.getState().setRunning(true, realNames);
+    await enterShare(show);
+    useRecordUi.getState().setRunning(true, show);
     const r = useReplay.getState().r;
     if (r) {
       useReplay.getState().seek(0);
@@ -68,8 +71,9 @@ async function begin(realNames: boolean, format: "mp4" | "gif") {
 }
 
 export function RecordDialog() {
-  const { dialog, running, realNames } = useRecordUi();
-  const [names, setNames] = useState(false);
+  const { dialog, running, show } = useRecordUi();
+  const [names, setNames] = useState(true);
+  const [titles, setTitles] = useState(false);
   const [format, setFormat] = useState<"mp4" | "gif">("mp4");
   const city = useStore((s) => s.city);
   // the recording ends with the replay, or at the cap
@@ -86,7 +90,7 @@ export function RecordDialog() {
   if (running)
     return (
       <div className="g-rec-banner" data-testid="rec-banner">
-        <i />录制中{realNames ? "" : " · 已隐藏真实名称"}
+        <i />录制中{hiddenText(show)}
         <button onClick={() => void finish(city)}>停止</button>
       </div>
     );
@@ -94,15 +98,16 @@ export function RecordDialog() {
   return (
     <div className="g-rec-dialog" data-testid="rec-dialog" role="dialog" aria-label="录制重放">
       <b>录制这次重放</b>
-      <p className="muted">从头录到结束（最长 60 秒）。录的是你屏幕上的画面：开始后会换成代号和我们自己的阵营标志。</p>
-      <label><input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} /> 显示真实名称<small>项目名会出现在视频里</small></label>
+      <p className="muted">从头录到结束（最长 60 秒）。录的是你屏幕上的画面：开始后阵营标志换成我们自己的，按下面的选择隐藏文字。</p>
+      <label><input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} data-testid="rec-names" /> 显示项目名称<small>关掉则用代号</small></label>
+      <label><input type="checkbox" checked={titles} onChange={(e) => setTitles(e.target.checked)} data-testid="rec-titles" /> 显示请求标题<small>你自己写的话</small></label>
       <div className="g-rec-format">
         <label><input type="radio" name="fmt" checked={format === "mp4"} onChange={() => setFormat("mp4")} /> 视频（MP4）</label>
         <label><input type="radio" name="fmt" checked={format === "gif"} onChange={() => setFormat("gif")} /> 动图（GIF，较大较糊）</label>
       </div>
       <div className="g-rec-actions">
         <button onClick={() => useRecordUi.getState().close()}>取消</button>
-        <button className="primary" data-testid="rec-start" onClick={() => void begin(names, format)}>开始录制</button>
+        <button className="primary" data-testid="rec-start" onClick={() => void begin({ townNames: names, titles }, format)}>开始录制</button>
       </div>
     </div>
   );

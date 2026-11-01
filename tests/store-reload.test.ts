@@ -46,7 +46,7 @@ describe("a shared world (no events)", () => {
     const { sharePayload } = await import("../packages/schema/src/share.ts");
     const { makeShareIds } = await import("../packages/server/src/shareKeys.ts");
     const { absTime } = await import("../packages/web/src/store.ts");
-    const p = sharePayload(demoPayload(), { ids: makeShareIds("t"), realNames: false, replays: [] });
+    const p = sharePayload(demoPayload(), { ids: makeShareIds("t"), townNames: false, titles: false, replays: [] });
     useStore.getState().load(p);
     const st = useStore.getState();
     expect(st.playing).toBe(false);

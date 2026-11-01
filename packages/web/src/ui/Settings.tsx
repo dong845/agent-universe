@@ -2,6 +2,7 @@
 // which write the agent's own hook file — so the switch says which file, and that a backup is kept.
 import { useEffect, useState } from "react";
 import { useStore } from "../store.ts";
+import { useRightPanel } from "./rightPanel.ts";
 
 interface ServerSettings { notify: boolean; notifyTurnDone: boolean; hooks: { claude: boolean; codex: boolean }; hookFiles?: { claude: string; codex: string } }
 
@@ -16,7 +17,7 @@ export function Settings() {
   const [open, setOpen] = useState(false);
   const [s, setS] = useState<ServerSettings | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const side = useStore((s) => (s.selected ? " beside-diary" : ""));
+  const side = useRightPanel() ? " beside-diary" : "";
   const refresh = () => fetch("/api/settings").then((r) => r.json()).then(setS).catch(() => setNote("读不到设置：本地服务没有响应"));
   useEffect(() => {
     if (open) void refresh();

@@ -28,13 +28,13 @@ describe("sharePayload", () => {
     // a replay of the first request, with events carrying every private field
     const r = p.requests[0];
     const events = p.events.filter((e) => e.taskId && r.taskIds.includes(e.taskId)).map((e) => ({ ...e, target: "SECRET-t", files: [{ path: "/Users/x/SECRET-f", access: "edit" as const }], title: "SECRET-title", cwd: "/Users/x", agentTask: "SECRET-a", tool: "mcp__SECRET__x", model: "SECRET-m" }));
-    const out = JSON.stringify(sharePayload(p, { ids, realNames: false, replays: [{ requestId: r.requestId, events }] }));
+    const out = JSON.stringify(sharePayload(p, { ids, townNames: false, titles: false, replays: [{ requestId: r.requestId, events }] }));
     expect(out).not.toMatch(/SECRET-/);
     expect(out).not.toMatch(/\/Users\//);
   });
   it("keeps the picture: counts, tokens, classes and one town per town", () => {
     const p = demoPayload();
-    const s = sharePayload(p, { ids, realNames: false, replays: [] });
+    const s = sharePayload(p, { ids, townNames: false, titles: false, replays: [] });
     expect(s.source).toBe("share");
     expect(s.towns).toHaveLength(p.towns.length);
     expect(s.requests.map((r) => r.class)).toEqual(p.requests.map((r) => r.class));
@@ -44,9 +44,9 @@ describe("sharePayload", () => {
     const keys = new Set(s.towns.map((t) => t.key));
     expect(s.requests.every((r) => keys.has(`${r.faction}|${r.projectId}`))).toBe(true);
   });
-  it("realNames keeps town names and titles, still no paths, folders or session ids", () => {
+  it("names and titles shown: still no paths, folders the session ran in, or session ids", () => {
     const p = { ...demoPayload(), home: "/Users/someone" };
-    const s = sharePayload(p, { ids, realNames: true, replays: [] });
+    const s = sharePayload(p, { ids, townNames: true, titles: true, replays: [] });
     expect(s.towns.map((t) => t.name)).toEqual(p.towns.map((t) => t.name));
     expect(JSON.stringify(s)).not.toMatch(/\/Users\//);
     expect(s.requests.every((r) => r.cwd === undefined)).toBe(true);
@@ -56,7 +56,7 @@ describe("sharePayload", () => {
     const p = demoPayload();
     const r = p.requests.find((x) => x.calls > 3)!;
     const events = p.events.filter((e) => e.taskId && r.taskIds.includes(e.taskId));
-    const s = sharePayload(p, { ids, realNames: false, replays: [{ requestId: r.requestId, events }] });
+    const s = sharePayload(p, { ids, townNames: false, titles: false, replays: [{ requestId: r.requestId, events }] });
     const rep = s.shareReplays![0];
     expect(rep.events).toHaveLength(events.length);
     const starts = rep.events.filter((e) => e.kind === "tool_start").map((e) => e.toolUseId);
@@ -65,6 +65,16 @@ describe("sharePayload", () => {
     expect(rep.events.some((e) => e.agentId === "main")).toBe(events.some((e) => e.agentId === "main"));
     expect(rep.events.every((e) => e.target === undefined && e.files === undefined && e.raw.file === "")).toBe(true);
     expect(rep.requestId).toBe(s.requests.find((x) => x.calls === r.calls && x.startTs === r.startTs)!.requestId);
+  });
+});
+
+describe("project names on, titles off (the default since 2026-11-01)", () => {
+  it("keeps project names, hides titles", () => {
+    const p = demoPayload();
+    const s = sharePayload(p, { ids, townNames: true, titles: false, replays: [] });
+    expect(s.towns.map((t) => t.name)).toEqual(p.towns.map((t) => t.name));
+    expect(s.requests.every((r) => /^(完成作品|调查|问答|空请求)/.test(r.title!))).toBe(true);
+    expect(JSON.stringify(s)).not.toContain("历史任务");
   });
 });
 

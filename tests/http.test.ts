@@ -234,27 +234,29 @@ describe("share page export route", () => {
   });
   afterAll(() => s.server.close());
 
-  it("exports one HTML file with names hidden by default", async () => {
-    const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: [] }) });
+  it("exports one HTML file: project names shown, request titles hidden by default (owner 2026-11-01)", async () => {
+    const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ replays: [] }) });
     expect(r.status).toBe(200);
     expect(r.headers.get("content-disposition")).toMatch(/attachment; filename="agent-town-share-\d{4}-\d{2}-\d{2}\.html"/);
     const html = await r.text();
     expect(html).toContain('id="agent-town-share"');
     expect(html).not.toContain("第一个任务");
     expect(html).not.toContain(root);
+    const w = await (await fetch(`${b}/api/world`)).json();
+    expect(html).toContain(JSON.stringify(w.towns[0].name).slice(1, -1));
   });
   it("includes up to 5 replays, and refuses more", async () => {
     const w = await (await fetch(`${b}/api/world`)).json();
     const rid = w.requests[0].requestId;
-    const ok = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: [rid] }) });
+    const ok = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ townNames: false, replays: [rid] }) });
     expect(ok.status).toBe(200);
     expect(await ok.text()).toContain('"shareReplays":[{"requestId"');
-    const many = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: ["a", "b", "c", "d", "e", "f"] }) });
+    const many = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ townNames: false, replays: ["a", "b", "c", "d", "e", "f"] }) });
     expect(many.status).toBe(400);
   });
   it("answers 413 above the size limit, naming the largest part", async () => {
     writeFileSync(join(dist, "models", "city.glb"), Buffer.alloc(1_200_000, 1));
-    const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ realNames: false, replays: [] }) });
+    const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ townNames: false, replays: [] }) });
     expect(r.status).toBe(413);
     expect((await r.json()).error).toContain("city");
   });

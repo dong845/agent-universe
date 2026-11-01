@@ -6,6 +6,7 @@ import type { Attention, AttentionState } from "../../../schema/src/attention.ts
 import { resumeCommand } from "../../../schema/src/resume.ts";
 import { Badge } from "../galaxy/GalaxyApp.tsx";
 import { useStore } from "../store.ts";
+import { useRightPanel } from "./rightPanel.ts";
 
 export const STATE_TEXT: Record<AttentionState, string> = { "maybe-waiting": "可能在等你授权", waiting: "在等你授权", "turn-done": "本轮完成，等你回复", error: "出错停止" };
 
@@ -43,7 +44,7 @@ const ago = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))
 export function NeedsYou() {
   const list = useStore((s) => s.attention);
   const w = useStore((s) => s.w25);
-  const diaryOpen = useStore((s) => !!s.selected);
+  const diaryOpen = useRightPanel();
   const [, tick] = useState(0);
   useEffect(() => {
     const i = setInterval(() => tick((n) => n + 1), 5000);

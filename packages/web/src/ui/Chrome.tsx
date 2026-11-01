@@ -7,6 +7,8 @@ import { clockLabel, replayClock } from "./format.ts";
 
 export function Hud() {
   const t = useStore((s) => s.uiT);
+  // a history step pins the moment (absTime reads it): follow it too
+  useStore((s) => s.historyAt);
   const events = useStore((s) => s.events);
   const unended = useStore((s) => s.unended);
   const ledger = useStore((s) => s.ledger);

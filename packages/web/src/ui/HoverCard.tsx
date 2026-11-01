@@ -61,6 +61,7 @@ function Freshness({ abs, last }: { abs: number; last?: AgentTownEvent }) {
 export function CardBody({ target }: { target: HoverTarget }) {
   const { events, ledger, world } = useStore.getState();
   const t = useStore((s) => s.uiT);
+  useStore((s) => s.historyAt);
   const abs = absTime(t);
   const pricing = <Row k="等效花费" v="未配置价格" />;
 

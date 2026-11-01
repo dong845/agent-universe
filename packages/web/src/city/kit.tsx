@@ -6,6 +6,8 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useStore } from "../store.ts";
+import { historySteps, useHistory } from "./history.ts";
+import { goToStep } from "./HistoryPanel.tsx";
 import type { Block } from "../galaxy/galaxyData.ts";
 
 import { modelUrlOnce } from "../share/embedded.ts";
@@ -134,6 +136,14 @@ function PartInstances({ part, list, town, cast }: { part: KitPart; list: Placem
         if (!b || e.delta > 5) return;
         e.stopPropagation();
         const i = b.spot.info;
+        // while the history is open, a building is a way to its step
+        const h = useHistory.getState();
+        if (h.town === town && (i.kind === "house" || i.kind === "tent")) {
+          const st = useStore.getState().w25;
+          const steps = st ? historySteps(st, town) : [];
+          const k = steps.findIndex((x) => x.request.requestId === i.requestId);
+          if (k >= 0) return goToStep(steps, k + 1);
+        }
         useStore.getState().select(i.kind === "house" || i.kind === "tent" ? { kind: "request", district: town, requestId: i.requestId } : { kind: "town", district: town });
       } : undefined}
     />

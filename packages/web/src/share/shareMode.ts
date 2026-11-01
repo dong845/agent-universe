@@ -3,13 +3,16 @@
 import { useStore } from "../store.ts";
 import { demoCodeNames } from "./display.ts";
 
-export async function enterShare(realNames: boolean): Promise<void> {
+export interface ShareShow { townNames: boolean; titles: boolean }
+
+export async function enterShare(show: ShareShow): Promise<void> {
   const st = useStore.getState();
-  // a shared page's names were masked by the exporter already
-  if (realNames || st.source === "share") return st.setShare(true, null);
+  // a shared page was masked by its exporter already
+  if (st.source === "share") return st.setShare(true, null, true);
+  if (show.townNames) return st.setShare(true, null, show.titles);
   const keys = [...((st.realW25 ?? st.w25)?.towns.keys() ?? [])];
   const names = st.source === "real" ? ((await (await fetch("/api/share/names")).json()) as Record<string, string>) : demoCodeNames(keys);
-  useStore.getState().setShare(true, names);
+  useStore.getState().setShare(true, names, show.titles);
 }
 
 export function leaveShare(): void {

@@ -6,7 +6,7 @@ import { demoPayload } from "../../mock/src/world.ts";
 const payload = demoPayload();
 test.use({ baseURL: "http://127.0.0.1:5180" });
 
-test("record a replay: share mode while recording, labels in the frames, a video file at the end", async ({ page }) => {
+test("record a replay: project names kept, titles hidden by default, labels in the frames, a video file at the end", async ({ page }) => {
   test.slow();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -25,10 +25,12 @@ test("record a replay: share mode while recording, labels in the frames, a video
   const download = page.waitForEvent("download", { timeout: 180_000 });
   await page.getByTestId("rec-start").click();
   // the software renderer the tests use draws a city at a frame or two a second: the page answers slowly
-  await expect(page.getByTestId("rec-banner")).toContainText("已隐藏真实名称", { timeout: 60_000 });
+  await expect(page.getByTestId("rec-banner")).toContainText("已隐藏请求标题", { timeout: 60_000 });
   expect(await page.evaluate(() => (window as any).__agentTown.shareOn())).toBe(true);
   const name = payload.towns.find((t) => t.key === k)!.name;
-  await expect.poll(() => page.evaluate(() => document.body.innerText), { timeout: 60_000 }).not.toContain(name);
+  // owner 2026-11-01: planets keep their project names in a recording; the request titles are hidden
+  await expect.poll(() => page.evaluate(() => document.body.innerText), { timeout: 60_000 }).toContain(name);
+  await expect(page.getByTestId("replay-bar")).not.toContainText("历史任务");
   // labels are being painted into the recorded frames
   await expect.poll(() => page.evaluate(() => (window as any).__recLabels?.() ?? 0), { timeout: 60_000 }).toBeGreaterThan(0);
   await page.waitForTimeout(3000);
@@ -36,7 +38,7 @@ test("record a replay: share mode while recording, labels in the frames, a video
   if (await stop.isVisible()) await stop.click().catch(() => {});
   const d = await download;
   expect(d.suggestedFilename()).toMatch(/^agent-town-.+-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/);
-  expect(d.suggestedFilename()).not.toContain(name);
+  expect(d.suggestedFilename()).toContain(name);
   const path = await d.path();
   const { statSync } = await import("node:fs");
   expect(statSync(path!).size).toBeGreaterThan(10_000);

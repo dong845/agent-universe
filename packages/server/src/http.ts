@@ -343,7 +343,7 @@ export function createServer(o: ServerOptions) {
   };
 
   /**
-   * POST /api/export/share {realNames, replays: requestId[] (≤ 5)}: the share page as one HTML file
+   * POST /api/export/share {townNames?, titles?, replays: requestId[] (≤ 5)}: the share page as one HTML file
    * (spec D), built from the production build this server serves. Everything goes through sharePayload.
    */
   const exportShare = (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -352,7 +352,7 @@ export function createServer(o: ServerOptions) {
     req.on("end", () => {
       if (!payload) return json(res, 503, state);
       if (!o.staticDir) return json(res, 409, { error: "导出分享页需要网页构建：先运行 node --run start" });
-      let b: { realNames?: unknown; replays?: unknown };
+      let b: { townNames?: unknown; titles?: unknown; replays?: unknown };
       try {
         b = JSON.parse(body);
       } catch {
@@ -362,7 +362,8 @@ export function createServer(o: ServerOptions) {
       if (ids.length > 5) return json(res, 400, { error: "最多带 5 个重放" });
       try {
         const replays = ids.map((id) => ({ requestId: id, events: byRequest.get(id) ?? [] })).filter((r) => r.events.length);
-        const shared = sharePayload(payload, { ids: shareIds(), realNames: b.realNames === true, replays });
+        // project names on unless switched off; titles (the owner's own words) off unless switched on
+        const shared = sharePayload(payload, { ids: shareIds(), townNames: b.townNames !== false, titles: b.titles === true, replays });
         const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES);
         const d = new Date();
         const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

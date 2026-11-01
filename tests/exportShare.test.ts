@@ -21,7 +21,7 @@ function fakeDist(chunks = 1) {
   writeFileSync(join(d, "models", "emblems.glb"), "OFFICIAL-MARKS");
   return d;
 }
-const payload = () => sharePayload({ ...demoPayload(), requests: demoPayload().requests.map((r, i) => (i === 0 ? { ...r, title: "x</script><script>alert(1)</script>" } : r)) }, { ids: makeShareIds("s"), realNames: true, replays: [] });
+const payload = () => sharePayload({ ...demoPayload(), requests: demoPayload().requests.map((r, i) => (i === 0 ? { ...r, title: "x</script><script>alert(1)</script>" } : r)) }, { ids: makeShareIds("s"), townNames: true, titles: true, replays: [] });
 
 describe("buildShareHtml", () => {
   it("inlines the script, the style and the models; no local file references remain", () => {

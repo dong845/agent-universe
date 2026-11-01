@@ -14,6 +14,7 @@ import { BELT, NOISE } from "../galaxy/shaders.ts";
 import type { TownLayout } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
 import { cityPlaces } from "./cityData.ts";
+import { HistoryFocus } from "./HistoryPanel.tsx";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, robotInfo } from "./Robot.tsx";
 import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
@@ -311,6 +312,7 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
         <ReplayAgents p={p} />
       </Suspense>
       <CityCamera layout={layout} />
+      <HistoryFocus p={p} />
       <Clock />
       <Effects />
     </>

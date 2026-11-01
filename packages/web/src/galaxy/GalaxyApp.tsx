@@ -24,6 +24,8 @@ import { Settings } from "../ui/Settings.tsx";
 import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
 import { ExportShare } from "../share/ExportDialog.tsx";
 import { ShareReplays } from "../share/ShareReplays.tsx";
+import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
+import { historySteps, useHistory } from "../city/history.ts";
 
 const T = themes as ThemesConfig;
 const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
@@ -314,15 +316,18 @@ function ReplayBar() {
 /** top of a city: back to space, which town this is, and whether anyone is working */
 function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
   const city = useStore((s) => s.city);
+  const history = useHistory((s) => !!s.town);
   const w = useStore((s) => s.w25);
   const p = city ? g.planets.get(city) : undefined;
   if (!p || !w) return null;
   const live = [...w.requests.values()].filter((r) => `${r.faction}|${r.projectId}` === p.key && w.live.has(r.requestId)).length;
+  const steps = historySteps(w, p.key);
   return (
     <div className="g-focus g-citybar">
       <button onClick={onLeave} data-testid="leave-city">← 返回太空</button>
       <span><Badge f={p.town.faction} />{p.town.name}<small>{themeName(p.town.theme)} · {p.town.faction === "codex" ? "Codex" : "Claude Code"}</small></span>
-      <em>{live ? `${live} 个请求正在进行` : "现在没有进行中的请求 · 点一栋房子可以重放那次请求"}</em>
+      <em>{live ? `${live} 个请求正在进行` : history ? "历史：点一栋房子跳到它那一步" : "现在没有进行中的请求 · 点一栋房子可以重放那次请求"}</em>
+      {!history && steps.length ? <button className="g-history-btn" data-testid="history-open" onClick={() => { useHistory.getState().open(p.key, steps.length); goToStep(steps, steps.length); }}>⟲ 历史</button> : null}
     </div>
   );
 }
@@ -369,6 +374,25 @@ export function GalaxyApp() {
     const r = useReplay.getState().r;
     if (r && r.district !== city) useReplay.getState().stop();
   }, [city]);
+  // a city with nothing running opens on its history, at the latest step; leaving closes it
+  useEffect(() => {
+    if (!city) return closeHistory();
+    const st = useStore.getState();
+    const w25 = st.w25;
+    if (!w25 || useReplay.getState().r) return;
+    const live = [...w25.requests.values()].some((r) => `${r.faction}|${r.projectId}` === city && w25.live.has(r.requestId));
+    const steps = historySteps(w25, city);
+    if (!live && steps.length) {
+      useHistory.getState().open(city, steps.length);
+      goToStep(steps, steps.length);
+    } else closeHistory();
+  }, [city]);
+  // a replay and the history do not run together
+  const replaying = useReplay((s) => !!s.r);
+  const historyOpen = useHistory((s) => !!s.town);
+  useEffect(() => {
+    if (replaying) closeHistory();
+  }, [replaying]);
   const leave = () => {
     setFade(true);
     setTimeout(() => {
@@ -407,11 +431,12 @@ export function GalaxyApp() {
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
+      {cp ? <HistoryPanel /> : null}
       <div className={`g-fade${fade ? " on" : ""}`} />
       {Q.get("fps") === "1" ? <FpsMeter /> : null}
       <GalaxyHoverCard g={g} />
       <Diary />
-      {source === "share" ? null : <TimelineBar />}
+      {source === "share" || historyOpen ? null : <TimelineBar />}
       <RecordDialog />
       <NeedsYou />
       {source === "real" ? <Settings /> : null}

@@ -93,8 +93,12 @@ interface Store {
   shareNames: Record<string, string> | null;
   /** the unmasked world while sharing */
   realW25: World25 | null;
-  /** on with names: masked world + neutral emblems; on with null: real names, neutral emblems */
-  setShare(on: boolean, names?: Record<string, string> | null): void;
+  /** on: neutral emblems, no diary; names = code names (null keeps project names); titles: keep request titles */
+  setShare(on: boolean, names?: Record<string, string> | null, titles?: boolean): void;
+  shareTitles: boolean;
+  /** a history step's moment: the world is drawn as it stood then (null = the clock) */
+  historyAt: number | null;
+  setHistoryAt(ts: number | null): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
   setPlaying(p: boolean): void;
@@ -204,11 +208,16 @@ export const useStore = create<Store>((set, get) => ({
   share: false,
   shareNames: null,
   realW25: null,
-  setShare(on, names) {
+  shareTitles: false,
+  historyAt: null,
+  setHistoryAt(ts) {
+    set({ historyAt: ts });
+  },
+  setShare(on, names, titles = false) {
     const st = get();
     if (on) {
       const real = st.share ? st.realW25 : st.w25;
-      set({ share: true, shareNames: names ?? null, realW25: real, w25: real && names ? maskWorld(real, names) : real, selected: null, hovered: null });
+      set({ share: true, shareNames: names ?? null, shareTitles: titles, realW25: real, w25: real && (names || !titles) ? maskWorld(real, names ?? null, titles) : real, selected: null, hovered: null });
     } else if (st.share) {
       set({ share: false, shareNames: null, w25: st.realW25, realW25: null });
     }
@@ -254,8 +263,8 @@ export const useStore = create<Store>((set, get) => ({
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
     saved = null;
     const built = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
-    const { share, shareNames } = get();
-    const w25 = built && share && shareNames ? maskWorld(built, shareNames) : built;
+    const { share, shareNames, shareTitles } = get();
+    const w25 = built && share && (shareNames || !shareTitles) ? maskWorld(built, shareNames, shareTitles) : built;
     if (share) set({ realW25: built });
     set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "demo" ? get().playing : false });
   },
@@ -291,7 +300,9 @@ export const useStore = create<Store>((set, get) => ({
 
 /** absolute timestamp of the playback clock, for ledger lookups */
 export function absTime(t: number): number {
-  return useStore.getState().t0 + t;
+  // a history step pins the world to the moment its request finished (owner 2026-11-01)
+  const s = useStore.getState();
+  return s.historyAt ?? s.t0 + t;
 }
 
 export function runtimeOf(key: string): Runtime | undefined {

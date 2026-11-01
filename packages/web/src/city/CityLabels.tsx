@@ -1,6 +1,7 @@
 // Labels in a city: the public buildings' plain names with counts, the hall and notice board, the
 // street signs, and over each robot what it is doing now. One DOM overlay placed from inside the
 // canvas; robots win overlaps, then the busier buildings.
+import { useHistory } from "./history.ts";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
@@ -78,12 +79,15 @@ export function CityProjector({ labels }: { labels: CL[] }) {
 
 /** outside the canvas: the label elements, and one bubble per robot */
 export function CityLabels({ labels }: { labels: CL[] }) {
+  // at a history step the counts on the public buildings, the Q&A board and the streets would be
+  // today's totals (the record keeps them only as totals): show the names alone
+  const history = useHistory((s) => !!s.town);
   return (
     <div className="labels">
       {labels.map((l) => (
         <div key={l.id} ref={(el) => { if (el) els.set(l.id, el); else els.delete(l.id); }} className={l.cls} data-label={l.id} style={{ visibility: "hidden" }}>
           <b>{l.title}</b>
-          {l.sub ? <span>{l.sub}</span> : null}
+          {l.sub && !(history && /^c-(pub|notice|street)\|?/.test(l.id)) ? <span>{l.sub}</span> : null}
         </div>
       ))}
       {Array.from({ length: BUBBLES }, (_, i) => (

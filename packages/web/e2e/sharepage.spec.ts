@@ -16,7 +16,7 @@ test("the share page opens offline: space, a city replay, no real names, no netw
   const p = demoPayload();
   const r = p.requests.find((x) => x.class === "produced" && x.calls > 3)!;
   const events = p.events.filter((e) => e.taskId && r.taskIds.includes(e.taskId));
-  const shared = sharePayload({ ...p, source: "real" }, { ids: makeShareIds("e2e"), realNames: false, replays: [{ requestId: r.requestId, events }] });
+  const shared = sharePayload({ ...p, source: "real" }, { ids: makeShareIds("e2e"), townNames: false, titles: false, replays: [{ requestId: r.requestId, events }] });
   const dist = fileURLToPath(new URL("../dist", import.meta.url));
   const file = join(mkdtempSync(join(tmpdir(), "at-share-")), "share.html");
   writeFileSync(file, buildShareHtml(dist, shared));
