@@ -4,6 +4,11 @@ import { App } from "./App.tsx";
 import { loadWorld, ServerDown, subscribe, type Progress } from "./data.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { enterShare, leaveShare } from "./share/shareMode.ts";
+import { useRecorder } from "./share/recorder.ts";
+import { latestEvery } from "./throttle.ts";
+import type { WorldPayload } from "../../schema/src/payload.ts";
+
+const WORLD_EVERY_MS = 30_000;
 import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { orbit } from "./galaxy/Galaxy.tsx";
@@ -27,7 +32,12 @@ store.load(payload);
 // a shared page: always in share mode (names were masked by the exporter; our own emblems; no diary)
 if (payload.source === "share") store.setShare(true, null);
 // real data: newer worlds and the "需要你" list arrive as the logs change
-if (payload.source === "real") subscribe({ world: (p) => useStore.getState().reload(p), attention: (a) => useStore.getState().setAttention(a) });
+// A newer world rebuilds the page's world (~0.2 s on a big record): at most one every 30 s, never during
+// a recording. The 需要你 list has its own small message and is applied at once.
+if (payload.source === "real") {
+  const world = latestEvery<WorldPayload>((p) => useStore.getState().reload(p), WORLD_EVERY_MS, () => !!useRecorder.getState().session);
+  subscribe({ world, attention: (a) => useStore.getState().setAttention(a) });
+}
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));

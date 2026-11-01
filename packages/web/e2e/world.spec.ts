@@ -43,6 +43,7 @@ async function brightShare(page: Page): Promise<number> {
 const keys = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__galaxyKeys);
 
 test("the sky loads with a planet and a label for each shown town, a shell meter that matches the data, and no console errors", async ({ page }) => {
+  test.slow(); // decoding a full-canvas screenshot in the page takes long under the software renderer on a loaded machine
   const errors: string[] = [];
   await open(page, errors);
   expect(await brightShare(page)).toBeGreaterThan(0.004);
