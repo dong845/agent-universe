@@ -13,6 +13,7 @@ import type { Loaded } from "./load.ts";
 import { compactPayload, townOptions, type WorldPayload } from "./payload.ts";
 import { readOverrides } from "./townsFs.ts";
 import { readSettings, writeSettings, type Settings } from "./settings.ts";
+import { hooksInstalled, installHooks, uninstallHooks, type HookAgent } from "./hooks.ts";
 import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
@@ -37,6 +38,8 @@ export interface ServerOptions {
   reloadGapMs?: number;
   /** the owner's settings (default ~/.agent-town/settings.json) */
   settingsFile?: string;
+  /** where each agent keeps its hooks (default ~/.claude/settings.json, ~/.codex/hooks.json) */
+  hookFiles?: Record<HookAgent, string>;
 }
 
 /** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
@@ -82,6 +85,7 @@ export function createServer(o: ServerOptions) {
   };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
   const settingsFile = o.settingsFile ?? join(homedir(), ".agent-town", "settings.json");
+  const hookFiles = o.hookFiles ?? { claude: join(homedir(), ".claude", "settings.json"), codex: join(homedir(), ".codex", "hooks.json") };
   const towns = () => townOptions({ overrides: readOverrides(themesFile) }, o.home);
 
   let lastEnd = 0;
@@ -210,8 +214,10 @@ export function createServer(o: ServerOptions) {
       return;
     }
     if (path === "/api/attention") return json(res, 200, attention);
-    if (path === "/api/settings" && req.method === "GET") return json(res, 200, readSettings(settingsFile));
+    // the hook switches show what the hook files really hold (the owner may have edited them by hand)
+    if (path === "/api/settings" && req.method === "GET") return json(res, 200, { ...readSettings(settingsFile), hooks: { claude: hooksInstalled(hookFiles.claude), codex: hooksInstalled(hookFiles.codex) }, hookFiles });
     if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
+    if (path === "/api/hooks" && req.method === "POST") return switchHooks(req, res);
     if (path === "/api/hook" && req.method === "POST") return receiveHook(req, res, url.searchParams.get("src"));
     if (path === "/api/refresh" && req.method === "POST") {
       void reload();
@@ -288,6 +294,33 @@ export function createServer(o: ServerOptions) {
     });
   };
 
+  /**
+   * POST /api/hooks {agent, on}: the owner's switch for precise alerts (spec A3). Writes the agent's own
+   * hook file — only ever from this switch, with a backup — and mirrors the state in the settings.
+   */
+  const switchHooks = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 4096) body += c; });
+    req.on("end", () => {
+      let b: { agent?: unknown; on?: unknown };
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      if ((b.agent !== "claude" && b.agent !== "codex") || typeof b.on !== "boolean") return json(res, 400, { error: "agent must be claude or codex, on a boolean" });
+      const agent: HookAgent = b.agent;
+      try {
+        const r = b.on ? installHooks(hookFiles[agent], agent) : uninstallHooks(hookFiles[agent]);
+        const cur = readSettings(settingsFile);
+        writeSettings(settingsFile, { ...cur, hooks: { ...cur.hooks, [agent]: b.on } });
+        json(res, 200, { on: b.on, file: hookFiles[agent], ...r });
+      } catch (e) {
+        json(res, 409, { error: `没有改动 ${hookFiles[agent]}：${e instanceof Error ? e.message : String(e)}` });
+      }
+    });
+  };
+
   /** POST /api/hook?src=claude|codex: a hook's own JSON from stdin (spec A3); loopback only, via allowed() */
   const receiveHook = (req: http.IncomingMessage, res: http.ServerResponse, src: string | null) => {
     const faction = src === "claude" ? "claude-code" : src === "codex" ? "codex" : null;
@@ -310,7 +343,7 @@ export function createServer(o: ServerOptions) {
       const event = b.hook_event_name ?? b.type;
       if (typeof sid !== "string" || typeof event !== "string") return json(res, 400, { error: "no session or event" });
       const text = `${b.notification_type ?? ""} ${b.message ?? ""}`.toLowerCase();
-      hooks.push({ session: `${faction}|${sid}`, event, ts: now(), kind: event === "Notification" ? (/permission|approv/.test(text) ? "permission" : "idle") : undefined });
+      hooks.push({ session: `${faction}|${sid}`, event, ts: now(), kind: event === "PermissionRequest" ? "permission" : event === "Notification" ? (/permission|approv/.test(text) ? "permission" : "idle") : undefined });
       recompute();
       res.writeHead(204, { "cache-control": "no-store" });
       res.end();

@@ -229,3 +229,24 @@ A `compacted` record (111) and an `event_msg/context_compacted` event (99).
   - No Claude fixture has a workflow agent or a nested (`spawnDepth: 2`) agent. Only the 354 MB and
     858 MB sessions contain them, so a trimmed slice is needed.
   - Hook events are not covered; that needs `install-hooks`.
+
+## Hooks (attention, 2026-11-01)
+
+Checked against the official docs on 2026-11-01 (Claude Code: https://code.claude.com/docs/en/hooks;
+Codex: https://learn.chatgpt.com/docs/hooks, which developers.openai.com/codex/hooks redirects to;
+installed Codex 0.154.0 lists `hooks` as a stable feature).
+
+- **Claude Code** keeps hooks in `~/.claude/settings.json` → `hooks.<Event>[] = { matcher?, hooks: [{ type: "command", command, timeout (seconds) }] }`.
+  - `Notification` stdin: common fields (`session_id`, `transcript_path`, `cwd`, `hook_event_name`) plus
+    `message`, optional `title`, `notification_type`. `permission_prompt` = "Claude needs you to approve a
+    tool use … and the prompt has waited about six seconds"; `idle_prompt` = finished ~60 s ago, no input.
+    The matcher filters on `notification_type`. Exit code and output are ignored.
+  - `Stop` stdin adds `stop_hook_active`, `last_assistant_message`; no matcher; stdout can carry a
+    decision (`"block"`), so our command prints nothing.
+  - Non-zero exits other than 2 never block; Agent Town's command always exits 0.
+- **Codex** keeps hooks in `~/.codex/hooks.json` (or `[hooks]` in `config.toml`) in the same shape.
+  Events include `PermissionRequest` ("about to ask for approval"), `Stop`, `PreToolUse`, `SessionStart` …
+  stdin carries `session_id` (the thread id), `hook_event_name`, `turn_id`, `cwd`, `permission_mode`.
+- Agent Town installs: Claude `Notification` (matcher `permission_prompt`) + `Stop`; Codex
+  `PermissionRequest` + `Stop`. Each command posts its stdin to `/api/hook?src=claude|codex` on the port
+  in `~/.agent-town/port`, with `curl -m 1 … >/dev/null 2>&1 || true`, marked `# agent-town-hook`.

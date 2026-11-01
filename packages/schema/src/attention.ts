@@ -13,7 +13,7 @@ export interface HookSignal {
   session: string;
   event: string;
   ts: number;
-  /** a Notification hook: asking for a permission, or idle and waiting for input */
+  /** "permission": a Claude permission_prompt Notification or a Codex PermissionRequest; "idle": another notification */
   kind?: "permission" | "idle";
 }
 
@@ -74,7 +74,7 @@ export function attentionOf(events: AgentTownEvent[], now: number, hooks: HookSi
     const base = { session, faction: last.faction, sessionId: last.sessionId, projectId: start?.projectId ?? last.projectId, requestId: (last.taskId && requestOf.get(last.taskId)) ?? null };
 
     const hook = lastHook.get(session);
-    if (hook && hook.ts >= last.ts && hook.event === "Notification" && hook.kind === "permission") {
+    if (hook && hook.ts >= last.ts && hook.kind === "permission") {
       const open = openCalls(cur).at(-1);
       out.push({ ...base, state: "waiting", since: hook.ts, tool: open?.tool, exact: true });
       continue;

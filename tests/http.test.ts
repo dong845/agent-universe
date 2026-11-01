@@ -134,6 +134,7 @@ describe("attention: stream, hook endpoint", () => {
       watch: (cb) => { changed = cb; return () => {}; },
       reloadGapMs: 0,
       settingsFile: join(root, "agent-town", "settings-test.json"),
+      hookFiles: { claude: join(root, "agent-town", "claude-settings.json"), codex: join(root, "agent-town", "codex-hooks.json") },
     });
     await new Promise<void>((r) => s.server.listen(0, "127.0.0.1", r));
     b = `http://127.0.0.1:${(s.server.address() as AddressInfo).port}`;
@@ -175,6 +176,17 @@ describe("attention: stream, hook endpoint", () => {
 
   it("names a town for a notification", () => {
     expect(s.townName("/synthetic/p", "claude-code")).toBeTruthy();
+  });
+
+  it("the hook switch installs, reports, and removes", async () => {
+    const on = await (await fetch(`${b}/api/hooks`, { method: "POST", body: JSON.stringify({ agent: "claude", on: true }) })).json();
+    expect(on).toMatchObject({ on: true, added: ["Notification", "Stop"] });
+    expect(readFileSync(join(root, "agent-town", "claude-settings.json"), "utf8")).toContain("agent-town-hook");
+    expect((await (await fetch(`${b}/api/settings`)).json()).hooks).toEqual({ claude: true, codex: false });
+    const off = await (await fetch(`${b}/api/hooks`, { method: "POST", body: JSON.stringify({ agent: "claude", on: false }) })).json();
+    expect(off).toMatchObject({ on: false, removed: 2 });
+    expect((await (await fetch(`${b}/api/settings`)).json()).hooks.claude).toBe(false);
+    expect((await fetch(`${b}/api/hooks`, { method: "POST", body: JSON.stringify({ agent: "other", on: true }) })).status).toBe(400);
   });
 
   it("hook refused from a foreign origin", async () => {

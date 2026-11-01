@@ -72,6 +72,10 @@ describe("hooks", () => {
   it("a permission hook works before the 20 s guess would", () => {
     expect(at(turn([call("Bash", 3000)]), [{ session: "claude-code|s1", event: "Notification", kind: "permission", ts: NOW - 2000 }])[0]?.state).toBe("waiting");
   });
+  it("a Codex PermissionRequest hook is exact too", () => {
+    const e = turn([call("exec_command", 3000, "codex")], {}, "codex");
+    expect(attentionOf(e, NOW, [{ session: "codex|s1", event: "PermissionRequest", kind: "permission", ts: NOW - 2000 }], new Map())[0]).toMatchObject({ state: "waiting", exact: true });
+  });
   it("an event newer than the hook clears it", () => {
     const c = call("Bash", 25_000);
     const a = at(turn([c, ev("tool_end", 1000, { toolUseId: c.toolUseId })]), [{ session: "claude-code|s1", event: "Notification", kind: "permission", ts: NOW - 24_000 }]);
