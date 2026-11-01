@@ -13,12 +13,17 @@ import { declutter, type LabelBox } from "../ui/format.ts";
 import { SpotCard } from "../v3/Cards25.tsx";
 import { WORK_NAMES } from "../v3/townLayout.ts";
 import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
-import { MARKS } from "./emblem.ts";
+import { MARKS, NEUTRAL_MARKS } from "./emblem.ts";
 import { CityScene } from "../city/City.tsx";
 import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx";
 import { cityTowns, REPLAY_SPEEDS, useEnter, useReplay } from "../city/cityReplay.ts";
 import { GalaxyScene, orbit, overviewOf, SHELL_FACES, spinOf, VIEW_DIR } from "./Galaxy.tsx";
 import { absTime } from "../store.ts";
+import { NeedsYou, Toast } from "../ui/NeedsYou.tsx";
+import { Settings } from "../ui/Settings.tsx";
+import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
+import { ExportShare } from "../share/ExportDialog.tsx";
+import { ShareReplays } from "../share/ShareReplays.tsx";
 
 const T = themes as ThemesConfig;
 const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
@@ -146,11 +151,12 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
   return null;
 }
 
-function Badge({ f }: { f: "claude-code" | "codex" }) {
-  const m = MARKS[f];
+export function Badge({ f }: { f: "claude-code" | "codex" }) {
+  const share = useStore((s) => s.share);
+  const m = (share ? NEUTRAL_MARKS : MARKS)[f];
   return (
     <svg className="g-badge" viewBox={m.viewBox} aria-hidden="true" style={{ color: FACTION_COLOR[f] }}>
-      {m.paths.map((d, i) => <path key={i} d={d} fill="currentColor" />)}
+      {m.paths.map((d, i) => <path key={i} d={d} fill="currentColor" fillRule={share ? "evenodd" : undefined} />)}
     </svg>
   );
 }
@@ -281,12 +287,16 @@ const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); ret
 /** the bar over a replayed request: play/pause, speed, position, close */
 function ReplayBar() {
   const r = useReplay((s) => s.r);
+  // in share mode the bar shows the masked title too (the world copy holds it)
+  const shown = useStore((s) => (r && s.share ? s.w25?.requests.get(r.requestId)?.title : undefined));
+  const recording = useRecordUi((s) => s.running);
   if (!r) return null;
+  const title = shown ?? r.title;
   const end = r.tl.duration;
   return (
     <div className="g-replay" data-testid="replay-bar">
       <span className="tag">重放</span>
-      <b title={r.title}>{r.title}</b>
+      <b title={title}>{title}</b>
       <button onClick={() => useReplay.getState().toggle()} aria-label={r.playing ? "暂停" : "播放"}>{r.playing ? "❚❚" : "▶"}</button>
       <button onClick={() => useReplay.getState().next()} title="跳到下一步动作" data-testid="replay-next">⏭ 下一步</button>
       <select value={r.speed} onChange={(e) => useReplay.getState().setSpeed(Number(e.target.value))} aria-label="重放倍速">
@@ -295,6 +305,7 @@ function ReplayBar() {
       <input type="range" min={0} max={Math.max(1, end)} step={100} value={Math.min(r.t, end)} onChange={(e) => useReplay.getState().seek(Number(e.target.value))} aria-label="重放进度" />
       <span className="time" title={r.cut ? `长于 5 秒的空闲已压缩，共省去 ${mmss(r.cut)}` : undefined}>{mmss(Math.min(r.t, end))} / {mmss(end)}{r.cut ? " · 已压缩空闲" : ""}</span>
       <label className="follow"><input type="checkbox" checked={r.follow} onChange={(e) => useReplay.getState().setFollow(e.target.checked)} />跟随</label>
+      <button onClick={() => useRecordUi.getState().open()} disabled={recording} data-testid="rec-open" title="把这次重放录成视频或动图">● 录制</button>
       <button onClick={() => useReplay.getState().stop()} aria-label="结束重放">✕</button>
     </div>
   );
@@ -381,6 +392,7 @@ export function GalaxyApp() {
           <>
             <CityScene key={cp.key} p={cp} layout={cityLayout} w={w} sys={g.systems.find((s) => s.faction === cp.town.faction)} />
             <CityProjector labels={cityLabels} />
+            <RecordHost />
           </>
         ) : (
           <>
@@ -391,7 +403,7 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Town 分享 · 只读" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
@@ -399,7 +411,13 @@ export function GalaxyApp() {
       {Q.get("fps") === "1" ? <FpsMeter /> : null}
       <GalaxyHoverCard g={g} />
       <Diary />
-      <TimelineBar />
+      {source === "share" ? null : <TimelineBar />}
+      <RecordDialog />
+      <NeedsYou />
+      {source === "real" ? <Settings /> : null}
+      {source === "real" && !cp ? <ExportShare /> : null}
+      {source === "share" ? <ShareReplays /> : null}
+      <Toast />
     </div>
   );
 }

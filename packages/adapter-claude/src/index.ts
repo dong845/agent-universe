@@ -162,9 +162,13 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
     const toolStarts = new Map<string, number>();
     let firstTs: number | undefined;
     let lastTs: number | undefined;
+    let mode: string | undefined;
+    let cwd: string | undefined;
 
     for (const { n, rec } of readJsonl(f.path, stats)) {
       const raw = { file: f.path, line: n };
+      if (rec.type === "permission-mode" && typeof rec.permissionMode === "string") mode = rec.permissionMode;
+      if (typeof rec.cwd === "string") cwd = rec.cwd;
       if (!projectFromCwd && typeof rec.cwd === "string") {
         projectId = rec.cwd.replace(/\/+$/, "");
         projectFromCwd = true;
@@ -221,14 +225,14 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
           taskId = hashId(FACTION, sessionId, rec.uuid);
           const title = titleOf(textOf(content));
           if (title) lastHumanTitle = title;
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", title, raw });
+          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", title, cwd, permissionMode: mode, raw });
           continue;
         }
         if (isMain && !taskId && !isToolResult(content) && textOf(content)) {
           taskId = hashId(FACTION, sessionId, rec.uuid);
           // a turn opened by something other than a prompt keeps working on the last human request
           const triggerBy = rec.isCompactSummary ? "compact" : rec.origin?.kind === "peer" ? "peer" : rec.isMeta ? "meta" : "other";
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "system", continues: lastHumanTitle, triggerBy, raw });
+          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "system", continues: lastHumanTitle, triggerBy, cwd, permissionMode: mode, raw });
         }
         if (rec.isCompactSummary) continue;
         const decision = rec.permissionDecision;

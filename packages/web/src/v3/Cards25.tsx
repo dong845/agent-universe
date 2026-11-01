@@ -13,6 +13,7 @@ import { cityTowns, useReplay } from "../city/cityReplay.ts";
 import { useStore } from "../store.ts";
 import { requestDiaries, type Diary, type DiaryStep } from "../ui/diaryModel.ts";
 import { TokenRows } from "../ui/HoverCard.tsx";
+import { copyResume } from "../ui/NeedsYou.tsx";
 import { WORK_NAMES, type Spot } from "./townLayout.ts";
 
 const KIND_NAMES: Record<string, string> = { code: "代码", docs: "文档", slides: "幻灯", image: "图片", video: "影音", data: "数据" };
@@ -91,6 +92,7 @@ export function RequestDiary({ district, requestId }: { district: string; reques
   const r = w?.requests.get(requestId);
   const [got, setGot] = useState<{ id: string; diaries?: Diary[]; events?: AgentTownEvent[]; error?: string } | null>(null);
   const city = useStore((s) => s.city);
+  const source = useStore((s) => s.source);
   useEffect(() => {
     if (!r) return;
     let alive = true;
@@ -121,6 +123,9 @@ export function RequestDiary({ district, requestId }: { district: string; reques
             if (useStore.getState().city !== district) useStore.getState().setCity(district);
           }}
         >▶ {city === district ? "在城里重放这次请求" : "进城重放这次请求"}</button>
+      ) : null}
+      {source === "real" ? (
+        <button className="replay-btn" data-testid="copy-resume" onClick={() => void copyResume(r.faction, r.sessionId, r.cwd)} title="在终端里接着这个会话做">⧉ 复制恢复命令</button>
       ) : null}
       {got?.error ? <p className="muted">读取记录失败：{got.error}</p> : !ds ? <p className="muted">正在读取任务记录…</p> : (
         <section>

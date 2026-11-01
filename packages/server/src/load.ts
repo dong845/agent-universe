@@ -27,6 +27,12 @@ export interface LoadOptions {
   assign?: AssignOptions;
   /** role rules; defaults to config/roles.json */
   rolesPath?: string;
+  /**
+   * each unit's parsed result kept between loads of one process (the watcher reloads every few
+   * seconds): an unchanged unit is then neither re-read from the cache nor re-parsed. Pruned to
+   * the units of the latest load.
+   */
+  memo?: Map<string, CacheEntry>;
 }
 
 export interface Totals {
@@ -60,7 +66,7 @@ interface Unit {
   parse(stats: ReadStats): { events: AgentTownEvent[]; totals: Totals };
 }
 
-interface CacheEntry {
+export interface CacheEntry {
   v: number;
   key: string;
   events: AgentTownEvent[];
@@ -176,10 +182,13 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   const modified: Loaded["modified"] = { claude: {}, codex: {} };
   let parsed = 0;
   let cached = 0;
+  const seen = new Set<string>();
   for (const [i, u] of units.entries()) {
-    const path = o.cacheDir ? join(o.cacheDir, createHash("sha1").update(`${producer}|${u.key}`).digest("hex") + ".json") : null;
-    let entry: CacheEntry | undefined;
-    if (path && existsSync(path)) {
+    const memoKey = `${producer}|${u.key}`;
+    seen.add(memoKey);
+    const path = o.cacheDir ? join(o.cacheDir, createHash("sha1").update(memoKey).digest("hex") + ".json") : null;
+    let entry: CacheEntry | undefined = o.memo?.get(memoKey);
+    if (!entry && path && existsSync(path)) {
       try {
         const e = JSON.parse(readFileSync(path, "utf8")) as CacheEntry;
         if (e.v === CACHE_VERSION && e.key === u.key) entry = e;
@@ -205,6 +214,7 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       if (path) writeFileSync(path, JSON.stringify(entry));
       parsed++;
     }
+    o.memo?.set(memoKey, entry);
     stats.badLines += entry.badLines;
     for (const [k, n] of entry.unknownKinds) stats.unknownKinds.set(k, (stats.unknownKinds.get(k) ?? 0) + n);
     const last = Math.max(...u.files.map((f) => mtimes.get(f) ?? 0));
@@ -216,6 +226,8 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
     o.onProgress?.(i + 1, units.length);
     yield;
   }
+
+  if (o.memo) for (const k of [...o.memo.keys()]) if (!seen.has(k)) o.memo.delete(k);
 
   // A continued session opens with copies of the previous session's records (same API message ids,
   // tool ids and uuids). The session that started first owns them; the copies are dropped (D9).
@@ -229,7 +241,8 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       const ow = owner.get(e.id);
       if (ow === undefined) {
         owner.set(e.id, e.sessionId);
-        events.push(e);
+        // assignProjects rewrites projectId in place: a memo's events must stay as parsed
+        events.push(o.memo ? { ...e } : e);
       } else {
         const k = `${e.sessionId.slice(0, 8)} copies ${ow.slice(0, 8)}`;
         copied.set(k, (copied.get(k) ?? 0) + 1);

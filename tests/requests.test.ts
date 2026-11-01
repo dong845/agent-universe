@@ -142,3 +142,14 @@ describe("request titles that say nothing (owner 2026-10-29)", () => {
     expect(r.map((x) => x.title)).toEqual(["写文档", "修 bug", "Fix CI"]);
   });
 });
+
+describe("request rows carry the session folder for the resume command (attention task 6)", () => {
+  it("cwd from the opening task_start", () => {
+    const base = { faction: "claude-code" as const, projectId: "/p", sessionId: "s", agentId: "main" };
+    const evs: AgentTownEvent[] = [
+      { ...base, id: "t1", ts: 1, taskId: "t1", kind: "task_start", trigger: "human", title: "go", cwd: "/synthetic/folder" },
+      { ...base, id: "e1", ts: 2, taskId: "t1", kind: "task_end" },
+    ];
+    expect(buildRequests(evs, requestIdsOf(evs), DEFAULT_WORLD_CONFIG)[0].cwd).toBe("/synthetic/folder");
+  });
+});

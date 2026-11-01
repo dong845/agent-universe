@@ -9,13 +9,15 @@ export interface WorldPayload {
   /** tasks animated in full, most recently active first */
   liveTaskIds: string[];
   generatedAt: number;
-  source: "real" | "demo";
+  source: "real" | "demo" | "share";
   /** the user's home directory (real data), named 主目录 in the world */
   home?: string;
   /** spec v3 4.7: one row per request, oldest first */
   requests: RequestRow[];
   /** spec v3 4.7: one row per town that holds a request */
   towns: TownRow[];
+  /** a shared world only: the requests whose city replay was sent along (masked events) */
+  shareReplays?: { requestId: string; events: AgentTownEvent[] }[];
 }
 
 /** spec v3 4.2: what became of a request */
@@ -48,4 +50,6 @@ export interface RequestRow {
   topDir: string | null;
   turns: number;
   taskIds: string[];
+  /** the folder the session ran in, for the resume command; this machine only, never exported */
+  cwd?: string;
 }

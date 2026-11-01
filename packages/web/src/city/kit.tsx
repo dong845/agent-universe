@@ -8,8 +8,10 @@ import * as THREE from "three";
 import { useStore } from "../store.ts";
 import type { Block } from "../galaxy/galaxyData.ts";
 
-export const KIT_URL = "/models/city.glb";
-export const ROBOT_URL = "/models/robot.glb";
+import { modelUrlOnce } from "../share/embedded.ts";
+
+export const KIT_URL = modelUrlOnce("city");
+export const ROBOT_URL = modelUrlOnce("robot");
 
 export interface KitPart {
   geometry: THREE.BufferGeometry;

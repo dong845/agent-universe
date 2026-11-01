@@ -6,6 +6,8 @@ import type { BuildingId } from "../../schema/src/world.ts";
 import { buildTimeline, type Timeline } from "./orchestrator/timeline.ts";
 import { buildWorld, districtKey, type District, type World } from "./orchestrator/worldgen.ts";
 import type { Selection } from "./selection.ts";
+import type { Attention } from "../../schema/src/attention.ts";
+import { maskWorld } from "./share/display.ts";
 import manifest from "../../../art/manifest.json" with { type: "json" };
 import type { Manifest } from "./v3/art.ts";
 import type { Spot } from "./v3/townLayout.ts";
@@ -80,6 +82,19 @@ interface Store {
   /** the v3 world: layouts, islands and sprites from the payload's towns and requests */
   w25: World25 | null;
   load(p: WorldPayload): void;
+  /** a newer world from the log watcher: like load, but the view (focus, city, selection, a scrubbed clock) stays */
+  reload(p: WorldPayload): void;
+  /** sessions that need the owner now, from the server's attention stream */
+  attention: Attention[];
+  setAttention(a: Attention[]): void;
+  /** share mode (spec 2026-11-01 B1/B2): code names, masked titles, neutral emblems, no diary */
+  share: boolean;
+  /** town key → code name while sharing */
+  shareNames: Record<string, string> | null;
+  /** the unmasked world while sharing */
+  realW25: World25 | null;
+  /** on with names: masked world + neutral emblems; on with null: real names, neutral emblems */
+  setShare(on: boolean, names?: Record<string, string> | null): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
   setPlaying(p: boolean): void;
@@ -133,6 +148,8 @@ export const useStore = create<Store>((set, get) => ({
   live: new Set(),
   replay: null,
   select(s) {
+    // the diary shows the owner's own words: never in share mode
+    if (s && get().share) return;
     // a replay belongs to its town: its site, its figures and its own task keep it; anything else ends it
     const r = get().replay;
     if (r && !(s && s.district === r.district && (s.kind !== "task" || s.taskId === r.taskId))) get().stopReplay();
@@ -180,6 +197,37 @@ export const useStore = create<Store>((set, get) => ({
   setFocus(k) {
     set({ focus: k });
   },
+  attention: [],
+  setAttention(a) {
+    set({ attention: a });
+  },
+  share: false,
+  shareNames: null,
+  realW25: null,
+  setShare(on, names) {
+    const st = get();
+    if (on) {
+      const real = st.share ? st.realW25 : st.w25;
+      set({ share: true, shareNames: names ?? null, realW25: real, w25: real && names ? maskWorld(real, names) : real, selected: null, hovered: null });
+    } else if (st.share) {
+      set({ share: false, shareNames: null, w25: st.realW25, realW25: null });
+    }
+  },
+  reload(p) {
+    const { focus, city, selected, t, duration, playing, speed } = get();
+    const atEnd = t >= duration;
+    get().load(p);
+    const w = get().w25;
+    const still = (sel: Selection | null): Selection | null => {
+      if (!sel || !w) return null;
+      if (sel.kind === "request") return w.requests.has(sel.requestId) ? sel : null;
+      if (sel.kind === "town") return w.towns.has(sel.district) ? sel : null;
+      return sel;
+    };
+    const keep = (k: string | null) => (k && w?.towns.has(k) ? k : null);
+    const next = get().duration;
+    set({ focus: keep(focus), city: keep(city), selected: still(selected), playing, speed, ...(atEnd ? { t: next, uiT: next } : { t: Math.min(t, next), uiT: Math.min(t, next) }) });
+  },
   load(p) {
     const { events, source } = p;
     const live = new Set(p.liveTaskIds);
@@ -197,10 +245,19 @@ export const useStore = create<Store>((set, get) => ({
       t0 = first;
       t = duration;
     }
+    if (source === "share" && p.requests.length) {
+      // a shared world has no events: its clock spans its requests and opens at the end, finished
+      t0 = Math.min(...p.requests.map((r) => r.startTs));
+      duration = Math.max(...p.requests.map((r) => r.endTs)) - t0;
+      t = duration;
+    }
     const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
     saved = null;
-    const w25 = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
-    set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "real" ? false : get().playing });
+    const built = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
+    const { share, shareNames } = get();
+    const w25 = built && share && shareNames ? maskWorld(built, shareNames) : built;
+    if (share) set({ realW25: built });
+    set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "demo" ? get().playing : false });
   },
   setTime(t) {
     const c = Math.max(0, Math.min(get().duration, t));

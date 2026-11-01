@@ -5,12 +5,19 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import http from "node:http";
 import { homedir } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
+import { attentionOf, type Attention, type HookSignal } from "../../schema/src/attention.ts";
 import type { AgentTownEvent } from "../../schema/src/event.ts";
 import { themeIds } from "../../schema/src/themes.ts";
 import { buildTowns } from "../../schema/src/towns.ts";
 import type { Loaded } from "./load.ts";
 import { compactPayload, townOptions, type WorldPayload } from "./payload.ts";
 import { readOverrides } from "./townsFs.ts";
+import { readSettings, writeSettings, type Settings } from "./settings.ts";
+import { hooksInstalled, installHooks, uninstallHooks, type HookAgent } from "./hooks.ts";
+import { makeShareIds, shareSecret } from "./shareKeys.ts";
+import { codeNames, sharePayload } from "../../schema/src/share.ts";
+import { buildShareHtml, SHARE_MAX_BYTES, ShareTooBig } from "./exportShare.ts";
+import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
   phase: "loading" | "ready" | "error";
@@ -28,7 +35,23 @@ export interface ServerOptions {
   home?: string;
   /** the owner's theme choices (default ~/.agent-town/themes.json); never in the repository */
   themesFile?: string;
+  /** starts watching the logs; calls back when they changed; returns a stop function */
+  watch?: (onChange: () => void) => () => void;
+  /** a watched change reloads no sooner than this after the last reload ended, or twice that reload's duration if longer */
+  reloadGapMs?: number;
+  /** the owner's settings (default ~/.agent-town/settings.json) */
+  settingsFile?: string;
+  /** where each agent keeps its hooks (default ~/.claude/settings.json, ~/.codex/hooks.json) */
+  hookFiles?: Record<HookAgent, string>;
+  /** the secret behind code names and share ids (default ~/.agent-town/share-secret, created once) */
+  shareSecretFile?: string;
+  /** the share page's hard size limit (default 40 MB) */
+  shareMaxBytes?: number;
 }
+
+/** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
+const ATTENTION_TICK_MS = 5000;
+const PING_MS = 25_000;
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
@@ -47,12 +70,54 @@ export function createServer(o: ServerOptions) {
   let byRequest = new Map<string, AgentTownEvent[]>();
   let all: AgentTownEvent[] = [];
   let loading: Promise<void> | null = null;
+  let again = false;
+  let requestOf = new Map<string, string>();
+  let hooks: HookSignal[] = [];
+  let attention: Attention[] = [];
+  const streams = new Set<http.ServerResponse>();
+  const attentionListeners = new Set<(a: Attention[]) => void>();
+  const send = (event: string, data: unknown) => {
+    const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const r of streams) r.write(msg);
+  };
+  const recompute = () => {
+    if (state.phase !== "ready") return;
+    const t = now();
+    hooks = hooks.filter((h) => t - h.ts < 600_000);
+    const next = attentionOf(all, t, hooks, requestOf);
+    if (JSON.stringify(next) === JSON.stringify(attention)) return;
+    attention = next;
+    send("attention", attention);
+    for (const l of attentionListeners) l(attention);
+  };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
+  const settingsFile = o.settingsFile ?? join(homedir(), ".agent-town", "settings.json");
+  const secretFile = o.shareSecretFile ?? join(homedir(), ".agent-town", "share-secret");
+  const shareIds = () => makeShareIds(shareSecret(secretFile));
+  const hookFiles = o.hookFiles ?? { claude: join(homedir(), ".claude", "settings.json"), codex: join(homedir(), ".codex", "hooks.json") };
   const towns = () => townOptions({ overrides: readOverrides(themesFile) }, o.home);
 
-  const reload = () => {
-    if (loading) return loading;
-    state.phase = "loading";
+  let lastEnd = 0;
+  let lastDur = 0;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  /** a watched change: reload soon, but never back to back — a huge live session takes seconds to re-read */
+  const requestReload = () => {
+    if (pending) return;
+    const gap = Math.max(o.reloadGapMs ?? 3000, 2 * lastDur);
+    pending = setTimeout(() => {
+      pending = null;
+      void reload();
+    }, Math.max(0, lastEnd + gap - Date.now()));
+  };
+  const reload = (): Promise<void> => {
+    if (loading) {
+      // logs changed while reading: read once more afterwards, so the last write is never lost
+      again = true;
+      return loading;
+    }
+    const started = Date.now();
+    // a reload with data already shown stays "ready": the page keeps the old world until the new one is in
+    if (!payload) state.phase = "loading";
     state.done = 0;
     state.error = undefined;
     loading = o
@@ -76,19 +141,42 @@ export function createServer(o: ServerOptions) {
         byTask = m;
         byRequest = q;
         all = r.events;
+        requestOf = r.requestOf;
         payload = compactPayload(r.events, r.mtimes, now(), { home: o.home, requestOf: r.requestOf, towns: towns() });
         state.phase = "ready";
+        send("world", { generatedAt: payload.generatedAt });
+        attention = [];
+        recompute();
+        if (!attention.length) send("attention", attention);
       })
       .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        // a watched reload that fails keeps the last good world (and its alerts); only a first load errors
+        if (payload) {
+          state.phase = "ready";
+          console.error(`重新读取日志失败，继续显示上一次的世界：${message}`);
+          return;
+        }
         state.phase = "error";
-        state.error = err instanceof Error ? err.message : String(err);
+        state.error = message;
       })
       .finally(() => {
         loading = null;
+        lastEnd = Date.now();
+        lastDur = lastEnd - started;
+        if (again) {
+          again = false;
+          void reload();
+        }
       });
     return loading;
   };
   void reload();
+  const stopWatch = o.watch?.(requestReload);
+  const tick = setInterval(recompute, ATTENTION_TICK_MS);
+  const ping = setInterval(() => { for (const r of streams) r.write(": ping\n\n"); }, PING_MS);
+  tick.unref?.();
+  ping.unref?.();
 
   const json = (res: http.ServerResponse, code: number, body: unknown) => {
     res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -134,6 +222,24 @@ export function createServer(o: ServerOptions) {
       return evs ? json(res, 200, { requestId: id, events: evs }) : json(res, 404, { error: "no such request" });
     }
     if (path === "/api/theme" && req.method === "POST") return saveTheme(req, res);
+    if (path === "/api/stream") {
+      res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
+      res.write(`event: attention\ndata: ${JSON.stringify(attention)}\n\n`);
+      streams.add(res);
+      req.on("close", () => streams.delete(res));
+      return;
+    }
+    if (path === "/api/attention") return json(res, 200, attention);
+    // the hook switches show what the hook files really hold (the owner may have edited them by hand)
+    if (path === "/api/settings" && req.method === "GET") return json(res, 200, { ...readSettings(settingsFile), hooks: { claude: hooksInstalled(hookFiles.claude), codex: hooksInstalled(hookFiles.codex) }, hookFiles });
+    if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
+    if (path === "/api/hooks" && req.method === "POST") return switchHooks(req, res);
+    if (path === "/api/export/share" && req.method === "POST") return exportShare(req, res);
+    if (path === "/api/share/names") {
+      if (!payload) return json(res, 503, state);
+      return json(res, 200, codeNames(payload.towns.map((t) => t.key), shareIds().name));
+    }
+    if (path === "/api/hook" && req.method === "POST") return receiveHook(req, res, url.searchParams.get("src"));
     if (path === "/api/refresh" && req.method === "POST") {
       void reload();
       return json(res, 202, state);
@@ -191,6 +297,113 @@ export function createServer(o: ServerOptions) {
     });
   };
 
+  /** POST /api/settings {notify?, notifyTurnDone?}: the notification switches (hooks change via /api/hooks) */
+  const saveSettings = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 4096) body += c; });
+    req.on("end", () => {
+      let b: Partial<Settings>;
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      const cur = readSettings(settingsFile);
+      const next: Settings = { ...cur, notify: typeof b.notify === "boolean" ? b.notify : cur.notify, notifyTurnDone: typeof b.notifyTurnDone === "boolean" ? b.notifyTurnDone : cur.notifyTurnDone };
+      writeSettings(settingsFile, next);
+      json(res, 200, next);
+    });
+  };
+
+  /**
+   * POST /api/hooks {agent, on}: the owner's switch for precise alerts (spec A3). Writes the agent's own
+   * hook file — only ever from this switch, with a backup — and mirrors the state in the settings.
+   */
+  const switchHooks = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 4096) body += c; });
+    req.on("end", () => {
+      let b: { agent?: unknown; on?: unknown };
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      if ((b.agent !== "claude" && b.agent !== "codex") || typeof b.on !== "boolean") return json(res, 400, { error: "agent must be claude or codex, on a boolean" });
+      const agent: HookAgent = b.agent;
+      try {
+        const r = b.on ? installHooks(hookFiles[agent], agent) : uninstallHooks(hookFiles[agent]);
+        const cur = readSettings(settingsFile);
+        writeSettings(settingsFile, { ...cur, hooks: { ...cur.hooks, [agent]: b.on } });
+        json(res, 200, { on: b.on, file: hookFiles[agent], ...r });
+      } catch (e) {
+        json(res, 409, { error: `没有改动 ${hookFiles[agent]}：${e instanceof Error ? e.message : String(e)}` });
+      }
+    });
+  };
+
+  /**
+   * POST /api/export/share {realNames, replays: requestId[] (≤ 5)}: the share page as one HTML file
+   * (spec D), built from the production build this server serves. Everything goes through sharePayload.
+   */
+  const exportShare = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 8192) body += c; });
+    req.on("end", () => {
+      if (!payload) return json(res, 503, state);
+      if (!o.staticDir) return json(res, 409, { error: "导出分享页需要网页构建：先运行 node --run start" });
+      let b: { realNames?: unknown; replays?: unknown };
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      const ids = Array.isArray(b.replays) ? b.replays.filter((x): x is string => typeof x === "string") : [];
+      if (ids.length > 5) return json(res, 400, { error: "最多带 5 个重放" });
+      try {
+        const replays = ids.map((id) => ({ requestId: id, events: byRequest.get(id) ?? [] })).filter((r) => r.events.length);
+        const shared = sharePayload(payload, { ids: shareIds(), realNames: b.realNames === true, replays });
+        const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES);
+        const d = new Date();
+        const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-town-share-${day}.html"`, "cache-control": "no-store" });
+        res.end(html);
+      } catch (e) {
+        if (e instanceof ShareTooBig) return json(res, 413, { error: e.message, bytes: e.bytes, parts: e.parts });
+        json(res, 500, { error: e instanceof Error ? e.message : String(e) });
+      }
+    });
+  };
+
+  /** POST /api/hook?src=claude|codex: a hook's own JSON from stdin (spec A3); loopback only, via allowed() */
+  const receiveHook = (req: http.IncomingMessage, res: http.ServerResponse, src: string | null) => {
+    const faction = src === "claude" ? "claude-code" : src === "codex" ? "codex" : null;
+    let body = "";
+    let tooBig = false;
+    req.on("data", (c: Buffer) => {
+      body += c;
+      if (body.length > 65_536) tooBig = true;
+    });
+    req.on("end", () => {
+      if (tooBig) return json(res, 413, { error: "too large" });
+      if (!faction) return json(res, 400, { error: "src must be claude or codex" });
+      let b: Record<string, unknown>;
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      const sid = b.session_id ?? b.sessionId ?? b["thread-id"] ?? b.thread_id;
+      const event = b.hook_event_name ?? b.type;
+      if (typeof sid !== "string" || typeof event !== "string") return json(res, 400, { error: "no session or event" });
+      const text = `${b.notification_type ?? ""} ${b.message ?? ""}`.toLowerCase();
+      hooks.push({ session: `${faction}|${sid}`, event, ts: now(), kind: event === "PermissionRequest" ? "permission" : event === "Notification" ? (/permission|approv/.test(text) ? "permission" : "idle") : undefined });
+      recompute();
+      res.writeHead(204, { "cache-control": "no-store" });
+      res.end();
+    });
+  };
+
   const server = http.createServer((req, res) => {
     if (!allowed(req)) return json(res, 403, { error: "only this machine's loopback address is served" });
     try {
@@ -201,5 +414,24 @@ export function createServer(o: ServerOptions) {
       else res.end();
     }
   });
-  return { server, state: () => ({ ...state }), reload };
+  server.on("close", () => {
+    stopWatch?.();
+    if (pending) clearTimeout(pending);
+    clearInterval(tick);
+    clearInterval(ping);
+    for (const r of streams) r.end();
+  });
+  return {
+    server,
+    state: () => ({ ...state }),
+    reload,
+    attention: () => attention,
+    settingsFile,
+    /** a town's display name for a notification: its world name, else the folder's last part */
+    townName: (projectId: string, faction: Faction) => payload?.towns.find((t) => t.key === `${faction}|${projectId}`)?.name ?? (projectId.split("/").filter(Boolean).pop() || projectId),
+    onAttention: (cb: (a: Attention[]) => void) => {
+      attentionListeners.add(cb);
+      return () => void attentionListeners.delete(cb);
+    },
+  };
 }
