@@ -124,3 +124,25 @@ describe("patchFiles never invents files from patch content (review I1)", () => 
     expect(patchFiles(text, "/repo")).toEqual([{ path: "/repo/tests/a.test.ts", access: "edit" }]);
   });
 });
+
+describe("task_start carries the session folder and permission mode (attention, task 1)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "at-mode-"));
+  it("task_start carries cwd and permission mode (claude)", () => {
+    const spec: SynthSession = { sessionId: "s-mode-c", cwd: "/synthetic/proj", t0: Date.UTC(2026, 9, 3), turns: [
+      { prompt: "one", mode: "default", tokens: tk(1, 1, 0) },
+      { prompt: "two", mode: "bypassPermissions", tokens: tk(1, 1, 0) },
+      { prompt: "three", tokens: tk(1, 1, 0) },
+    ] };
+    const r = parseClaudeSession(writeClaudeSession(join(dir, "claude"), spec), roles, newStats());
+    const starts = r.events.filter((e) => e.kind === "task_start");
+    expect(starts.map((e) => e.permissionMode)).toEqual(["default", "bypassPermissions", "bypassPermissions"]);
+    expect(starts.map((e) => e.cwd)).toEqual(["/synthetic/proj", "/synthetic/proj", "/synthetic/proj"]);
+  });
+  it("task_start carries cwd and approval policy (codex)", () => {
+    const path = writeCodexRollout(join(dir, "codex"), { sessionId: "s-mode-x", cwd: "/synthetic/proj", t0: Date.UTC(2026, 9, 3), turns: [{ prompt: "go", mode: "never", tokens: tk(1, 1, 0) }] });
+    const r = parseCodexThread([rolloutHead(path, newStats())!], roles, newStats());
+    const s = r.events.find((e) => e.kind === "task_start")!;
+    expect(s.permissionMode).toBe("never");
+    expect(s.cwd).toBe("/synthetic/proj");
+  });
+});

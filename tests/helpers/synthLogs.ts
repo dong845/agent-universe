@@ -18,6 +18,8 @@ export interface SynthTurn {
   tokens: Tokens;
   /** default true: the turn ends (turn_duration / task_complete) */
   end?: boolean;
+  /** Claude: a `permission-mode` record written just before the turn; Codex: a `turn_context` with this approval_policy */
+  mode?: string;
 }
 
 export interface SynthSession {
@@ -39,6 +41,7 @@ export function writeClaudeSession(dir: string, s: SynthSession): string {
   const base = () => ({ sessionId: s.sessionId, cwd: s.cwd, timestamp: iso((t += 1000)), uuid: `${s.sessionId}-u${n++}` });
   s.turns.forEach((turn, ti) => {
     const op = turn.opener ?? "human";
+    if (turn.mode) lines.push({ type: "permission-mode", permissionMode: turn.mode, sessionId: s.sessionId });
     const mark = op === "human" ? { origin: { kind: "human" } } : op === "peer" ? { origin: { kind: "peer" }, isMeta: true } : op === "meta" ? { isMeta: true } : { isCompactSummary: true };
     lines.push({ ...base(), type: "user", ...mark, message: { role: "user", content: turn.prompt } });
     const tools = turn.tools ?? [];
@@ -67,6 +70,7 @@ export function writeCodexRollout(dir: string, s: SynthSession): string {
   const total = { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0, reasoning_output_tokens: 0, total_tokens: 0 };
   s.turns.forEach((turn, ti) => {
     if (turn.tokens.cacheWrite) throw new Error("Codex reports no cache writes");
+    if (turn.mode) lines.push({ type: "turn_context", timestamp: at(), payload: { model: "codex-test-1", cwd: s.cwd, approval_policy: turn.mode } });
     lines.push({ type: "event_msg", timestamp: at(), payload: { type: "task_started", turn_id: `turn-${ti}` } });
     lines.push({ type: "event_msg", timestamp: at(), payload: { type: "user_message", message: turn.prompt } });
     (turn.tools ?? []).forEach((tool, k) => {

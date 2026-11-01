@@ -138,6 +138,8 @@ export function parseCodexThread(heads: RolloutHead[], roles: RoleMatcher, stats
     // A child's events are collected first and given their task once the spawn link is known.
     const out: AgentTownEvent[] = isRoot ? events : [];
     let model: string | undefined;
+    let approval: string | undefined;
+    let turnCwd: string | undefined = root.cwd;
     let openTask: AgentTownEvent | undefined;
     let prevTotal = "";
     let finalTotal: Tokens | undefined;
@@ -155,6 +157,8 @@ export function parseCodexThread(heads: RolloutHead[], roles: RoleMatcher, stats
       if (t === "session_meta" || t === "world_state" || t === "token_usage_record" || t === "inter_agent_communication_metadata") continue;
       if (t === "turn_context") {
         model = p.model ?? model;
+        if (typeof p.approval_policy === "string") approval = p.approval_policy;
+        if (typeof p.cwd === "string") turnCwd = p.cwd;
         continue;
       }
       if (t === "compacted") continue; // the matching event_msg/context_compacted carries the event
@@ -163,7 +167,7 @@ export function parseCodexThread(heads: RolloutHead[], roles: RoleMatcher, stats
         if (et === "task_started" && isRoot) {
           taskId = hashId(FACTION, sessionId, p.turn_id ?? String(n));
           taskSpans.push({ taskId, start: ts });
-          openTask = { ...base, taskId, id: taskId, ts, kind: "task_start", trigger: "human", raw };
+          openTask = { ...base, taskId, id: taskId, ts, kind: "task_start", trigger: "human", cwd: turnCwd, permissionMode: approval, raw };
           out.push(openTask);
         } else if ((et === "task_complete" || et === "turn_aborted") && isRoot && taskId) {
           out.push({ ...base, taskId, id: hashId(FACTION, taskId, "end"), ts, kind: "task_end", status: et === "turn_aborted" ? "error" : "ok", raw });
