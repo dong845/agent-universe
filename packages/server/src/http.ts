@@ -14,6 +14,8 @@ import { compactPayload, townOptions, type WorldPayload } from "./payload.ts";
 import { readOverrides } from "./townsFs.ts";
 import { readSettings, writeSettings, type Settings } from "./settings.ts";
 import { hooksInstalled, installHooks, uninstallHooks, type HookAgent } from "./hooks.ts";
+import { makeShareIds, shareSecret } from "./shareKeys.ts";
+import { codeNames } from "../../schema/src/share.ts";
 import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
@@ -40,6 +42,8 @@ export interface ServerOptions {
   settingsFile?: string;
   /** where each agent keeps its hooks (default ~/.claude/settings.json, ~/.codex/hooks.json) */
   hookFiles?: Record<HookAgent, string>;
+  /** the secret behind code names and share ids (default ~/.agent-town/share-secret, created once) */
+  shareSecretFile?: string;
 }
 
 /** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
@@ -85,6 +89,8 @@ export function createServer(o: ServerOptions) {
   };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
   const settingsFile = o.settingsFile ?? join(homedir(), ".agent-town", "settings.json");
+  const secretFile = o.shareSecretFile ?? join(homedir(), ".agent-town", "share-secret");
+  const shareIds = () => makeShareIds(shareSecret(secretFile));
   const hookFiles = o.hookFiles ?? { claude: join(homedir(), ".claude", "settings.json"), codex: join(homedir(), ".codex", "hooks.json") };
   const towns = () => townOptions({ overrides: readOverrides(themesFile) }, o.home);
 
@@ -218,6 +224,10 @@ export function createServer(o: ServerOptions) {
     if (path === "/api/settings" && req.method === "GET") return json(res, 200, { ...readSettings(settingsFile), hooks: { claude: hooksInstalled(hookFiles.claude), codex: hooksInstalled(hookFiles.codex) }, hookFiles });
     if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
     if (path === "/api/hooks" && req.method === "POST") return switchHooks(req, res);
+    if (path === "/api/share/names") {
+      if (!payload) return json(res, 503, state);
+      return json(res, 200, codeNames(payload.towns.map((t) => t.key), shareIds().name));
+    }
     if (path === "/api/hook" && req.method === "POST") return receiveHook(req, res, url.searchParams.get("src"));
     if (path === "/api/refresh" && req.method === "POST") {
       void reload();

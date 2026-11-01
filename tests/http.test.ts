@@ -134,6 +134,7 @@ describe("attention: stream, hook endpoint", () => {
       watch: (cb) => { changed = cb; return () => {}; },
       reloadGapMs: 0,
       settingsFile: join(root, "agent-town", "settings-test.json"),
+      shareSecretFile: join(root, "agent-town", "share-secret"),
       hookFiles: { claude: join(root, "agent-town", "claude-settings.json"), codex: join(root, "agent-town", "codex-hooks.json") },
     });
     await new Promise<void>((r) => s.server.listen(0, "127.0.0.1", r));
@@ -187,6 +188,15 @@ describe("attention: stream, hook endpoint", () => {
     expect(off).toMatchObject({ on: false, removed: 2 });
     expect((await (await fetch(`${b}/api/settings`)).json()).hooks.claude).toBe(false);
     expect((await fetch(`${b}/api/hooks`, { method: "POST", body: JSON.stringify({ agent: "other", on: true }) })).status).toBe(400);
+  });
+
+  it("code names for share mode: one per town, stable, never the folder", async () => {
+    const a = await (await fetch(`${b}/api/share/names`)).json();
+    const b2 = await (await fetch(`${b}/api/share/names`)).json();
+    expect(Object.keys(a).length).toBeGreaterThan(0);
+    expect(a).toEqual(b2);
+    expect(Object.values(a).join(" ")).not.toContain("synthetic");
+    expect(readFileSync(join(root, "agent-town", "share-secret"), "utf8").trim().length).toBeGreaterThanOrEqual(32);
   });
 
   it("hook refused from a foreign origin", async () => {

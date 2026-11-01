@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, subscribe, type Progress } from "./data.ts";
 import type { Attention } from "../../schema/src/attention.ts";
+import { demoCodeNames } from "./share/display.ts";
 import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { orbit } from "./galaxy/Galaxy.tsx";
@@ -83,6 +84,13 @@ window.__agentTown = {
   orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
+  /** share mode on/off (demo: stand-in code names; real data: the server's code names) */
+  setShare: async (on: boolean) => {
+    const st = useStore.getState();
+    if (!on) return st.setShare(false);
+    const keys = (st.realW25 ?? st.w25)?.towns.keys() ?? [];
+    st.setShare(true, st.source === "real" ? await (await fetch("/api/share/names")).json() : demoCodeNames(keys));
+  },
   /** the "需要你" list, as the server's stream would set it */
   setAttention: (a: Attention[]) => useStore.getState().setAttention(a),
   setSpeed: (n: number) => useStore.getState().setSpeed(n),

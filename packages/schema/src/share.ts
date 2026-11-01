@@ -30,16 +30,24 @@ export function maskedTitle(r: RequestRow): string {
   return r.calls > 0 && r.class !== "chat" ? `${CLASS_TEXT[r.class]} · ${r.calls} 次调用` : CLASS_TEXT[r.class];
 }
 
+/** code names per town key, made unique with a "·2" suffix in key order (two towns may hash alike) */
+export function codeNames(keys: string[], name: (key: string) => string): Record<string, string> {
+  const used = new Map<string, number>();
+  const out: Record<string, string> = {};
+  for (const k of keys) {
+    const n = name(k);
+    const c = (used.get(n) ?? 0) + 1;
+    used.set(n, c);
+    out[k] = c === 1 ? n : `${n}·${c}`;
+  }
+  return out;
+}
+
 export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
   const { ids, realNames } = o;
   const townKey = (faction: string, projectId: string) => `${faction}|${projectId}`;
   const proj = (faction: string, projectId: string) => ids.town(townKey(faction, projectId));
-  const usedNames = new Map<string, number>();
-  const uniqueName = (n: string) => {
-    const k = (usedNames.get(n) ?? 0) + 1;
-    usedNames.set(n, k);
-    return k === 1 ? n : `${n}·${k}`;
-  };
+  const names = codeNames(p.towns.map((t) => t.key), ids.name);
 
   const towns: TownRow[] = p.towns.map((t) => {
     const projectId = proj(t.faction, t.projectId);
@@ -47,7 +55,7 @@ export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
       key: townKey(t.faction, projectId),
       faction: t.faction,
       projectId,
-      name: realNames ? t.name : uniqueName(ids.name(t.key)),
+      name: realNames ? t.name : names[t.key],
       kind: t.kind,
       guildOf: realNames ? [...t.guildOf] : [],
       theme: t.theme,

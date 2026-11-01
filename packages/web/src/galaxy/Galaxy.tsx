@@ -12,7 +12,7 @@ import * as THREE from "three";
 import { absTime, useStore } from "../store.ts";
 import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, type Galaxy, type Planet, type StarSystem } from "./galaxyData.ts";
 import { useGLTF } from "@react-three/drei";
-import { EMBLEM_NODE, EMBLEMS_URL } from "./emblem.ts";
+import { EMBLEM_NODE, EMBLEMS_URL, neutralEmblemGeometry } from "./emblem.ts";
 import { useEnter } from "../city/cityReplay.ts";
 import { ATMO, BELT, PLANET, RING, SHELL, SKY, STAR, STARS } from "./shaders.ts";
 
@@ -56,13 +56,39 @@ useGLTF.preload(EMBLEMS_URL);
 const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, fog: false });
 
 type EmblemProps = { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number };
-/** the faction's mark, always facing the camera, turning slowly in its own plane */
+/** which marks are on screen now, by kind (test hook: share mode must show only our own) */
+const emblemsShown = new Map<string, number>();
+(globalThis as unknown as { __galaxyEmblems?: () => string[] }).__galaxyEmblems = () => [...emblemsShown].filter(([, n]) => n > 0).map(([k]) => k).sort();
+function useShown(kind: string) {
+  useEffect(() => {
+    emblemsShown.set(kind, (emblemsShown.get(kind) ?? 0) + 1);
+    return () => void emblemsShown.set(kind, (emblemsShown.get(kind) ?? 1) - 1);
+  }, [kind]);
+}
+const NEUTRAL_GEO = new Map<string, THREE.BufferGeometry>();
+const neutralGeo = (f: StarSystem["faction"], use: "badge" | "corona") => {
+  const k = `${f}|${use}`;
+  let g = NEUTRAL_GEO.get(k);
+  if (!g) NEUTRAL_GEO.set(k, (g = neutralEmblemGeometry(f, use)));
+  return g;
+};
+
+/**
+ * The faction's mark, always facing the camera, turning slowly in its own plane: the official mark on
+ * this machine, our own neutral shape in share mode (the official marks are never exported, D21).
+ */
 export function Emblem(props: EmblemProps) {
-  return <Suspense fallback={null}><EmblemMark {...props} /></Suspense>;
+  const share = useStore((s) => s.share);
+  if (share) return <EmblemShape {...props} geometry={neutralGeo(props.faction, props.use)} kind="neutral" />;
+  return <Suspense fallback={null}><OfficialEmblem {...props} /></Suspense>;
 }
 
-function EmblemMark({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: EmblemProps) {
-  const geometry = useEmblemGeometry(faction);
+function OfficialEmblem(props: EmblemProps) {
+  return <EmblemShape {...props} geometry={useEmblemGeometry(props.faction)} kind="official" />;
+}
+
+function EmblemShape({ faction, use, scale, position = [0, 0, 0], speed = 0.05, geometry, kind }: EmblemProps & { geometry: THREE.BufferGeometry; kind: string }) {
+  useShown(kind);
   // a badge is a solid glowing mark; a star's corona is a faint hologram that adds to the light
   const base = use === "corona" ? 0.45 : 1;
   const mat = useMemo(() => (use === "corona" ? emblemMat(FACTION_HEX[faction], 1.6, base) : new THREE.MeshBasicMaterial({ color: col(FACTION_HEX[faction], 1.9), toneMapped: false, fog: false })), [faction, use, base]);
