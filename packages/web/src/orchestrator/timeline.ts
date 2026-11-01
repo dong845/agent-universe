@@ -4,9 +4,7 @@
 import type { AgentTownEvent, Role } from "../../../schema/src/event.ts";
 import { detectRework } from "../../../schema/src/insights.ts";
 import { buildingOf, type BuildingId } from "../../../schema/src/world.ts";
-import {
-  BUILDING_POS, COMMANDER_POST, HALL, MAX_SCAFFOLDS, SENTRY_POST, WAREHOUSE, dist, doorOf, lerp, scaffoldPos, type Vec,
-} from "./layout.ts";
+import { DEFAULT_PLACES, MAX_SCAFFOLDS, dist, lerp, type Places, type Vec } from "./layout.ts";
 
 /** plan: a walk lasts at most 1.5 s */
 export const MAX_WALK_MS = 1500;
@@ -119,7 +117,10 @@ interface State {
   free: number;
 }
 
-export function buildTimeline(input: AgentTownEvent[]): Timeline {
+export function buildTimeline(input: AgentTownEvent[], places: Places = DEFAULT_PLACES): Timeline {
+  const { hall: HALL, commanderPost: COMMANDER_POST, sentryPost: SENTRY_POST, warehouse: WAREHOUSE } = places;
+  const doorOf = places.door;
+  const scaffoldPos = places.scaffold;
   const events = [...input].sort((a, b) => a.ts - b.ts || order(a) - order(b));
   const t0 = events.length ? events[0].ts : 0;
   const rel = (e: AgentTownEvent) => e.ts - t0;
@@ -290,7 +291,7 @@ export function buildTimeline(input: AgentTownEvent[]): Timeline {
       const arriveHome = walk(s, home, backAt, scale, status === "ok" ? "carry" : "walk", outfit, endId, te);
       if (status === "ok") {
         const tokens = nextModelInput(e.agentId, end ? end.ts : e.ts);
-        if (tokens > 0) tl.flights.push({ start: backAt, end: Math.max(arriveHome, backAt + 300), from: BUILDING_POS[b], to: home, kind: "input", count: cubesFor(tokens), tokens, eventId: endId });
+        if (tokens > 0) tl.flights.push({ start: backAt, end: Math.max(arriveHome, backAt + 300), from: places.building(b), to: home, kind: "input", count: cubesFor(tokens), tokens, eventId: endId });
         if (e.role === "smith") {
           if (s.actor.kind === "commander") tl.floors.push({ t: te, kind: "main", agentId: e.agentId, eventId: endId });
           else tl.scaffolds.find((x) => x.agentId === e.agentId)?.floors.push(te);

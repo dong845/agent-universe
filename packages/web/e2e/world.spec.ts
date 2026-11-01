@@ -1,11 +1,10 @@
-// The v3 world on demo data: the picture follows the data. Every check reads the rendered page (DOM
-// labels, the hover card, the diary, the canvas pixels, the sprites the picker can hit) and compares
-// it with values computed here from the same demo payload.
+// The star-system world and its cities on demo data (D18): the picture follows the data. Every check
+// reads the rendered page (labels, the hover card, the diary, canvas pixels, the screen points of the
+// houses the picker can hit) and compares it with values computed here from the same demo payload.
 import { expect, test, type Page } from "@playwright/test";
 import { demoPayload } from "../../mock/src/world.ts";
 
 const payload = demoPayload();
-const TOWN = "claude-code|/demo/web-shop";
 
 test.use({ baseURL: "http://127.0.0.1:5180" });
 
@@ -13,42 +12,17 @@ async function open(page: Page, errors: string[], q = "", hash = "") {
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`/?demo=1&paused=1${q}${hash}`);
-  await page.waitForFunction(() => !!(window as any).__agentTown && !!(window as any).__agentTownProject);
-  await page.waitForFunction(() => (window as any).__agentTownFlying && !(window as any).__agentTownFlying(), null, { timeout: 15_000 });
-  await page.waitForTimeout(1200); // textures decode, labels settle
+  await page.waitForFunction(() => !!(window as any).__galaxyKeys && !!(window as any).__agentTown);
+  await page.waitForFunction(() => (window as any).__agentTownFlying && !(window as any).__agentTownFlying(), null, { timeout: 20_000 });
+  await page.waitForTimeout(1500);
 }
-const focusTown = (t: string) => `&focus=${encodeURIComponent(t)}`;
 type Box = { x: number; y: number; width: number; height: number };
 const overlap = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 async function visibleBoxes(page: Page, sel: string) {
   return page.$$eval(sel, (els) => els.filter((e) => getComputedStyle(e).visibility === "visible").map((e) => { const r = e.getBoundingClientRect(); return { id: (e as HTMLElement).dataset.label ?? "", x: r.x, y: r.y, width: r.width, height: r.height }; }));
 }
-
-test("the world loads, draws islands and buildings, and has no console errors", async ({ page }) => {
-  const errors: string[] = [];
-  await open(page, errors);
-  const png = await page.locator("canvas").screenshot();
-  // count pixels that are not the sea: islands and sprites must cover a real share of the view
-  const share = await page.evaluate(async (b64) => {
-    const img = new Image();
-    img.src = `data:image/png;base64,${b64}`;
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = img.width;
-    c.height = img.height;
-    const g = c.getContext("2d")!;
-    g.drawImage(img, 0, 0);
-    const d = g.getImageData(0, 0, c.width, c.height).data;
-    let land = 0;
-    for (let i = 0; i < d.length; i += 16) if (Math.abs(d[i] - 126) + Math.abs(d[i + 1] - 196) + Math.abs(d[i + 2] - 196) > 60) land++;
-    return land / (d.length / 16);
-  }, png.toString("base64"));
-  expect(share).toBeGreaterThan(0.05);
-  expect(errors).toEqual([]);
-});
-
-/** share of the canvas that is not open sea */
-async function landShare(page: Page): Promise<number> {
+/** share of the canvas brighter than the night sky */
+async function brightShare(page: Page): Promise<number> {
   const png = await page.locator("canvas").screenshot();
   return page.evaluate(async (b64) => {
     const img = new Image();
@@ -60,62 +34,66 @@ async function landShare(page: Page): Promise<number> {
     const g = c.getContext("2d")!;
     g.drawImage(img, 0, 0);
     const d = g.getImageData(0, 0, c.width, c.height).data;
-    let land = 0;
-    for (let i = 0; i < d.length; i += 16) if (Math.abs(d[i] - 126) + Math.abs(d[i + 1] - 196) + Math.abs(d[i + 2] - 196) > 60) land++;
-    return land / (d.length / 16);
+    let n = 0;
+    for (let i = 0; i < d.length; i += 16) if (d[i] + d[i + 1] + d[i + 2] > 120) n++;
+    return n / (d.length / 16);
   }, png.toString("base64"));
 }
+const keys = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__galaxyKeys);
 
-test("the islands stay drawn while time plays", async ({ page }) => {
-  await open(page, [], focusTown(TOWN));
-  const before = await landShare(page);
-  await page.evaluate(() => { (window as any).__agentTown.setSpeed(8); (window as any).__agentTown.play(); });
+test("the sky loads with a planet and a label for each shown town, a shell meter that matches the data, and no console errors", async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  expect(await brightShare(page)).toBeGreaterThan(0.004);
+  const shown = await keys(page);
+  expect(shown.length).toBeGreaterThan(0);
+  const labels = await page.$$eval(".g-planet", (els) => els.map((e) => (e as HTMLElement).dataset.label));
+  expect(new Set(labels)).toEqual(new Set(shown.map((k) => `planet|${k}`)));
+  // one Dyson panel per finished product of each side, as of the playback time
+  const abs: number = await page.evaluate(() => (window as any).__agentTown.state().abs);
+  for (const [f, name] of [["claude-code", "Claude Code"], ["codex", "Codex"]] as const) {
+    const n = payload.requests.filter((r) => r.faction === f && r.class === "produced" && r.endTs <= abs).length;
+    if (payload.towns.some((t) => t.faction === f)) await expect(page.locator(".g-meter")).toContainText(`${name} 戴森壳${Math.min(n, 1280)} / 1280`);
+  }
+  // the planet labels on screen never overlap
+  const vis = await visibleBoxes(page, ".g-planet, .g-star");
+  for (const a of vis) for (const b of vis) if (a.id < b.id) expect(overlap(a, b), `${a.id} × ${b.id}`).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("a paused link holds the sky still; playing moves the planets along their orbits", async ({ page }) => {
+  await open(page, []);
+  const k = (await keys(page))[0];
+  const at = () => page.evaluate((key) => { const s = (window as any).__galaxyScreen.get(key); return { x: s.x, y: s.y }; }, k);
+  const a = await at();
+  await page.waitForTimeout(1500);
+  expect(await at()).toEqual(a);
+  await page.evaluate(() => (window as any).__agentTown.play());
   await page.waitForTimeout(3000);
-  expect(await page.evaluate(() => (window as any).__agentTown.state().t)).toBeGreaterThan(1000);
-  expect(await landShare(page)).toBeGreaterThan(before * 0.8);
+  const b = await at();
+  expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThan(0.5);
 });
 
-test("every town has a banner; the visible ones never overlap", async ({ page }) => {
-  await open(page, []);
-  const ids = await page.$$eval(".banner", (els) => els.map((e) => (e as HTMLElement).dataset.label));
-  expect(new Set(ids)).toEqual(new Set(payload.towns.map((t) => `town|${t.key}`)));
-  const shown = await visibleBoxes(page, ".banner");
-  expect(shown.length).toBeGreaterThan(payload.towns.length / 2);
-  for (const a of shown) for (const b of shown) if (a.id < b.id) expect(overlap(a, b), `${a.id} × ${b.id}`).toBe(false);
-});
-
-test("from afar no building names or street signs; up close they show and never overlap", async ({ page }) => {
-  await open(page, []);
-  expect(await visibleBoxes(page, ".street, .label")).toEqual([]);
-  await open(page, [], focusTown(TOWN));
-  const streets = await visibleBoxes(page, ".street");
-  const names = await visibleBoxes(page, ".label");
-  expect(streets.length).toBeGreaterThan(0);
-  expect(names.length).toBeGreaterThan(0);
-  for (const s of streets) for (const n of names) expect(overlap(s, n), `${s.id} × ${n.id}`).toBe(false);
-});
-
-test("hovering a house shows its request; clicking opens the diary; Escape closes it", async ({ page }) => {
-  await open(page, [], focusTown(TOWN));
-  const spots = await page.evaluate((t) => (window as any).__agentTown.spots(t), TOWN);
-  const house = spots.find((s: any) => s.kind === "house" && s.x > 100 && s.x < 1100 && s.y > 120 && s.y < 640);
+test("hovering a house on a planet shows its request; clicking opens the diary; Escape closes it", async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors, `&focus=${encodeURIComponent((await (async () => { await page.goto("/?demo=1&paused=1"); await page.waitForFunction(() => !!(window as any).__galaxyKeys); return (await keys(page))[0]; })()))}`);
+  const town = await page.evaluate(() => (window as any).__agentTown.state().focus);
+  const spots = await page.evaluate((t) => (window as any).__agentTown.spots(t), town);
+  const house = spots.find((s: any) => s.kind === "house" && s.x > 100 && s.x < 1340 && s.y > 140 && s.y < 760);
   expect(house).toBeTruthy();
   const req = payload.requests.find((r) => r.requestId === house.requestId)!;
-  await page.mouse.move(house.x - 30, house.y - 30);
-  await page.mouse.move(house.x, house.y, { steps: 5 });
+  await page.mouse.move(house.x - 20, house.y - 20);
+  await page.mouse.move(house.x, house.y, { steps: 4 });
   const card = page.getByTestId("spot-card");
   await expect(card).toBeVisible();
   await expect(card).toContainText(req.title ?? "（无标题）");
-  await expect(card).toContainText("token");
   await page.mouse.down();
   await page.mouse.up();
-  const diary = page.getByTestId("diary");
-  await expect(diary).toBeVisible();
-  await expect(diary.locator("[data-step]").first()).toBeVisible();
+  await expect(page.getByTestId("diary")).toBeVisible();
   expect(await page.evaluate(() => location.hash)).toMatch(/^#req=/);
   await page.keyboard.press("Escape");
-  await expect(diary).toBeHidden();
-  expect(await page.evaluate(() => location.hash)).toBe("");
+  await expect(page.getByTestId("diary")).toBeHidden();
+  expect(errors).toEqual([]);
 });
 
 test("a #req= link reopens the request; an old #task= link opens the request holding that turn", async ({ page }) => {
@@ -128,13 +106,37 @@ test("a #req= link reopens the request; an old #task= link opens the request hol
   await expect(page.getByTestId("diary")).toContainText(r.title ?? "（无标题）");
 });
 
-test("clicking a public building opens its town's summary", async ({ page }) => {
-  await open(page, [], focusTown(TOWN));
-  const label = page.locator(`.label[data-label^="pub|${TOWN}"]`).first();
-  const box = (await label.boundingBox())!;
-  // the label sits just above its building
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height + 30);
-  const diary = page.getByTestId("diary");
-  await expect(diary).toBeVisible();
-  await expect(diary).toContainText("这里做过的工作");
+test("clicking a planet enters its city: buildings named, back to space works", async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  const k = (await keys(page))[0];
+  const s = await page.evaluate((key) => (window as any).__galaxyScreen.get(key), k);
+  await page.mouse.click(s.x, s.y);
+  await expect(page.getByTestId("leave-city")).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  // the city's public buildings carry their plain names
+  const town = payload.towns.find((t) => t.key === k)!;
+  const works = Object.entries(town.workCounts).filter(([w, n]) => n >= 5 && w !== "spawn" && w !== "compaction").length;
+  if (works) expect((await visibleBoxes(page, ".g-tag")).length).toBeGreaterThan(0);
+  expect(await brightShare(page)).toBeGreaterThan(0.01);
+  await page.getByTestId("leave-city").click();
+  await expect(page.getByTestId("leave-city")).toBeHidden();
+  await expect(page.locator(".g-meter")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a request replayed in its city: a robot appears with what it is doing over its head", async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  const k = (await keys(page))[0];
+  const rid = await page.evaluate((key) => (window as any).__agentTown.requestsOf(key)[0], k);
+  await page.evaluate(([key, r]) => (window as any).__agentTown.select({ kind: "request", district: key, requestId: r }), [k, rid]);
+  await page.getByTestId("city-replay").click({ timeout: 20_000 });
+  await expect(page.getByTestId("replay-bar")).toBeVisible();
+  await expect(page.getByTestId("leave-city")).toBeVisible();
+  await page.keyboard.press("Escape"); // the diary closes; the city and the replay stay
+  await expect(page.locator("[data-testid=robot-bubble]").filter({ hasText: "主代理" }).first()).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "结束重放" }).click();
+  await expect(page.getByTestId("replay-bar")).toBeHidden();
+  expect(errors).toEqual([]);
 });

@@ -1,0 +1,269 @@
+// A planet's city (owner 2026-11-01): the town layout on flat ground under its star, with the same
+// buildings as on the planet, conveyor belts to the task hall, and the agents at work as small robots
+// — the live ones, and a replayed request when one is playing.
+import { OrbitControls } from "@react-three/drei";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import * as THREE from "three";
+import type { AgentTownEvent } from "../../../schema/src/event.ts";
+import { buildTimeline } from "../orchestrator/timeline.ts";
+import { absTime, useStore } from "../store.ts";
+import { Effects, Emblem, glowTexture, Instanced, MATS, partsOf, Sky, standing, Starfield, type Frame, type GeomKey, type Part } from "../galaxy/Galaxy.tsx";
+import { FACTION_COLOR, type Planet } from "../galaxy/galaxyData.ts";
+import { BELT, NOISE } from "../galaxy/shaders.ts";
+import type { TownLayout } from "../v3/townLayout.ts";
+import type { World25 } from "../v3/world25Data.ts";
+import { cityPlaces } from "./cityData.ts";
+import { useReplay } from "./cityReplay.ts";
+import { Robot, robotInfo } from "./Robot.tsx";
+
+const noRay = () => null;
+const UP = new THREE.Vector3(0, 1, 0);
+const HEX = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, -0.5, 0);
+/** a hex cell's corner radius: neighbouring cells are 2 apart (townLayout.cellPos) */
+const CELL_R = 2 / Math.sqrt(3);
+
+export const cityFrame = (unit: number): Frame => (b) => ({
+  origin: new THREE.Vector3(b.spot.x, 0, b.spot.z),
+  up: UP,
+  q: new THREE.Quaternion().setFromAxisAngle(UP, b.turn),
+  k: 1 / unit,
+});
+
+/** the sun is the faction's star, low in the sky on its own side */
+const sunDir = (p: Planet) => new THREE.Vector3(p.town.faction === "codex" ? 1 : -1, 0.62, -0.55).normalize();
+
+function Ground({ p, layout }: { p: Planet; layout: TownLayout }) {
+  const tiles = useRef<THREE.InstancedMesh>(null);
+  const lights = useRef<THREE.InstancedMesh>(null);
+  const cells = layout.cells;
+  const streets = cells.filter((c) => c.kind === "street");
+  const fac = new THREE.Color(FACTION_COLOR[p.town.faction]);
+  useLayoutEffect(() => {
+    const m = tiles.current, l = lights.current;
+    if (!m) return;
+    const mx = new THREE.Matrix4();
+    const ground = new THREE.Color(p.look.b).multiplyScalar(0.45);
+    const shade: Record<string, THREE.Color> = { lot: new THREE.Color("#2b3342"), plaza: new THREE.Color("#3d485b"), street: new THREE.Color("#1a202b"), grass: ground };
+    cells.forEach((c, i) => {
+      const x = 2 * (c.q + c.r / 2), z = Math.sqrt(3) * c.r;
+      const h = c.kind === "grass" ? 0.05 : c.kind === "street" ? 0.06 : 0.1;
+      const v = 0.92 + ((Math.sin(c.q * 12.9898 + c.r * 78.233) * 43758.5453) % 1 + 1) % 1 * 0.16;
+      mx.compose(new THREE.Vector3(x, h, z), new THREE.Quaternion(), new THREE.Vector3(CELL_R * 0.985, h, CELL_R * 0.985));
+      m.setMatrixAt(i, mx);
+      m.setColorAt(i, shade[c.kind].clone().multiplyScalar(v));
+    });
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    if (l) {
+      streets.forEach((c, i) => {
+        const x = 2 * (c.q + c.r / 2), z = Math.sqrt(3) * c.r;
+        mx.compose(new THREE.Vector3(x, 0.075, z), new THREE.Quaternion(), new THREE.Vector3(0.12, 0.015, 0.12));
+        l.setMatrixAt(i, mx);
+        l.setColorAt(i, fac);
+      });
+      l.instanceMatrix.needsUpdate = true;
+      if (l.instanceColor) l.instanceColor.needsUpdate = true;
+    }
+  }, [cells, streets, p, fac]);
+  const tileMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#ffffff", metalness: 0.55, roughness: 0.55 }), []);
+  const lightMat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.2, 2.2), toneMapped: false }), []);
+  const terrain = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { uA: { value: new THREE.Color(p.look.a) }, uB: { value: new THREE.Color(p.look.b) }, uC: { value: new THREE.Color(p.look.c) }, uR: { value: layout.radius }, uSeed: { value: p.seed } },
+    vertexShader: /* glsl */ `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+    fragmentShader: /* glsl */ `
+uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform float uR; uniform float uSeed; varying vec3 vW;
+${NOISE}
+void main(){
+  vec2 q=vW.xz/uR;
+  float n=fbm(vec3(q*1.6,uSeed));
+  float h=n*0.5+0.5;
+  vec3 col=mix(uA,uB,smoothstep(0.3,0.65,h));
+  col=mix(col,uC,smoothstep(0.7,0.85,h)*0.6);
+  float d=length(q);
+  col*=0.32+0.18*fbm(vec3(q*6.0,uSeed+3.0));
+  float fade=1.0-smoothstep(1.4,5.5,d);
+  gl_FragColor=vec4(col*fade,1.0);
+}`,
+  }), [p, layout]);
+  useEffect(() => () => { tileMat.dispose(); lightMat.dispose(); terrain.dispose(); }, [tileMat, lightMat, terrain]);
+  return (
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} material={terrain} raycast={noRay}>
+        <circleGeometry args={[layout.radius * 7, 96]} />
+      </mesh>
+      <instancedMesh key={cells.length} ref={tiles} args={[HEX, tileMat, cells.length]} receiveShadow raycast={noRay} />
+      {streets.length ? <instancedMesh key={`l${streets.length}`} ref={lights} args={[HEX, lightMat, streets.length]} raycast={noRay} /> : null}
+    </>
+  );
+}
+
+function beltRibbons(belts: { a: THREE.Vector3; b: THREE.Vector3; color: string; density: number }[]): THREE.BufferGeometry {
+  const pos: number[] = [], s: number[] = [], t: number[] = [], c: number[] = [], den: number[] = [], idx: number[] = [];
+  const w = 0.09;
+  for (const bt of belts) {
+    const d = bt.b.clone().sub(bt.a);
+    const len = d.length();
+    if (len < 0.5) continue;
+    const dir = d.clone().divideScalar(len);
+    const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(w);
+    const cc = new THREE.Color(bt.color);
+    const base = pos.length / 3;
+    const n = Math.max(2, Math.ceil(len / 0.5));
+    for (let k = 0; k <= n; k++) {
+      const m = bt.a.clone().addScaledVector(dir, (k / n) * len);
+      pos.push(m.x + side.x, 0.13, m.z + side.z, m.x - side.x, 0.13, m.z - side.z);
+      s.push((k / n) * len * 0.35, (k / n) * len * 0.35);
+      t.push(1, -1);
+      c.push(cc.r, cc.g, cc.b, cc.r, cc.g, cc.b);
+      den.push(bt.density, bt.density);
+      if (k < n) { const v = base + k * 2; idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2); }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("aS", new THREE.Float32BufferAttribute(s, 1));
+  g.setAttribute("aT", new THREE.Float32BufferAttribute(t, 1));
+  g.setAttribute("aCol", new THREE.Float32BufferAttribute(c, 3));
+  g.setAttribute("aDen", new THREE.Float32BufferAttribute(den, 1));
+  g.setIndex(idx);
+  return g;
+}
+
+function Buildings({ p, w }: { p: Planet; w: World25 }) {
+  const sig = useStore((s) => { const ts = absTime(s.uiT); return p.blocks.map((b) => (standing(b, ts) ? 1 : 0)).join(""); });
+  const vis = useMemo(() => p.blocks.filter((_, i) => sig[i] === "1"), [p, sig]);
+  const groups = useMemo(() => {
+    const out = new Map<string, Part[]>();
+    for (const x of partsOf(vis, cityFrame(p.unit))) {
+      const k = `${x.geom}|${x.mat}`;
+      out.set(k, [...(out.get(k) ?? []), x]);
+    }
+    return out;
+  }, [vis, p.unit]);
+  const hall = vis.find((b) => b.type === "hall");
+  const belts = useMemo(() => {
+    if (!hall) return null;
+    const h = new THREE.Vector3(hall.spot.x, 0, hall.spot.z);
+    const list = vis.flatMap((b) => {
+      if (b.type !== "public" && b.type !== "house" && b.type !== "tent") return [];
+      const a = new THREE.Vector3(b.spot.x, 0, b.spot.z);
+      const i = b.spot.info;
+      const density = i.kind === "public" ? 0.6 + Math.log10(Math.max(1, i.count)) * 0.9 : 0.4 + Math.log10(Math.max(1, (i.kind === "house" || i.kind === "tent" ? w.requests.get(i.requestId)?.calls : 1) ?? 1)) * 0.7;
+      // from the building's edge to the hall's edge
+      const dir = h.clone().sub(a).normalize();
+      return [{ a: a.addScaledVector(dir, (b.foot / p.unit) * 0.6), b: h.clone().addScaledVector(dir, -(hall.foot / p.unit) * 0.65), color: b.color, density }];
+    });
+    return beltRibbons(list);
+  }, [vis, hall, w, p.unit]);
+  const beltMat = useMemo(() => new THREE.ShaderMaterial({ vertexShader: BELT.vertex, fragmentShader: BELT.fragment, uniforms: { uTime: { value: 0 }, uSpeed: { value: p.live ? 1.4 : 0.5 } }, side: THREE.DoubleSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), [p.live]);
+  useEffect(() => () => { belts?.dispose(); }, [belts]);
+  useEffect(() => () => beltMat.dispose(), [beltMat]);
+  useFrame(({ clock }) => {
+    beltMat.uniforms.uTime.value = clock.elapsedTime;
+    MATS.beam.opacity = 0.22 + 0.14 * Math.sin(clock.elapsedTime * 3);
+  });
+  return (
+    <>
+      {[...groups.entries()].map(([k, parts]) => {
+        const [geom, mat] = k.split("|") as [GeomKey, keyof typeof MATS];
+        return <Instanced key={k} parts={parts} geom={geom} mat={mat} blocks={vis} town={p.key} onBlock={mat === "hull"} />;
+      })}
+      {belts ? <mesh geometry={belts} material={beltMat} raycast={noRay} /> : null}
+      {hall ? <Emblem faction={p.town.faction} use="badge" scale={0.6} position={[hall.spot.x, (hall.height / p.unit) + 2.4, hall.spot.z]} speed={0.4} /> : null}
+    </>
+  );
+}
+
+/** the live requests of this town, played on the world clock */
+function LiveAgents({ p, layout, w }: { p: Planet; layout: TownLayout; w: World25 }) {
+  const events = useStore((s) => s.events);
+  const live = useStore((s) => s.live);
+  const tl = useMemo(() => {
+    const reqs = [...w.requests.values()].filter((r) => `${r.faction}|${r.projectId}` === p.key && w.live.has(r.requestId));
+    if (!reqs.length) return null;
+    const tasks = new Set(reqs.flatMap((r) => r.taskIds).filter((t) => live.has(t)));
+    const evs = events.filter((e): e is AgentTownEvent => !!e.taskId && tasks.has(e.taskId));
+    return evs.length ? buildTimeline(evs, cityPlaces(layout, reqs[0].requestId)) : null;
+  }, [events, live, w, p.key, layout]);
+  if (!tl) return null;
+  const time = () => absTime(useStore.getState().t) - tl.t0;
+  return <>{tl.actors.map((a) => <Robot key={`live|${a.id}`} id={`live|${a.id}`} actor={a} time={time} faction={p.town.faction} end={tl.roofAt ?? Infinity} />)}</>;
+}
+
+/** a replayed request, on the replay's own clock */
+function ReplayAgents({ p }: { p: Planet }) {
+  const r = useReplay((s) => (s.r && s.r.district === p.key ? s.r : null));
+  const tl = r?.tl;
+  useFrame((_, dt) => useReplay.getState().tick(Math.min(dt, 0.1) * 1000));
+  if (!tl) return null;
+  const time = () => useReplay.getState().r?.t ?? 0;
+  return <>{tl.actors.map((a) => <Robot key={`rp|${r!.requestId}|${a.id}`} id={`rp|${a.id}`} actor={a} time={time} faction={p.town.faction} end={tl.roofAt ?? Infinity} />)}</>;
+}
+
+function CityCamera({ layout }: { layout: TownLayout }) {
+  const { camera } = useThree();
+  const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update(): void } | null;
+  const R = layout.radius;
+  const want = useMemo(() => new THREE.Vector3(), []);
+  // during a replay the camera follows the main agent (it can be switched off on the replay bar)
+  useFrame((_, dt) => {
+    const r = useReplay.getState().r;
+    if (!controls || !r || !r.follow) return;
+    const main = r.tl.actors.find((a) => a.kind === "commander");
+    const info = main ? robotInfo.get(`rp|${main.id}`) : undefined;
+    if (!info?.visible) return;
+    want.set(info.anchor.x, 0, info.anchor.z);
+    const k = 1 - Math.exp(-dt * 2.5);
+    const delta = want.sub(controls.target).multiplyScalar(k);
+    controls.target.add(delta);
+    camera.position.add(delta);
+    // from high enough that buildings do not hide it, near enough to see what it is doing
+    const off = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+    off.radius += (16 - off.radius) * k * 0.6;
+    off.phi += (0.72 - off.phi) * k * 0.6;
+    camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(off));
+  });
+  useLayoutEffect(() => {
+    camera.position.set(R * 0.2, R * 0.95, R * 1.55);
+    camera.lookAt(0, 0, 0);
+  }, [camera, R]);
+  (window as unknown as { __agentTownFlying?: unknown }).__agentTownFlying = () => false;
+  return <OrbitControls makeDefault enableDamping dampingFactor={0.08} rotateSpeed={0.55} zoomSpeed={0.8} zoomToCursor minDistance={2} maxDistance={R * 3.2} maxPolarAngle={1.36} target={[0, 0, 0]} />;
+}
+
+function Clock() {
+  useFrame((_, dt) => useStore.getState().advance(Math.min(dt, 0.1) * 1000));
+  return null;
+}
+
+export function CityScene({ p, layout, w }: { p: Planet; layout: TownLayout; w: World25 }) {
+  const sun = useMemo(() => sunDir(p), [p]);
+  const sunMat = useMemo(() => new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(FACTION_COLOR[p.town.faction]).multiplyScalar(3), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }), [p]);
+  useEffect(() => () => sunMat.dispose(), [sunMat]);
+  const R = layout.radius;
+  const light = new THREE.Color(FACTION_COLOR[p.town.faction]).lerp(new THREE.Color("#ffffff"), 0.55);
+  const far = sun.clone().multiplyScalar(900);
+  return (
+    <>
+      <Sky />
+      <Starfield />
+      <sprite material={sunMat} position={far} scale={260} raycast={noRay} />
+      <Emblem faction={p.town.faction} use="corona" scale={150} position={[far.x, far.y, far.z]} speed={0.02} />
+      <hemisphereLight args={["#9cc0ff", "#1a1420", 0.55]} />
+      <ambientLight intensity={0.12} />
+      <directionalLight
+        color={light} intensity={2.4} position={sun.clone().multiplyScalar(R * 2)} castShadow
+        shadow-mapSize={[2048, 2048]} shadow-camera-left={-R * 1.3} shadow-camera-right={R * 1.3} shadow-camera-top={R * 1.3} shadow-camera-bottom={-R * 1.3} shadow-camera-far={R * 6} shadow-bias={-0.0005}
+      />
+      <Ground p={p} layout={layout} />
+      <Buildings p={p} w={w} />
+      <LiveAgents p={p} layout={layout} w={w} />
+      <ReplayAgents p={p} />
+      <CityCamera layout={layout} />
+      <Clock />
+      <Effects />
+    </>
+  );
+}
+
