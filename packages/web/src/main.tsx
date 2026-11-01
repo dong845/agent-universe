@@ -3,11 +3,10 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, type Progress } from "./data.ts";
 import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
-import { quadOf } from "./v3/World25.tsx";
-import { spritesAt } from "./v3/world25Data.ts";
 import { Loading } from "./ui/Loading.tsx";
+import { orbit } from "./galaxy/Galaxy.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
-import { useStore, type HoverTarget } from "./store.ts";
+import { absTime, useStore, type HoverTarget } from "./store.ts";
 import "./styles.css";
 
 const q = new URLSearchParams(location.search);
@@ -63,25 +62,22 @@ declare global {
   }
 }
 window.__agentTown = {
-  /** every drawn house and tent of a town (or all towns) with the screen point at its picture's centre */
-  spots: (town?: string) => {
-    const w = useStore.getState().w25;
-    const proj = (window as unknown as { __agentTownProject?: (x: number, y: number, z: number) => { x: number; y: number } }).__agentTownProject;
-    if (!w || !proj) return [];
-    const ts = useStore.getState().t0 + useStore.getState().t;
-    return [...spritesAt(w, ts).values()].flat().filter((p) => (p.spot.info.kind === "house" || p.spot.info.kind === "tent") && (!town || p.town === town)).map((p) => {
-      const q = quadOf(p, w.resolved.get(p.spot)!);
-      const at = proj(q.c.x, q.c.y, q.c.z);
-      return { town: p.town, kind: p.spot.info.kind, requestId: (p.spot.info as { requestId: string }).requestId, x: at.x, y: at.y };
-    });
-  },
+  /** every standing house and tent of a town (or all towns) on the side facing the camera, with its screen point */
+  spots: (town?: string) => ((window as unknown as { __agentTownSpots?: (t?: string) => unknown[] }).__agentTownSpots?.(town) ?? []),
   state: () => {
     const s = useStore.getState();
     const cam = (window as unknown as { __agentTownCamera?: { zoom: number } }).__agentTownCamera;
     const ctl = (window as unknown as { __agentTownControls?: { target: { x: number; z: number } } }).__agentTownControls;
-    return { t: s.t, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, replay: s.replay, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
+    return { t: s.t, abs: absTime(s.t), city: s.city, duration: s.duration, source: s.source, focus: s.focus, selected: s.selected, replay: s.replay, zoom: cam?.zoom ?? 0, target: ctl ? { x: ctl.target.x, z: ctl.target.z } : null };
   },
-  play: () => useStore.getState().setPlaying(true),
+  play: () => {
+    orbit.frozen = false;
+    useStore.getState().setPlaying(true);
+  },
+  /** a town's finished requests, biggest first (by calls) */
+  requestsOf: (k: string) => [...(useStore.getState().w25?.requests.values() ?? [])].filter((r) => `${r.faction}|${r.projectId}` === k && r.class === "produced").sort((a, b) => b.calls - a.calls).map((r) => r.requestId),
+  /** open a town's city (null = back to space) */
+  enterCity: (k: string | null) => useStore.getState().setCity(k),
   setSpeed: (n: number) => useStore.getState().setSpeed(n),
   select: (s: Selection | null) => useStore.getState().select(s),
   setTime: (t: number) => useStore.getState().setTime(t),

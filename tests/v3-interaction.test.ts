@@ -4,7 +4,6 @@ import type { RequestRow } from "../packages/schema/src/payload.ts";
 import type { TownRow } from "../packages/schema/src/towns.ts";
 import { fromHash, requestOfTask, toHash } from "../packages/web/src/selection.ts";
 import { requestDiaries } from "../packages/web/src/ui/diaryModel.ts";
-import { opaqueAt } from "../packages/web/src/v3/pick.ts";
 import { LAYOUT_DEFAULTS, layoutTown } from "../packages/web/src/v3/townLayout.ts";
 
 describe("selection by URL", () => {
@@ -27,16 +26,6 @@ describe("a request's diary", () => {
     const ds = requestDiaries(evs, ["T2", "T1", "T9"], new Set());
     expect(ds.map((d) => d.taskId)).toEqual(["T1", "T2"]);
     expect(ds[0].main.length + ds[1].main.length).toBe(2);
-  });
-});
-
-describe("picking", () => {
-  it("a transparent pixel is not a hit; an opaque one is", () => {
-    const a = new Uint8ClampedArray(4 * 4 * 4); // 4×4 RGBA, all transparent
-    a[(1 * 4 + 2) * 4 + 3] = 255; // x=2, y=1 (from the top) opaque
-    expect(opaqueAt(a, 4, 4, { x: 0.6, y: 1 - 0.3 })).toBe(true);
-    expect(opaqueAt(a, 4, 4, { x: 0.1, y: 0.1 })).toBe(false);
-    expect(opaqueAt(a, 4, 4, { x: 1.2, y: 0.5 })).toBe(false);
   });
 });
 

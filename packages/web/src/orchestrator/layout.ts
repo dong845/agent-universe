@@ -71,3 +71,29 @@ export function dist(a: Vec, b: Vec): number {
 export function lerp(a: Vec, b: Vec, f: number): Vec {
   return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f };
 }
+
+/**
+ * Where a timeline's figures go. The default is the district above; the star-system view's cities pass
+ * their own town's buildings (D18).
+ */
+export interface Places {
+  /** a tool building's middle (token cubes fly from here) */
+  building(b: BuildingId): Vec;
+  /** where a figure stands to work at a building; `lane` spreads figures working side by side */
+  door(b: BuildingId, lane: number): Vec;
+  hall: Vec;
+  commanderPost: Vec;
+  sentryPost: Vec;
+  warehouse: Vec;
+  scaffold(slot: number): Vec;
+}
+
+export const DEFAULT_PLACES: Places = {
+  building: (b) => BUILDING_POS[b],
+  door: doorOf,
+  hall: HALL,
+  commanderPost: COMMANDER_POST,
+  sentryPost: SENTRY_POST,
+  warehouse: WAREHOUSE,
+  scaffold: scaffoldPos,
+};

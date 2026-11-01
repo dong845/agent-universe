@@ -59,6 +59,8 @@ export interface Planet {
   belts: Belt[];
   live: boolean;
   seed: number;
+  /** world units per layout unit at the surface (the city view draws the layout at 1) */
+  unit: number;
 }
 
 export interface StarSystem {
@@ -71,6 +73,8 @@ export interface StarSystem {
   /** end time of every finished product, oldest first: one Dyson panel each */
   panels: number[];
   planets: Planet[];
+  /** towns of this faction not drawn as planets (too little made there; still counted in `panels`) */
+  hidden: number;
 }
 
 export interface Route {
@@ -113,6 +117,8 @@ export const lookOf = (theme: string): PlanetLook => LOOKS[theme] ?? LOOKS.craft
 /** how far from the city's middle (radians) the outermost building of a layout stands */
 export const CAP = 1.0;
 const RANK = { capital: 0, guild: 1, project: 2, outpost: 3 } as const;
+/** owner 2026-11-01: a town with fewer finished products than this is not drawn, unless work is going on there */
+export const MIN_PRODUCED = 2;
 
 const toDir = (x: number, z: number, layoutR: number): V3 => {
   const d = Math.hypot(x, z);
@@ -184,9 +190,11 @@ export function buildGalaxy(w: World25): Galaxy {
   const systems: StarSystem[] = [];
   const planets = new Map<string, Planet>();
   const sides: StarSystem[] = [];
+  const busy = new Set([...w.requests.values()].filter((r) => w.live.has(r.requestId)).map((r) => `${r.faction}|${r.projectId}`));
   for (const faction of ["claude-code", "codex"] as const) {
-    const towns = [...w.towns.values()].filter((t) => t.faction === faction).sort((a, b) => RANK[a.kind] - RANK[b.kind] || b.counts.produced - a.counts.produced || (a.key < b.key ? -1 : 1));
-    if (!towns.length) continue;
+    const all = [...w.towns.values()].filter((t) => t.faction === faction);
+    const towns = all.filter((t) => t.counts.produced >= MIN_PRODUCED || busy.has(t.key)).sort((a, b) => RANK[a.kind] - RANK[b.kind] || b.counts.produced - a.counts.produced || (a.key < b.key ? -1 : 1));
+    if (!all.length) continue;
     const produced = [...w.requests.values()].filter((r) => r.faction === faction && r.class === "produced").map((r) => r.endTs).sort((a, b) => a - b);
     const radius = 5 + 0.55 * Math.log2(1 + produced.length);
     const shellRadius = radius * 2.1;
@@ -206,10 +214,10 @@ export function buildGalaxy(w: World25): Galaxy {
         incline: (hash(t.key, 3) - 0.5) * 0.12,
         look: lookOf(t.kind === "capital" ? "capital" : t.kind === "outpost" ? "outpost" : t.theme),
         ring: t.kind !== "capital" && t.kind !== "outpost" && t.counts.produced >= 40,
-        blocks, belts, live: blocks.some((b) => b.live), seed,
+        blocks, belts, live: blocks.some((b) => b.live), seed, unit: (CAP * r) / w.layouts.get(t.key)!.radius,
       });
     });
-    const sys: StarSystem = { faction, x: 0, z: 0, radius, shellRadius, color: FACTION_COLOR[faction], panels: produced, planets: list };
+    const sys: StarSystem = { faction, x: 0, z: 0, radius, shellRadius, color: FACTION_COLOR[faction], panels: produced, planets: list, hidden: all.length - towns.length };
     for (const p of list) planets.set(p.key, p);
     sides.push(sys);
   }

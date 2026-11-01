@@ -3,7 +3,7 @@ import { demoPayload } from "../packages/mock/src/world.ts";
 import manifest from "../art/manifest.json" with { type: "json" };
 import type { Manifest } from "../packages/web/src/v3/art.ts";
 import { buildWorld25 } from "../packages/web/src/v3/world25Data.ts";
-import { buildGalaxy, panelsAt, planetPos, routesOf } from "../packages/web/src/galaxy/galaxyData.ts";
+import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, routesOf } from "../packages/web/src/galaxy/galaxyData.ts";
 import type { RequestRow } from "../packages/schema/src/payload.ts";
 
 describe("the star-system view on the demo", () => {
@@ -11,8 +11,14 @@ describe("the star-system view on the demo", () => {
   const w = buildWorld25(p.towns, p.requests, manifest as Manifest);
   const g = buildGalaxy(w);
 
-  it("one planet per town, around its own faction's star; the stars sit apart", () => {
-    expect(g.planets.size).toBe(p.towns.length);
+  it("a planet for every town with at least MIN_PRODUCED finished products or work going on; the rest are counted as hidden", () => {
+    const busy = new Set(p.requests.filter((r) => w.live.has(r.requestId)).map((r) => `${r.faction}|${r.projectId}`));
+    const shown = p.towns.filter((t) => t.counts.produced >= MIN_PRODUCED || busy.has(t.key));
+    expect(new Set(g.planets.keys())).toEqual(new Set(shown.map((t) => t.key)));
+    expect(g.systems.reduce((a, s) => a + s.hidden, 0)).toBe(p.towns.length - shown.length);
+  });
+
+  it("each planet circles its own faction's star; the stars sit apart", () => {
     for (const s of g.systems) for (const pl of s.planets) expect(pl.town.faction).toBe(s.faction);
     if (g.systems.length === 2) expect(g.systems[0].x).toBeLessThan(g.systems[1].x);
   });
@@ -27,7 +33,7 @@ describe("the star-system view on the demo", () => {
     }
   });
 
-  it("every drawn spot of a town but props becomes a block on its planet, on the planet's surface", () => {
+  it("every drawn spot of a shown town but props becomes a block on its planet, on the planet's surface", () => {
     for (const pl of g.planets.values()) {
       const spots = w.layouts.get(pl.key)!.spots.filter((s) => s.info.kind !== "prop");
       expect(pl.blocks.length).toBe(spots.length);

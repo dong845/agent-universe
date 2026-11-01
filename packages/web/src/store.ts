@@ -74,6 +74,9 @@ interface Store {
   near: boolean;
   setNear(n: boolean): void;
   setFocus(k: string | null): void;
+  /** the town whose city is open (the star-system view's ground level); null = in space */
+  city: string | null;
+  setCity(k: string | null): void;
   /** the v3 world: layouts, islands and sprites from the payload's towns and requests */
   w25: World25 | null;
   load(p: WorldPayload): void;
@@ -136,9 +139,14 @@ export const useStore = create<Store>((set, get) => ({
     set(s ? { selected: s, focus: s.district } : { selected: null });
   },
   back() {
-    const { selected, focus } = get();
+    const { selected, focus, city } = get();
     if (selected) get().select(null);
+    else if (city) set({ city: null });
     else if (focus) set({ focus: null });
+  },
+  city: null,
+  setCity(k) {
+    set(k ? { city: k, focus: k } : { city: null });
   },
   startReplay(district, events) {
     get().stopReplay();

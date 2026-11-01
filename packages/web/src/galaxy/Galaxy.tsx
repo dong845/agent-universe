@@ -9,10 +9,11 @@ import * as THREE from "three";
 import { absTime, useStore } from "../store.ts";
 import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, type Galaxy, type Planet, type StarSystem } from "./galaxyData.ts";
 import { emblemGeometry } from "./emblem.ts";
+import { useEnter } from "../city/cityReplay.ts";
 import { ATMO, BELT, PLANET, RING, SHELL, SKY, STAR, STARS } from "./shaders.ts";
 
 /** the orbit clock, seconds; planets and ships move on it whatever the playback does */
-export const orbit = { sec: 0 };
+export const orbit = { sec: 0, /** a `?paused=1` link (screenshots, tests) holds the sky still until play */ frozen: new URLSearchParams(location.search).get("paused") === "1" };
 /** each planet's spinning group, for labels and the camera */
 export const spinOf = new Map<string, THREE.Object3D>();
 const noRay = () => null;
@@ -29,14 +30,14 @@ const G = {
   ball: new THREE.SphereGeometry(0.5, 16, 10).translate(0, 0.5, 0),
   torus: new THREE.TorusGeometry(1, 0.08, 8, 40).rotateX(Math.PI / 2),
 };
-type GeomKey = keyof typeof G;
+export type GeomKey = keyof typeof G;
 const SPHERE = new THREE.SphereGeometry(1, 96, 64);
 const ATMO_SPHERE = new THREE.SphereGeometry(1, 64, 40);
 
 const hullMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.45, roughness: 0.38 });
 const glowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.4, 2.4), toneMapped: false });
 const beamMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.6, 1.6), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
-const MATS = { hull: hullMat, glow: glowMat, beam: beamMat };
+export const MATS = { hull: hullMat, glow: glowMat, beam: beamMat };
 const EMBLEM = {
   "claude-code": { badge: emblemGeometry("claude-code", "badge"), corona: emblemGeometry("claude-code", "corona") },
   codex: { badge: emblemGeometry("codex", "badge"), corona: emblemGeometry("codex", "corona") },
@@ -44,7 +45,7 @@ const EMBLEM = {
 const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
 
 /** the faction emblem, always facing the camera, turning slowly in its own plane */
-function Emblem({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number }) {
+export function Emblem({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number }) {
   const base = use === "corona" ? 0.5 : 0.95;
   const mat = useMemo(() => emblemMat(FACTION_HEX[faction], use === "corona" ? 1.6 : 2.4, base), [faction, use, base]);
   useEffect(() => () => mat.dispose(), [mat]);
@@ -70,12 +71,12 @@ function Emblem({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: { f
 }
 
 // ---- sky ---------------------------------------------------------------------------------------------
-function Sky() {
+export function Sky() {
   const mat = useMemo(() => new THREE.ShaderMaterial({ vertexShader: SKY.vertex, fragmentShader: SKY.fragment, side: THREE.BackSide, depthWrite: false }), []);
   return <mesh geometry={useMemo(() => new THREE.SphereGeometry(5000, 256, 128), [])} material={mat} renderOrder={-10} frustumCulled={false} raycast={noRay} />;
 }
 
-function Starfield() {
+export function Starfield() {
   const { gl } = useThree();
   const [geo, mat] = useMemo(() => {
     const n = 9000;
@@ -110,7 +111,7 @@ function Starfield() {
 
 // ---- a star and its Dyson shell ----------------------------------------------------------------------
 let glowTex: THREE.Texture | null = null;
-function glowTexture(): THREE.Texture {
+export function glowTexture(): THREE.Texture {
   if (glowTex) return glowTex;
   const c = document.createElement("canvas");
   c.width = c.height = 256;
@@ -211,7 +212,7 @@ function Orbits({ s }: { s: StarSystem }) {
 }
 
 // ---- a planet and its city ---------------------------------------------------------------------------
-interface Part {
+export interface Part {
   geom: GeomKey;
   mat: keyof typeof MATS;
   color: THREE.Color;
@@ -221,13 +222,21 @@ interface Part {
 const UP = new THREE.Vector3(0, 1, 0);
 const HULL = new THREE.Color("#9fadc0");
 
-function partsOf(blocks: Block[], r: number): Part[] {
+/** where a block stands: its foot point, the local up, its turn, and a size factor */
+export type Frame = (b: Block) => { origin: THREE.Vector3; up: THREE.Vector3; q: THREE.Quaternion; k: number };
+/** on a planet of radius r: blocks stand on the sphere, up = out from the centre */
+export const planetFrame = (r: number): Frame => (b) => {
+  const dir = new THREE.Vector3(...b.dir);
+  return { origin: dir.clone().multiplyScalar(r), up: dir, q: new THREE.Quaternion().setFromUnitVectors(UP, dir).multiply(new THREE.Quaternion().setFromAxisAngle(UP, b.turn)), k: 1 };
+};
+
+export function partsOf(blocks: Block[], frame: Frame): Part[] {
   const out: Part[] = [];
-  blocks.forEach((b, bi) => {
-    const dir = new THREE.Vector3(...b.dir);
-    const q = new THREE.Quaternion().setFromUnitVectors(UP, dir).multiply(new THREE.Quaternion().setFromAxisAngle(UP, b.turn));
+  blocks.forEach((b0, bi) => {
+    const { origin, up, q, k } = frame(b0);
+    const b = { ...b0, foot: b0.foot * k, height: b0.height * k };
     const put = (geom: GeomKey, mat: Part["mat"], color: THREE.Color, alt: number, sx: number, sy: number, sz = sx, pick = false) => {
-      const m = new THREE.Matrix4().compose(dir.clone().multiplyScalar(r + alt - b.foot * 0.04), q, new THREE.Vector3(sx, sy, sz));
+      const m = new THREE.Matrix4().compose(origin.clone().addScaledVector(up, alt - b.foot * 0.04), q, new THREE.Vector3(sx, sy, sz));
       out.push({ geom, mat, color, m, block: pick ? bi : undefined });
     };
     const f = b.foot, h = b.height, c = new THREE.Color(b.color);
@@ -320,9 +329,9 @@ function beltGeometry(p: Planet, visible: Set<number>): THREE.BufferGeometry {
 }
 
 /** which blocks stand at `ts` (a landmark's tier, a house not yet finished) */
-const standing = (b: Block, ts: number) => (b.from === undefined || b.from <= ts) && (b.until === undefined || b.until > ts);
+export const standing = (b: Block, ts: number) => (b.from === undefined || b.from <= ts) && (b.until === undefined || b.until > ts);
 
-function Instanced({ parts, geom, mat, onBlock, blocks, town }: { parts: Part[]; geom: GeomKey; mat: keyof typeof MATS; blocks: Block[]; town: string; onBlock: boolean }) {
+export function Instanced({ parts, geom, mat, onBlock, blocks, town }: { parts: Part[]; geom: GeomKey; mat: keyof typeof MATS; blocks: Block[]; town: string; onBlock: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
     const m = ref.current;
@@ -358,6 +367,8 @@ function Instanced({ parts, geom, mat, onBlock, blocks, town }: { parts: Part[];
       key={parts.length}
       ref={ref}
       args={[G[geom], MATS[mat], parts.length]}
+      castShadow={mat === "hull"}
+      receiveShadow={mat === "hull"}
       raycast={onBlock ? undefined : noRay}
       onPointerMove={onBlock ? move : undefined}
       onPointerLeave={onBlock ? () => { useStore.getState().setHovered(null); document.body.style.cursor = ""; } : undefined}
@@ -372,7 +383,7 @@ function City({ p }: { p: Planet }) {
   const sig = useStore((s) => { const ts = absTime(s.uiT); return p.blocks.map((b) => (standing(b, ts) ? 1 : 0)).join(""); });
   const { groups, belts } = useMemo(() => {
     const vis = p.blocks.filter((b, i) => sig[i] === "1");
-    const parts = partsOf(vis, p.radius);
+    const parts = partsOf(vis, planetFrame(p.radius));
     const groups = new Map<string, Part[]>();
     for (const x of parts) {
       const k = `${x.geom}|${x.mat}`;
@@ -448,6 +459,7 @@ function PlanetView({ p, s }: { p: Planet; s: StarSystem }) {
     if (e.delta > 5) return;
     e.stopPropagation();
     useStore.getState().select({ kind: "town", district: p.key });
+    useEnter.getState().request(p.key);
   };
   return (
     <group ref={outer}>
@@ -625,6 +637,7 @@ function CameraRig({ g }: { g: Galaxy }) {
     el.addEventListener("wheel", onWheel, { passive: true });
     return () => el.removeEventListener("wheel", onWheel);
   }, [gl, camera, g, sysOf]);
+  (window as unknown as { __agentTownFlying?: unknown }).__agentTownFlying = () => fly.current !== null || glide.current;
   useFrame((_, dt) => {
     if (!controls) return;
     const p = focus ? g.planets.get(focus) : undefined;
@@ -657,13 +670,14 @@ function CameraRig({ g }: { g: Galaxy }) {
 
 function OrbitClock() {
   useFrame((_, dt) => {
-    orbit.sec += Math.min(dt, 0.1);
+    // the orbits are ambient: they run whatever the time bar does (it stops by itself at its end)
+    if (!orbit.frozen) orbit.sec += Math.min(dt, 0.1);
     useStore.getState().advance(Math.min(dt, 0.1) * 1000);
   });
   return null;
 }
 
-function Effects() {
+export function Effects() {
   return (
     <EffectComposer multisampling={4} enableNormalPass={false}>
       <Bloom mipmapBlur intensity={1.05} luminanceThreshold={0.82} luminanceSmoothing={0.22} radius={0.78} />

@@ -202,11 +202,6 @@ canvas { display: block; }
 .label span { margin-left: 5px; font-weight: 400; color: #8a6a4a; }
 
 /* ---- star-system view (spike) ---------------------------------------------------------------- */
-.view-switch {
-  position: absolute; top: 14px; right: 14px; z-index: 20; padding: 6px 12px; font-size: 13px; text-decoration: none;
-  border-radius: 999px; background: #1d2433; color: #e8f0ff; border: 1px solid #39465f;
-}
-.app:not(.galaxy) .legend { top: 52px; }
 .galaxy {
   --ink: #e6eefc; --mute: #8fa3c4; --panel: rgba(10, 16, 30, 0.78); --line: rgba(130, 170, 240, 0.22);
   background: #02040a !important; color: var(--ink);
@@ -217,8 +212,6 @@ canvas { display: block; }
 }
 .galaxy .hud b { color: #f4f8ff; letter-spacing: 0.02em; }
 .galaxy .demo-badge { background: rgba(255, 196, 92, 0.12); border-color: rgba(255, 196, 92, 0.35); color: #ffd58a; }
-.galaxy .view-switch { background: rgba(10, 16, 30, 0.78); border-color: var(--line); backdrop-filter: blur(10px); }
-.galaxy .view-switch:hover, .view-switch:hover { border-color: #7fb4ff; }
 .galaxy .legend { top: auto; bottom: 84px; right: 14px; max-width: 470px; font-size: 11.5px; line-height: 1.75; color: #c7d4ea; }
 .galaxy .legend b { color: #fff; }
 .galaxy .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 2px 0 4px; box-shadow: 0 0 6px currentColor; }
@@ -270,3 +263,29 @@ canvas { display: block; }
 }
 .g-focus button:hover { border-color: #7fb4ff; }
 .g-focus span { font-size: 14px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px #000; }
+.g-meter small { color: #8fa3c4; font-size: 11px; }
+.g-fade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 40; }
+.g-fade.on { opacity: 1; }
+.g-citybar span small { margin-left: 8px; font-size: 11.5px; font-weight: 400; color: #9fb0cc; }
+.g-citybar em { font-style: normal; font-size: 11.5px; color: #9fb0cc; text-shadow: 0 1px 3px #000; }
+.g-street { white-space: nowrap; font-size: 11px; padding: 1px 7px; border-radius: 3px; color: #cfe1ff; background: rgba(20, 40, 70, 0.7); border: 1px solid rgba(110, 170, 255, 0.35); }
+.g-street span { margin-left: 5px; color: #8fa3c4; }
+.g-bubble {
+  white-space: nowrap; font-size: 11px; padding: 2px 8px; border-radius: 10px; color: #04121f; font-weight: 600;
+  background: rgba(190, 236, 255, 0.92); box-shadow: 0 0 10px rgba(120, 210, 255, 0.6);
+}
+.g-bubble.alert { background: rgba(255, 210, 120, 0.95); box-shadow: 0 0 12px rgba(255, 180, 80, 0.8); }
+.g-replay {
+  position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 10px;
+  width: min(820px, calc(100% - 32px)); padding: 7px 12px; border-radius: 10px; font-size: 12.5px;
+  background: rgba(10, 16, 30, 0.86); border: 1px solid rgba(130, 170, 240, 0.35); backdrop-filter: blur(10px); color: #e6eefc;
+}
+.g-replay .tag { padding: 1px 7px; border-radius: 4px; background: #5ef2a0; color: #04121f; font-weight: 700; font-size: 11px; }
+.g-replay b { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-replay input { flex: 1; }
+.g-replay button, .g-replay select { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 6px; background: rgba(255,255,255,0.06); color: #e6eefc; border: 1px solid rgba(130,170,240,0.3); cursor: pointer; }
+.g-replay .time { font-variant-numeric: tabular-nums; color: #9fb0cc; }
+.replay-btn { margin: 8px 0 4px; font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; background: #1f6f5c; color: #eafff7; border: 1px solid #2fbf95; }
+.replay-btn:hover { background: #24876f; }
+.galaxy .g-legend-city { bottom: 130px; max-width: 420px; }
+.g-replay .follow { display: flex; align-items: center; gap: 4px; color: #9fb0cc; cursor: pointer; white-space: nowrap; }

@@ -12,8 +12,11 @@ import { Hud, TimelineBar } from "../ui/Chrome.tsx";
 import { declutter, type LabelBox } from "../ui/format.ts";
 import { SpotCard } from "../v3/Cards25.tsx";
 import { WORK_NAMES } from "../v3/townLayout.ts";
-import { buildGalaxy, panelsAt, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
+import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
 import { emblemPaths } from "./emblem.ts";
+import { CityScene } from "../city/City.tsx";
+import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx";
+import { cityTowns, REPLAY_SPEEDS, useEnter, useReplay } from "../city/cityReplay.ts";
 import { GalaxyScene, orbit, overviewOf, SHELL_FACES, spinOf, VIEW_DIR } from "./Galaxy.tsx";
 import { absTime } from "../store.ts";
 
@@ -59,6 +62,33 @@ function labelsOf(g: Galaxy): GL[] {
 }
 
 const els = new Map<string, HTMLDivElement>();
+let lastCamera: THREE.Camera | null = null;
+let lastSize = { w: 0, h: 0 };
+
+/** test hook: standing houses and tents facing the camera, with the screen point at their middle */
+function spotsOnScreen(g: Galaxy, town?: string) {
+  if (!lastCamera) return [];
+  const ts = absTime(useStore.getState().t);
+  const out: { town: string; kind: string; requestId: string; x: number; y: number }[] = [];
+  const cam = lastCamera.getWorldPosition(new THREE.Vector3());
+  for (const p of g.planets.values()) {
+    if (town && p.key !== town) continue;
+    const o = spinOf.get(p.key);
+    if (!o) continue;
+    const centre = o.getWorldPosition(new THREE.Vector3());
+    for (const b of p.blocks) {
+      const i = b.spot.info;
+      if (i.kind !== "house" && i.kind !== "tent") continue;
+      if ((b.from !== undefined && b.from > ts) || (b.until !== undefined && b.until <= ts)) continue;
+      const w = o.localToWorld(new THREE.Vector3(...b.dir).multiplyScalar(p.radius + b.height * 0.5));
+      if (w.clone().sub(centre).normalize().dot(cam.clone().sub(w).normalize()) < 0.25) continue;
+      w.project(lastCamera);
+      if (w.z > 1) continue;
+      out.push({ town: p.key, kind: i.kind, requestId: i.requestId, x: ((w.x + 1) / 2) * lastSize.w, y: ((1 - w.y) / 2) * lastSize.h });
+    }
+  }
+  return out;
+}
 const sizes = new Map<string, { w: number; h: number }>();
 const RESERVED = (w: number, h: number) => [{ x: w / 2 - 300, y: 0, w: 600, h: 70 }, { x: w / 2 - 470, y: h - 70, w: 940, h: 70 }];
 
@@ -109,6 +139,8 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
       crowd.push({ id: l.id, rect: { x: x - sz.w / 2 - 3, y: y - sz.h - 2, w: sz.w + 6, h: sz.h + 4 }, priority: l.near ? l.priority + 2e9 : l.priority });
     }
     const keep = declutter(crowd);
+    lastCamera = camera;
+    lastSize = { w: size.width, h: size.height };
     for (const k of crowd) if (!keep.has(k.id) && !k.id.startsWith("reserved")) els.get(k.id)!.style.visibility = "hidden";
   });
   return null;
@@ -197,6 +229,7 @@ function ShellMeter({ g }: { g: Galaxy }) {
           </div>
         );
       })}
+      {g.systems.some((s) => s.hidden) ? <small data-testid="hidden-note">另有 {g.systems.reduce((a, s) => a + s.hidden, 0)} 个小项目未显示（成品不到 {MIN_PRODUCED} 件），仍计入戴森壳</small> : null}
     </div>
   );
 }
@@ -220,40 +253,125 @@ function Legend() {
 const Q = new URLSearchParams(location.search);
 const DPR: [number, number] = Q.has("dpr") ? [1, Number(Q.get("dpr"))] : [1, 2];
 
-export function ViewSwitch({ to }: { to: "galaxy" | "town" }) {
-  const href = () => {
-    const q = new URLSearchParams(location.search);
-    if (to === "galaxy") q.set("view", "galaxy");
-    else q.delete("view");
-    const s = q.toString();
-    return `${location.pathname}${s ? `?${s}` : ""}`;
-  };
-  return <a className="view-switch" href={href()} data-testid="view-switch">{to === "galaxy" ? "切到星系视图" : "切到小镇视图"}</a>;
+const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+/** the bar over a replayed request: play/pause, speed, position, close */
+function ReplayBar() {
+  const r = useReplay((s) => s.r);
+  if (!r) return null;
+  const end = r.tl.duration;
+  return (
+    <div className="g-replay" data-testid="replay-bar">
+      <span className="tag">重放</span>
+      <b title={r.title}>{r.title}</b>
+      <button onClick={() => useReplay.getState().toggle()} aria-label={r.playing ? "暂停" : "播放"}>{r.playing ? "❚❚" : "▶"}</button>
+      <select value={r.speed} onChange={(e) => useReplay.getState().setSpeed(Number(e.target.value))} aria-label="重放倍速">
+        {REPLAY_SPEEDS.map((x) => <option key={x} value={x}>{x}×</option>)}
+      </select>
+      <input type="range" min={0} max={Math.max(1, end)} step={100} value={Math.min(r.t, end)} onChange={(e) => useReplay.getState().seek(Number(e.target.value))} aria-label="重放进度" />
+      <span className="time" title={r.cut ? `长于 5 秒的空闲已压缩，共省去 ${mmss(r.cut)}` : undefined}>{mmss(Math.min(r.t, end))} / {mmss(end)}{r.cut ? " · 已压缩空闲" : ""}</span>
+      <label className="follow"><input type="checkbox" checked={r.follow} onChange={(e) => useReplay.getState().setFollow(e.target.checked)} />跟随</label>
+      <button onClick={() => useReplay.getState().stop()} aria-label="结束重放">✕</button>
+    </div>
+  );
+}
+
+/** top of a city: back to space, which town this is, and whether anyone is working */
+function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
+  const city = useStore((s) => s.city);
+  const w = useStore((s) => s.w25);
+  const p = city ? g.planets.get(city) : undefined;
+  if (!p || !w) return null;
+  const live = [...w.requests.values()].filter((r) => `${r.faction}|${r.projectId}` === p.key && w.live.has(r.requestId)).length;
+  return (
+    <div className="g-focus g-citybar">
+      <button onClick={onLeave} data-testid="leave-city">← 返回太空</button>
+      <span><Badge f={p.town.faction} />{p.town.name}<small>{themeName(p.town.theme)} · {p.town.faction === "codex" ? "Codex" : "Claude Code"}</small></span>
+      <em>{live ? `${live} 个请求正在进行` : "现在没有进行中的请求 · 点一栋房子可以重放那次请求"}</em>
+    </div>
+  );
+}
+
+function CityLegend() {
+  const [open, setOpen] = useState(true);
+  if (!open) return <button className="legend g-legend g-legend-min" onClick={() => setOpen(true)} data-testid="legend">怎么看 ▸</button>;
+  return (
+    <div className="legend g-legend g-legend-city" data-testid="legend">
+      <b>城里怎么看</b><button className="g-x" onClick={() => setOpen(false)} aria-label="收起">收起</button>
+      <div>小机器人 = 正在干活的代理：面罩是阵营色，头顶有阵营徽标的是主代理；小一号的是子代理，胸灯是它的工种色</div>
+      <div>头顶的字 = 它此刻在做什么；它走到哪栋圆塔，就是在用哪类工具（读代码、跑命令、测试…）</div>
+      <div>圆塔 = 一类工作的地方 · 方楼 = 主要成品 · 雷达罩 = 大的调查 · 六角 = 任务大厅 · 光束 = 正在进行</div>
+      <div>传送带光点 = 工具调用 · 点一栋方楼 → 任务日记 → 「在城里重放这次请求」</div>
+    </div>
+  );
 }
 
 export function GalaxyApp() {
   const source = useStore((s) => s.source);
   const w = useStore((s) => s.w25);
+  const city = useStore((s) => s.city);
+  const entering = useEnter((s) => s.entering);
+  const [fade, setFade] = useState(false);
   const g = useMemo(() => (w ? buildGalaxy(w) : null), [w]);
   const labels = useMemo(() => (g ? labelsOf(g) : []), [g]);
   const ov = useMemo(() => (g ? overviewOf(g) : null), [g]);
+  const cp = city && g ? g.planets.get(city) : undefined;
+  const cityLayout = cp && w ? w.layouts.get(cp.key) : undefined;
+  const cityLabels = useMemo(() => (cp && cityLayout ? cityLabelsOf(cp, cityLayout) : []), [cp, cityLayout]);
+  // a planet was clicked: fly there, fade, open its city
+  useEffect(() => {
+    if (!entering) return;
+    const a = setTimeout(() => setFade(true), 800);
+    const b = setTimeout(() => {
+      useStore.getState().setCity(entering);
+      useEnter.getState().clear();
+      setTimeout(() => setFade(false), 80);
+    }, 1080);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, [entering]);
+  // a replay belongs to its city
+  useEffect(() => {
+    const r = useReplay.getState().r;
+    if (r && r.district !== city) useReplay.getState().stop();
+  }, [city]);
+  const leave = () => {
+    setFade(true);
+    setTimeout(() => {
+      useReplay.getState().stop();
+      useStore.getState().setCity(null);
+      setTimeout(() => setFade(false), 80);
+    }, 260);
+  };
   if (!g || !ov) return null;
-  // test hook: planet keys, biggest first
+  cityTowns.clear();
+  for (const k of g.planets.keys()) cityTowns.add(k);
+  (window as unknown as { __agentTownSpots?: unknown }).__agentTownSpots = (town?: string) => spotsOnScreen(g, town);
+  // test hooks: planets with work in progress; planet keys, biggest first
+  (window as unknown as { __galaxyLive?: string[] }).__galaxyLive = [...g.planets.values()].filter((p) => p.live).map((p) => p.key);
   (window as unknown as { __galaxyKeys?: string[] }).__galaxyKeys = [...g.planets.values()].sort((a, b) => b.town.counts.produced - a.town.counts.produced).map((p) => p.key);
   const cam = ov.center.clone().addScaledVector(VIEW_DIR, ov.dist);
   return (
     <div className="app galaxy" onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}>
-      <Canvas flat dpr={DPR} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ position: [cam.x, cam.y, cam.z], fov: 38, near: 0.05, far: 12000 }}>
-        <GalaxyScene g={g} />
-        <Projector labels={labels} g={g} />
+      <Canvas flat shadows dpr={DPR} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ position: [cam.x, cam.y, cam.z], fov: 38, near: 0.05, far: 12000 }}>
+        {cp && cityLayout && w ? (
+          <>
+            <CityScene key={cp.key} p={cp} layout={cityLayout} w={w} />
+            <CityProjector labels={cityLabels} />
+          </>
+        ) : (
+          <>
+            <GalaxyScene g={g} />
+            <Projector labels={labels} g={g} />
+          </>
+        )}
       </Canvas>
-      <Labels labels={labels} />
+      {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
       <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
-      <ViewSwitch to="town" />
-      <ShellMeter g={g} />
-      <FocusBar g={g} />
-      <Legend />
+      {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
+      {cp ? <CityLegend /> : <Legend />}
+      <ReplayBar />
+      <div className={`g-fade${fade ? " on" : ""}`} />
       <GalaxyHoverCard g={g} />
       <Diary />
       <TimelineBar />

@@ -8,6 +8,8 @@ import { ROLE_NAMES } from "../../../schema/src/world.ts";
 import themes from "../../../../config/themes.json" with { type: "json" };
 import type { ThemesConfig } from "../../../schema/src/themes.ts";
 import { fetchRequest } from "../data.ts";
+import { cityPlaces } from "../city/cityData.ts";
+import { cityTowns, useReplay } from "../city/cityReplay.ts";
 import { useStore } from "../store.ts";
 import { requestDiaries, type Diary, type DiaryStep } from "../ui/diaryModel.ts";
 import { TokenRows } from "../ui/HoverCard.tsx";
@@ -87,13 +89,14 @@ export function RequestDiary({ district, requestId }: { district: string; reques
   const w = useStore((s) => s.w25);
   const liveTasks = useStore((s) => s.live);
   const r = w?.requests.get(requestId);
-  const [got, setGot] = useState<{ id: string; diaries?: Diary[]; error?: string } | null>(null);
+  const [got, setGot] = useState<{ id: string; diaries?: Diary[]; events?: AgentTownEvent[]; error?: string } | null>(null);
+  const city = useStore((s) => s.city);
   useEffect(() => {
     if (!r) return;
     let alive = true;
     setGot({ id: requestId });
     fetchRequest(requestId, r.taskIds)
-      .then((evs: AgentTownEvent[]) => alive && setGot({ id: requestId, diaries: requestDiaries(evs, r.taskIds, liveTasks) }))
+      .then((evs: AgentTownEvent[]) => alive && setGot({ id: requestId, diaries: requestDiaries(evs, r.taskIds, liveTasks), events: evs }))
       .catch((e: unknown) => alive && setGot({ id: requestId, error: e instanceof Error ? e.message : String(e) }));
     return () => {
       alive = false;
@@ -108,6 +111,17 @@ export function RequestDiary({ district, requestId }: { district: string; reques
       <small>{town ? `${town.faction === "codex" ? "Codex" : "Claude Code"} · ${town.name}` : ""}</small>
       <h3>{r.title ?? "（无标题）"}</h3>
       <RequestLines r={r} live={w!.live.has(r.requestId)} />
+      {got?.id === requestId && got.events?.length && cityTowns.has(district) ? (
+        <button
+          className="replay-btn" data-testid="city-replay"
+          onClick={() => {
+            const layout = useStore.getState().w25?.layouts.get(district);
+            if (!layout) return;
+            useReplay.getState().start(district, requestId, r.title ?? "（无标题）", got.events!, cityPlaces(layout, requestId));
+            if (useStore.getState().city !== district) useStore.getState().setCity(district);
+          }}
+        >▶ {city === district ? "在城里重放这次请求" : "进城重放这次请求"}</button>
+      ) : null}
       {got?.error ? <p className="muted">读取记录失败：{got.error}</p> : !ds ? <p className="muted">正在读取任务记录…</p> : (
         <section>
           <h4>经过 · {ds.length} 轮 · {steps} 步</h4>
