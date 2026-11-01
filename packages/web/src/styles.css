@@ -200,3 +200,73 @@ canvas { display: block; }
 
 .legend { top: auto; right: auto; left: 14px; bottom: 96px; max-width: 520px; }
 .label span { margin-left: 5px; font-weight: 400; color: #8a6a4a; }
+
+/* ---- star-system view (spike) ---------------------------------------------------------------- */
+.view-switch {
+  position: absolute; top: 14px; right: 14px; z-index: 20; padding: 6px 12px; font-size: 13px; text-decoration: none;
+  border-radius: 999px; background: #1d2433; color: #e8f0ff; border: 1px solid #39465f;
+}
+.app:not(.galaxy) .legend { top: 52px; }
+.galaxy {
+  --ink: #e6eefc; --mute: #8fa3c4; --panel: rgba(10, 16, 30, 0.78); --line: rgba(130, 170, 240, 0.22);
+  background: #02040a !important; color: var(--ink);
+}
+.galaxy .hud, .galaxy .legend, .galaxy .card, .galaxy .bar, .galaxy .diary, .galaxy .g-meter {
+  backdrop-filter: blur(10px) saturate(1.3); -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.galaxy .hud b { color: #f4f8ff; letter-spacing: 0.02em; }
+.galaxy .demo-badge { background: rgba(255, 196, 92, 0.12); border-color: rgba(255, 196, 92, 0.35); color: #ffd58a; }
+.galaxy .view-switch { background: rgba(10, 16, 30, 0.78); border-color: var(--line); backdrop-filter: blur(10px); }
+.galaxy .view-switch:hover, .view-switch:hover { border-color: #7fb4ff; }
+.galaxy .legend { top: auto; bottom: 84px; right: 14px; max-width: 470px; font-size: 11.5px; line-height: 1.75; color: #c7d4ea; }
+.galaxy .legend b { color: #fff; }
+.galaxy .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 2px 0 4px; box-shadow: 0 0 6px currentColor; }
+.galaxy .bar button, .galaxy .bar select { background: rgba(255, 255, 255, 0.06); color: var(--ink); border-color: var(--line); }
+.galaxy .diary { background: rgba(10, 16, 30, 0.86); border: 1px solid var(--line); color: var(--ink); }
+.galaxy .diary .meta, .galaxy .diary .muted, .galaxy .diary header small { color: var(--mute); }
+.galaxy .card .task, .galaxy .card .target { background: rgba(255, 255, 255, 0.06); }
+.galaxy .card .muted { color: var(--mute); font-size: 11.5px; margin-top: 4px; }
+.galaxy .card .bad, .galaxy .diary .bad { color: #ff8a8a; }
+.galaxy .nav button { background: rgba(10, 16, 30, 0.78); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+.g-meter {
+  position: absolute; left: 14px; top: 52px; padding: 8px 12px; font-size: 11.5px; color: var(--mute);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 6px;
+}
+.g-meter div { display: grid; grid-template-columns: 120px 120px auto; align-items: center; gap: 8px; }
+.g-meter i { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.g-meter em { display: block; height: 100%; box-shadow: 0 0 8px currentColor; }
+.g-meter b { color: var(--ink); font-weight: 600; }
+.g-star, .g-planet, .g-tag { white-space: nowrap; text-align: center; pointer-events: none; }
+.g-star b {
+  display: block; font-size: 15px; font-weight: 600; letter-spacing: 0.18em; color: #fff;
+  text-shadow: 0 0 12px rgba(255, 170, 110, 0.8);
+}
+.g-star.f-codex b { text-shadow: 0 0 12px rgba(110, 190, 255, 0.85); }
+.g-star span { font-size: 11px; color: #c2cee6; letter-spacing: 0.06em; }
+.g-planet { display: flex; flex-direction: column; align-items: center; gap: 1px; padding-bottom: 6px; }
+.g-planet::after { content: ""; width: 1px; height: 8px; background: linear-gradient(rgba(255,255,255,0.5), transparent); }
+.g-planet b { font-size: 12px; font-weight: 600; color: #f2f6ff; text-shadow: 0 1px 3px #000, 0 0 8px rgba(0,0,0,0.8); }
+.g-planet span { font-size: 10px; color: #9fb0cc; text-shadow: 0 1px 2px #000; }
+.g-planet.live b::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; background: #5ef2a0; box-shadow: 0 0 8px #5ef2a0; vertical-align: 1px; }
+.g-tag {
+  font-size: 11px; padding: 2px 7px; border-radius: 4px; color: #eaf2ff;
+  background: rgba(8, 14, 28, 0.72); border: 1px solid rgba(140, 190, 255, 0.28); backdrop-filter: blur(4px);
+}
+.g-tag span { margin-left: 5px; color: #9fd8ff; font-variant-numeric: tabular-nums; }
+.galaxy .demo-badge { background: rgba(10, 16, 30, 0.82); backdrop-filter: blur(8px); }
+.galaxy .legend { left: 14px; right: auto; }
+.g-legend .g-x { float: right; margin-left: 12px; font: inherit; font-size: 11px; color: var(--mute); background: none; border: 0; cursor: pointer; }
+.g-legend-min { font: inherit; font-size: 12px; color: var(--ink); cursor: pointer; }
+.g-badge { width: 1.05em; height: 1.05em; margin-right: 5px; vertical-align: -0.16em; filter: drop-shadow(0 0 4px currentColor); }
+.g-star .g-badge { width: 1.2em; height: 1.2em; }
+.g-focus, .g-hint {
+  position: absolute; top: 92px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 15;
+}
+.g-hint { font-size: 11.5px; color: #8fa3c4; letter-spacing: 0.04em; pointer-events: none; text-shadow: 0 1px 3px #000; }
+.g-focus button {
+  font: inherit; font-size: 13px; padding: 5px 14px; border-radius: 999px; cursor: pointer;
+  background: rgba(10, 16, 30, 0.82); color: #e6eefc; border: 1px solid rgba(130, 170, 240, 0.35); backdrop-filter: blur(8px);
+}
+.g-focus button:hover { border-color: #7fb4ff; }
+.g-focus span { font-size: 14px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px #000; }

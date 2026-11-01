@@ -5,6 +5,7 @@ import { HoverCard } from "./ui/HoverCard.tsx";
 import { Hud, Nav, TimelineBar } from "./ui/Chrome.tsx";
 import { Labels25, LabelProjector25, useLabels } from "./v3/Labels25.tsx";
 import { Camera25, VIEW, World25View } from "./v3/World25.tsx";
+import { GalaxyApp, ViewSwitch } from "./galaxy/GalaxyApp.tsx";
 
 /** advances the playback clock once per rendered frame */
 function Clock() {
@@ -30,6 +31,10 @@ const DPR: [number, number] = Q.has("dpr") ? [1, Number(Q.get("dpr"))] : [1, 2];
 const C = VIEW.clone().multiplyScalar(1000);
 
 export function App() {
+  return Q.get("view") === "galaxy" ? <GalaxyApp /> : <TownApp />;
+}
+
+function TownApp() {
   const source = useStore((s) => s.source);
   const w = useStore((s) => s.w25);
   const labels = useLabels(w);
@@ -49,6 +54,7 @@ export function App() {
       <Hud />
       <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       <Nav />
+      <ViewSwitch to="galaxy" />
       <Legend />
       <HoverCard />
       <Diary />
