@@ -96,6 +96,7 @@ export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, s
       case "task_start":
         r.turns++;
         if (e.taskId === id && e.title) r.title = e.title;
+        if (!r.cwd && e.cwd) r.cwd = e.cwd;
         break;
       case "task_end":
         a.ended.add(e.taskId);

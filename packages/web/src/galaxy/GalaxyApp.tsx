@@ -19,6 +19,8 @@ import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx"
 import { cityTowns, REPLAY_SPEEDS, useEnter, useReplay } from "../city/cityReplay.ts";
 import { GalaxyScene, orbit, overviewOf, SHELL_FACES, spinOf, VIEW_DIR } from "./Galaxy.tsx";
 import { absTime } from "../store.ts";
+import { NeedsYou, Toast } from "../ui/NeedsYou.tsx";
+import { Settings } from "../ui/Settings.tsx";
 
 const T = themes as ThemesConfig;
 const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
@@ -146,7 +148,7 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
   return null;
 }
 
-function Badge({ f }: { f: "claude-code" | "codex" }) {
+export function Badge({ f }: { f: "claude-code" | "codex" }) {
   const m = MARKS[f];
   return (
     <svg className="g-badge" viewBox={m.viewBox} aria-hidden="true" style={{ color: FACTION_COLOR[f] }}>
@@ -400,6 +402,9 @@ export function GalaxyApp() {
       <GalaxyHoverCard g={g} />
       <Diary />
       <TimelineBar />
+      <NeedsYou />
+      {source === "real" ? <Settings /> : null}
+      <Toast />
     </div>
   );
 }

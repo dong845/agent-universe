@@ -1,7 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
-import { loadWorld, ServerDown, type Progress } from "./data.ts";
+import { loadWorld, ServerDown, subscribe, type Progress } from "./data.ts";
+import type { Attention } from "../../schema/src/attention.ts";
 import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { orbit } from "./galaxy/Galaxy.tsx";
@@ -22,6 +23,8 @@ try {
 }
 const store = useStore.getState();
 store.load(payload);
+// real data: newer worlds and the "需要你" list arrive as the logs change
+if (payload.source === "real") subscribe({ world: (p) => useStore.getState().reload(p), attention: (a) => useStore.getState().setAttention(a) });
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
 if (q.has("speed")) store.setSpeed(Number(q.get("speed")));
@@ -80,6 +83,8 @@ window.__agentTown = {
   orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
+  /** the "需要你" list, as the server's stream would set it */
+  setAttention: (a: Attention[]) => useStore.getState().setAttention(a),
   setSpeed: (n: number) => useStore.getState().setSpeed(n),
   select: (s: Selection | null) => useStore.getState().select(s),
   setTime: (t: number) => useStore.getState().setTime(t),

@@ -585,7 +585,32 @@ function PlanetView({ p, s }: { p: Planet; s: StarSystem }) {
         <sprite material={bead} scale={0.014 + 0.004 * p.radius} raycast={noRay} />
         {ring && ringGeo ? <mesh geometry={ringGeo} material={ring} rotation={[-Math.PI / 2 + 0.25, 0, 0]} raycast={noRay} /> : null}
       </group>
+      <NeedRing p={p} />
     </group>
+  );
+}
+
+/** a pulsing amber ring around a planet whose agent needs the owner (spec 2026-11-01 A4) */
+const NEED_RING = new THREE.RingGeometry(1.0, 1.025, 128);
+const NEED_MAT: Record<string, THREE.MeshBasicMaterial> = {
+  urgent: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffb648").multiplyScalar(2.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
+  calm: new THREE.MeshBasicMaterial({ color: new THREE.Color("#7fd0ff").multiplyScalar(1.8), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
+};
+function NeedRing({ p }: { p: Planet }) {
+  const state = useStore((s) => s.attention.find((a) => `${a.faction}|${a.projectId}` === p.key)?.state);
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const m = ref.current;
+    if (!m) return;
+    const k = (clock.elapsedTime * 0.8) % 1;
+    m.scale.setScalar(p.radius * (1.3 + k * 0.7));
+    (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - k) * (1 - k);
+  });
+  if (!state) return null;
+  return (
+    <Billboard>
+      <mesh ref={ref} geometry={NEED_RING} material={state === "turn-done" ? NEED_MAT.calm : NEED_MAT.urgent} raycast={noRay} />
+    </Billboard>
   );
 }
 

@@ -285,8 +285,44 @@ canvas { display: block; }
 .g-replay input { flex: 1; }
 .g-replay button, .g-replay select { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 6px; background: rgba(255,255,255,0.06); color: #e6eefc; border: 1px solid rgba(130,170,240,0.3); cursor: pointer; }
 .g-replay .time { font-variant-numeric: tabular-nums; color: #9fb0cc; }
-.replay-btn { margin: 8px 0 4px; font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; background: #1f6f5c; color: #eafff7; border: 1px solid #2fbf95; }
-.replay-btn:hover { background: #24876f; }
+.replay-btn, .diary .replay-btn { margin: 8px 0 4px; font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; background: #1f6f5c; color: #eafff7; border: 1px solid #2fbf95; }
+.replay-btn:hover, .diary .replay-btn:hover { background: #24876f; }
+.diary .replay-btn + .replay-btn { margin-left: 6px; }
 .galaxy .g-legend-city { bottom: 130px; max-width: 420px; }
 .g-replay .follow { display: flex; align-items: center; gap: 4px; color: #9fb0cc; cursor: pointer; white-space: nowrap; }
 .g-fps { position: absolute; right: 14px; bottom: 74px; z-index: 30; padding: 4px 9px; border-radius: 6px; font: 600 11.5px ui-monospace, Menlo, monospace; color: #9ef0b8; background: rgba(0, 0, 0, 0.6); }
+
+/* attention (spec 2026-11-01 A4): 需要你, settings, toast */
+.g-needs {
+  position: absolute; top: 52px; right: 14px; z-index: 20; width: 340px; max-height: 50vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid rgba(255, 196, 92, 0.45); border-radius: 10px; padding: 6px;
+  backdrop-filter: blur(10px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+.g-needs header { font-size: 11.5px; color: #ffd58a; padding: 2px 6px 6px; letter-spacing: 0.06em; }
+.g-need { display: flex; align-items: stretch; gap: 4px; border-radius: 8px; margin-top: 2px; }
+.g-need-open {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 4px;
+  text-align: left; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; cursor: pointer;
+}
+.g-need-open:hover { border-color: var(--line); }
+.g-need-open b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-need-state { grid-column: 2 / 4; font-size: 11.5px; color: #ffd58a; }
+.g-need.s-turn-done .g-need-state { color: #9fd8ff; }
+.g-need.s-error .g-need-state { color: #ff8a8a; }
+.g-need-ago { font-size: 10.5px; color: var(--mute); }
+.g-need-copy { font: inherit; font-size: 11px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; cursor: pointer; white-space: nowrap; }
+.g-gear { position: absolute; top: 14px; right: 14px; z-index: 21; width: 30px; height: 30px; border-radius: 8px; font-size: 15px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); cursor: pointer; }
+.g-settings {
+  position: absolute; top: 52px; right: 14px; z-index: 22; width: 380px; padding: 12px 14px; font-size: 12px; line-height: 1.7;
+  background: rgba(10, 16, 30, 0.94); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 6px; color: var(--ink);
+}
+.g-settings label { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: start; }
+.g-settings small { grid-column: 2; color: var(--mute); font-size: 10.5px; word-break: break-all; }
+.g-settings hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
+.g-settings .muted { color: var(--mute); margin: 0; font-size: 11.5px; }
+.g-settings-note { margin: 0; color: #9fd8ff; font-size: 11.5px; word-break: break-all; }
+.g-toast { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 30; padding: 6px 14px; border-radius: 8px; font-size: 12px; color: #fff; background: rgba(20, 30, 50, 0.92); border: 1px solid var(--line); }
+/* the diary takes the right edge (360px + gutters): the attention panels move to its left */
+.g-needs.beside-diary, .g-gear.beside-diary, .g-settings.beside-diary { right: 388px; }
+/* …and below the top bar and the focus bar, which reach that far in */
+.g-needs.beside-diary, .g-settings.beside-diary { top: 140px; }

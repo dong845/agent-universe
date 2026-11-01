@@ -48,4 +48,6 @@ export interface RequestRow {
   topDir: string | null;
   turns: number;
   taskIds: string[];
+  /** the folder the session ran in, for the resume command; this machine only, never exported */
+  cwd?: string;
 }
