@@ -3,7 +3,7 @@
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** the replay clock: mm:ss into the demo, or the local date and time on real data (months of record) */
-export function clockLabel(t: number, t0: number, source: "real" | "demo"): string {
+export function clockLabel(t: number, t0: number, source: "real" | "demo" | "share"): string {
   if (source === "demo") {
     const s = Math.floor(t / 1000);
     return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
