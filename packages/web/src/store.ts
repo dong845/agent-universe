@@ -93,7 +93,8 @@ interface Store {
   shareNames: Record<string, string> | null;
   /** the unmasked world while sharing */
   realW25: World25 | null;
-  setShare(on: boolean, names?: Record<string, string>): void;
+  /** on with names: masked world + neutral emblems; on with null: real names, neutral emblems */
+  setShare(on: boolean, names?: Record<string, string> | null): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
   setPlaying(p: boolean): void;
@@ -206,9 +207,8 @@ export const useStore = create<Store>((set, get) => ({
   setShare(on, names) {
     const st = get();
     if (on) {
-      if (!names) throw new Error("setShare(true) needs the code names");
       const real = st.share ? st.realW25 : st.w25;
-      set({ share: true, shareNames: names, realW25: real, w25: real ? maskWorld(real, names) : null, selected: null, hovered: null });
+      set({ share: true, shareNames: names ?? null, realW25: real, w25: real && names ? maskWorld(real, names) : real, selected: null, hovered: null });
     } else if (st.share) {
       set({ share: false, shareNames: null, w25: st.realW25, realW25: null });
     }

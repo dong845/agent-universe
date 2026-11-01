@@ -21,6 +21,7 @@ import { GalaxyScene, orbit, overviewOf, SHELL_FACES, spinOf, VIEW_DIR } from ".
 import { absTime } from "../store.ts";
 import { NeedsYou, Toast } from "../ui/NeedsYou.tsx";
 import { Settings } from "../ui/Settings.tsx";
+import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
 
 const T = themes as ThemesConfig;
 const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
@@ -284,12 +285,16 @@ const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); ret
 /** the bar over a replayed request: play/pause, speed, position, close */
 function ReplayBar() {
   const r = useReplay((s) => s.r);
+  // in share mode the bar shows the masked title too (the world copy holds it)
+  const shown = useStore((s) => (r && s.share ? s.w25?.requests.get(r.requestId)?.title : undefined));
+  const recording = useRecordUi((s) => s.running);
   if (!r) return null;
+  const title = shown ?? r.title;
   const end = r.tl.duration;
   return (
     <div className="g-replay" data-testid="replay-bar">
       <span className="tag">重放</span>
-      <b title={r.title}>{r.title}</b>
+      <b title={title}>{title}</b>
       <button onClick={() => useReplay.getState().toggle()} aria-label={r.playing ? "暂停" : "播放"}>{r.playing ? "❚❚" : "▶"}</button>
       <button onClick={() => useReplay.getState().next()} title="跳到下一步动作" data-testid="replay-next">⏭ 下一步</button>
       <select value={r.speed} onChange={(e) => useReplay.getState().setSpeed(Number(e.target.value))} aria-label="重放倍速">
@@ -298,6 +303,7 @@ function ReplayBar() {
       <input type="range" min={0} max={Math.max(1, end)} step={100} value={Math.min(r.t, end)} onChange={(e) => useReplay.getState().seek(Number(e.target.value))} aria-label="重放进度" />
       <span className="time" title={r.cut ? `长于 5 秒的空闲已压缩，共省去 ${mmss(r.cut)}` : undefined}>{mmss(Math.min(r.t, end))} / {mmss(end)}{r.cut ? " · 已压缩空闲" : ""}</span>
       <label className="follow"><input type="checkbox" checked={r.follow} onChange={(e) => useReplay.getState().setFollow(e.target.checked)} />跟随</label>
+      <button onClick={() => useRecordUi.getState().open()} disabled={recording} data-testid="rec-open" title="把这次重放录成视频或动图">● 录制</button>
       <button onClick={() => useReplay.getState().stop()} aria-label="结束重放">✕</button>
     </div>
   );
@@ -384,6 +390,7 @@ export function GalaxyApp() {
           <>
             <CityScene key={cp.key} p={cp} layout={cityLayout} w={w} sys={g.systems.find((s) => s.faction === cp.town.faction)} />
             <CityProjector labels={cityLabels} />
+            <RecordHost />
           </>
         ) : (
           <>
@@ -403,6 +410,7 @@ export function GalaxyApp() {
       <GalaxyHoverCard g={g} />
       <Diary />
       <TimelineBar />
+      <RecordDialog />
       <NeedsYou />
       {source === "real" ? <Settings /> : null}
       <Toast />
