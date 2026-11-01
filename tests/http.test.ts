@@ -259,3 +259,24 @@ describe("share page export route", () => {
     expect((await r.json()).error).toContain("city");
   });
 });
+
+describe("a failed reload keeps the last good world (review I1)", () => {
+  it("still serves the world and stays ready", async () => {
+    let n = 0;
+    const s2 = createServer({
+      load: async (onProgress) => {
+        if (n++ > 0) throw new Error("session file vanished mid-read");
+        return loadEventsAsync({ claudeRoot: join(root, "claude"), codexRoot: join(root, "codex"), cacheDir: null, onProgress, assign: { home: root, tempRoots: [] } });
+      },
+      staticDir: null,
+      themesFile,
+    });
+    await new Promise<void>((r) => s2.server.listen(0, "127.0.0.1", r));
+    const base2 = `http://127.0.0.1:${(s2.server.address() as AddressInfo).port}`;
+    for (let i = 0; i < 100 && s2.state().phase !== "ready"; i++) await new Promise((r) => setTimeout(r, 20));
+    await s2.reload();
+    expect(s2.state().phase).toBe("ready");
+    expect((await fetch(`${base2}/api/world`)).status).toBe(200);
+    s2.server.close();
+  });
+});

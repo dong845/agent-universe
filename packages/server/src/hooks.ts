@@ -6,7 +6,7 @@
 // backup; uninstalling removes only entries whose command carries HOOK_MARKER. The command posts the
 // hook's own stdin JSON to Agent Town and can never hold the agent up: 1 s timeout, no output (a Stop
 // hook's stdout could be read as a decision), always exit 0.
-import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 
 export const HOOK_MARKER = "agent-town-hook";
 export type HookAgent = "claude" | "codex";
@@ -37,10 +37,29 @@ function readHookFile(file: string): { json: HookFile; existed: boolean } {
   return { json: v, existed: true };
 }
 
-function writeAtomic(file: string, json: unknown): void {
-  const tmp = `${file}.agent-town.tmp`;
-  writeFileSync(tmp, JSON.stringify(json, null, 2) + "\n");
-  renameSync(tmp, file);
+/** what the file was when read: a write is refused if it changed since (Claude Code writes it too) */
+type Seen = { mtimeMs: number; size: number } | null;
+const seenOf = (file: string): Seen => (existsSync(file) ? (({ mtimeMs, size }) => ({ mtimeMs, size }))(statSync(file)) : null);
+
+/** test seam: runs between reading and writing */
+export interface WriteHooks { beforeWrite?: () => void }
+
+/**
+ * Replaces the file's content atomically while keeping what the file is: through a symlink to its
+ * target (a dotfile manager's link stays a link), with the original permissions (a 0600 file holding
+ * tokens stays 0600), and only if nobody changed it since it was read.
+ */
+function writeAtomic(file: string, json: unknown, seen: Seen, w: WriteHooks = {}): void {
+  w.beforeWrite?.();
+  const target = existsSync(file) ? realpathSync(file) : file;
+  const now = seenOf(target);
+  if ((seen === null) !== (now === null) || (seen && now && (seen.mtimeMs !== now.mtimeMs || seen.size !== now.size))) {
+    throw new Error(`${file} 在读取后又被改动了（可能是 Claude Code 或 Codex 正在写它），没有写入，请再试一次`);
+  }
+  const tmp = `${target}.agent-town.tmp`;
+  writeFileSync(tmp, JSON.stringify(json, null, 2) + "\n", { mode: 0o600 });
+  if (now) chmodSync(tmp, statSync(target).mode & 0o777);
+  renameSync(tmp, target);
 }
 
 /** a backup path that never overwrites an earlier backup */
@@ -51,7 +70,8 @@ function backupPath(file: string): string {
   return `${file}.agent-town.${stamp}.bak`;
 }
 
-export function installHooks(file: string, agent: HookAgent): { added: string[]; backup: string | null } {
+export function installHooks(file: string, agent: HookAgent, w: WriteHooks = {}): { added: string[]; backup: string | null } {
+  const seen = seenOf(existsSync(file) ? realpathSync(file) : file);
   const { json, existed } = readHookFile(file);
   const hooks = (json.hooks ??= {});
   const added: string[] = [];
@@ -68,12 +88,13 @@ export function installHooks(file: string, agent: HookAgent): { added: string[];
     backup = backupPath(file);
     copyFileSync(file, backup);
   }
-  writeAtomic(file, json);
+  writeAtomic(file, json, seen, w);
   return { added, backup };
 }
 
-export function uninstallHooks(file: string): { removed: number } {
+export function uninstallHooks(file: string, w: WriteHooks = {}): { removed: number } {
   if (!existsSync(file)) return { removed: 0 };
+  const seen = seenOf(realpathSync(file));
   const { json } = readHookFile(file);
   if (!json.hooks) return { removed: 0 };
   let removed = 0;
@@ -86,7 +107,7 @@ export function uninstallHooks(file: string): { removed: number } {
   }
   if (!removed) return { removed };
   if (!Object.keys(json.hooks).length) delete json.hooks;
-  writeAtomic(file, json);
+  writeAtomic(file, json, seen, w);
   return { removed };
 }
 

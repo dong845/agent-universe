@@ -150,8 +150,15 @@ export function createServer(o: ServerOptions) {
         if (!attention.length) send("attention", attention);
       })
       .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        // a watched reload that fails keeps the last good world (and its alerts); only a first load errors
+        if (payload) {
+          state.phase = "ready";
+          console.error(`重新读取日志失败，继续显示上一次的世界：${message}`);
+          return;
+        }
         state.phase = "error";
-        state.error = err instanceof Error ? err.message : String(err);
+        state.error = message;
       })
       .finally(() => {
         loading = null;

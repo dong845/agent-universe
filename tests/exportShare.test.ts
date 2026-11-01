@@ -47,3 +47,11 @@ describe("buildShareHtml", () => {
     expect(() => buildShareHtml(fakeDist(2), payload())).toThrow(/一个脚本/);
   });
 });
+
+describe("a bundle the HTML parser could misread (review I4)", () => {
+  it("refuses a script containing <!-- instead of writing a page that never starts", () => {
+    const d = fakeDist();
+    writeFileSync(join(d, "assets", "index-0.js"), 'const a = "<!--"; const b = "<script>";');
+    expect(() => buildShareHtml(d, payload())).toThrow(/<!--/);
+  });
+});

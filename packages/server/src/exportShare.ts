@@ -33,6 +33,9 @@ export function buildShareHtml(dist: string, payload: WorldPayload, maxBytes = S
   if (scripts.length !== 1) throw new Error(`分享页需要网页构建只有一个脚本，现在有 ${scripts.length} 个（检查 vite 的分包设置）`);
   const styles = [...index.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"[^>]*>/g)];
   const js = readFileSync(join(dist, scripts[0][1]), "utf8");
+  // inside a <script> block, "<!--" sends the HTML parser into a state where a later "<script" makes
+  // the block's own end tag invisible: the page would never start. Refuse loudly rather than write it.
+  if (/<!--/.test(js)) throw new Error("网页程序里含有 <!--，内联进分享页会让页面无法启动；请检查最近更新的依赖");
   const css = styles.map((m) => readFileSync(join(dist, m[1]), "utf8")).join("\n");
   const models = Object.fromEntries(SHARE_MODELS.map((m) => [m, readFileSync(join(dist, "models", `${m}.glb`)).toString("base64")]));
 

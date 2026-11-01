@@ -1,6 +1,6 @@
 // The optional precise hooks (spec 2026-11-01 A3): merged into the owner's own hook file, backed up,
 // removable without touching anything else. Temp files only.
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -75,5 +75,32 @@ describe("install / uninstall", () => {
     writeFileSync(f, "{ not json");
     expect(() => installHooks(f, "claude")).toThrow();
     expect(readFileSync(f, "utf8")).toBe("{ not json");
+  });
+});
+
+describe("install keeps the file's own nature (review I3)", () => {
+  it("keeps a private file private", () => {
+    const f = join(dir(), "settings.json");
+    writeFileSync(f, "{}", { mode: 0o600 });
+    installHooks(f, "claude");
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+    uninstallHooks(f);
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+  });
+  it("writes through a symlink instead of replacing it", () => {
+    const d = dir();
+    const real = join(d, "dotfiles-settings.json");
+    writeFileSync(real, "{}");
+    const link = join(d, "settings.json");
+    symlinkSync(real, link);
+    installHooks(link, "claude");
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(readFileSync(real, "utf8")).toContain(HOOK_MARKER);
+  });
+  it("refuses when the file changed between reading and writing", () => {
+    const f = join(dir(), "settings.json");
+    writeFileSync(f, '{"a":1}');
+    expect(() => installHooks(f, "claude", { beforeWrite: () => writeFileSync(f, '{"a":2,"b":3}') })).toThrow(/改动/);
+    expect(JSON.parse(readFileSync(f, "utf8"))).toEqual({ a: 2, b: 3 });
   });
 });
