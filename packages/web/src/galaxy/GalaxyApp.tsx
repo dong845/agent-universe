@@ -253,6 +253,29 @@ function Legend() {
 const Q = new URLSearchParams(location.search);
 const DPR: [number, number] = Q.has("dpr") ? [1, Number(Q.get("dpr"))] : [1, 2];
 
+/** `?fps=1`: frames per second and the slowest frames, measured in this browser */
+function FpsMeter() {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    let raf = 0, last = performance.now();
+    const gaps: number[] = [];
+    const tick = (now: number) => {
+      gaps.push(now - last);
+      last = now;
+      if (gaps.length >= 120) {
+        const s = [...gaps].sort((a, b) => a - b);
+        const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+        setText(`${(1000 / mean).toFixed(0)} fps · p95 ${s[Math.floor(s.length * 0.95)].toFixed(1)} ms · DPR ${devicePixelRatio}`);
+        gaps.length = 0;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <div className="g-fps" data-testid="fps">{text || "测量中…"}</div>;
+}
+
 const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 /** the bar over a replayed request: play/pause, speed, position, close */
@@ -265,6 +288,7 @@ function ReplayBar() {
       <span className="tag">重放</span>
       <b title={r.title}>{r.title}</b>
       <button onClick={() => useReplay.getState().toggle()} aria-label={r.playing ? "暂停" : "播放"}>{r.playing ? "❚❚" : "▶"}</button>
+      <button onClick={() => useReplay.getState().next()} title="跳到下一步动作" data-testid="replay-next">⏭ 下一步</button>
       <select value={r.speed} onChange={(e) => useReplay.getState().setSpeed(Number(e.target.value))} aria-label="重放倍速">
         {REPLAY_SPEEDS.map((x) => <option key={x} value={x}>{x}×</option>)}
       </select>
@@ -355,7 +379,7 @@ export function GalaxyApp() {
       <Canvas flat shadows dpr={DPR} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ position: [cam.x, cam.y, cam.z], fov: 38, near: 0.05, far: 12000 }}>
         {cp && cityLayout && w ? (
           <>
-            <CityScene key={cp.key} p={cp} layout={cityLayout} w={w} />
+            <CityScene key={cp.key} p={cp} layout={cityLayout} w={w} sys={g.systems.find((s) => s.faction === cp.town.faction)} />
             <CityProjector labels={cityLabels} />
           </>
         ) : (
@@ -372,6 +396,7 @@ export function GalaxyApp() {
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
       <div className={`g-fade${fade ? " on" : ""}`} />
+      {Q.get("fps") === "1" ? <FpsMeter /> : null}
       <GalaxyHoverCard g={g} />
       <Diary />
       <TimelineBar />

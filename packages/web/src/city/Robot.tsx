@@ -20,7 +20,7 @@ const GEO = {
 };
 const glow = (hex: string, k = 2.6) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), toneMapped: false });
 /** the model is about one unit tall; robots stand this many times bigger in the city */
-const SCALE = { main: 1.9, sub: 1.4 };
+const SCALE = { main: 1.15, sub: 0.85 };
 
 export interface RobotInfo {
   /** world position of the bubble anchor */

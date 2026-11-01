@@ -445,6 +445,132 @@ def _():
         finish(o, "Ground", smooth=False)
 
 
+# ---- second designs for the houses (the city picks one per request) ---------------------------------------------
+@piece("house_s_b")
+def _():
+    # a pod house: rounded body under an arched roof, a porch light
+    box((0.86, 0.86, 0.06), (0, 0, 0.03), "Dark", bevel=0.012)
+    box((0.74, 0.7, 0.42), (0, 0, 0.27), "Hull", bevel=0.09, segments=5)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.36, depth=0.78, location=(0, 0, 0.48), rotation=(0, math.radians(90), 0))
+    o = bpy.context.active_object
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.x > 1e-4], context="VERTS")
+    bm.to_mesh(o.data)
+    bm.free()
+    finish(o, "Panel")
+    box((0.8, 0.03, 0.03), (0, -0.33, 0.47), "Accent")
+    box((0.22, 0.02, 0.24), (0, -0.355, 0.18), "Glass", bevel=0.01)
+    box((0.3, 0.012, 0.02), (0, -0.36, 0.31), "Light")
+    for x in (-0.25, 0.25):
+        box((0.12, 0.012, 0.1), (x, -0.355, 0.27), "Glass", bevel=0.006)
+
+
+@piece("house_m_b")
+def _():
+    # twin towers joined by a sky bridge
+    box((0.9, 0.9, 0.06), (0, 0, 0.03), "Dark", bevel=0.012)
+    for x in (-0.22, 0.22):
+        box((0.36, 0.6, 0.95), (x, 0, 0.535), "Hull", bevel=0.03)
+        for k in range(3):
+            box((0.372, 0.612, 0.02), (x, 0, 0.2 + k * 0.28), "Accent")
+        box((0.3, 0.012, 0.6), (x, -0.306, 0.45), "Glass", bevel=0.005)
+        roof = 1.01
+        box((0.3, 0.5, 0.03), (x, 0, roof + 0.015), "Panel")
+    box((0.12, 0.4, 0.14), (0, 0, 0.72), "Panel", bevel=0.015)
+    box((0.122, 0.402, 0.02), (0, 0, 0.72), "Light")
+    cyl(0.006, 0.2, (0.22, 0.15, 1.13), "Dark", verts=6)
+    ball(0.014, (0.22, 0.15, 1.23), "Light", segs=10)
+
+
+@piece("house_l_b")
+def _():
+    # a round tower with balcony rings and a crown
+    cyl(0.46, 0.06, (0, 0, 0.03), "Dark", verts=40)
+    cyl(0.36, 1.55, (0, 0, 0.835), "Hull", verts=40)
+    for k in range(5):
+        z = 0.3 + k * 0.27
+        cyl(0.43, 0.025, (0, 0, z), "Panel", verts=40)
+        cyl(0.365, 0.05, (0, 0, z + 0.05), "Accent", verts=40)
+    box((0.2, 0.03, 0.2), (0, -0.36, 0.13), "Light")
+    cyl(0.3, 0.12, (0, 0, 1.67), "Panel", verts=40, r2=0.18)
+    cyl(0.18, 0.05, (0, 0, 1.75), "Accent", verts=32)
+    cyl(0.007, 0.3, (0, 0, 1.9), "Dark", verts=6)
+    ball(0.02, (0, 0, 2.05), "Light", segs=10)
+
+
+# ---- a living city: plaza pieces, greenery, traffic, the horizon -------------------------------------------------
+@piece("fountain")
+def _():
+    # a holo fountain: a basin, glowing water, a ring sculpture floating over it
+    cyl(0.5, 0.1, (0, 0, 0.05), "Panel", verts=48)
+    cyl(0.42, 0.06, (0, 0, 0.08), "Dark", verts=48)
+    cyl(0.4, 0.012, (0, 0, 0.11), "Accent", verts=48)
+    cyl(0.05, 0.3, (0, 0, 0.25), "Metal", verts=16)
+    torus(0.2, 0.02, (0, 0, 0.5), "Accent", rot=(math.radians(70), 0, 0))
+    torus(0.15, 0.015, (0, 0, 0.5), "Accent", rot=(0, math.radians(70), 0))
+    ball(0.05, (0, 0, 0.5), "Light", segs=14)
+
+
+@piece("bench")
+def _():
+    box((0.5, 0.16, 0.03), (0, 0, 0.16), "Panel", bevel=0.008)
+    box((0.5, 0.03, 0.12), (0, 0.07, 0.24), "Panel", bevel=0.008)
+    for x in (-0.2, 0.2):
+        box((0.03, 0.14, 0.15), (x, 0, 0.075), "Dark")
+
+
+@piece("tree")
+def _():
+    # a bio-tree: a dark trunk, a canopy of glowing pods
+    cyl(0.12, 0.08, (0, 0, 0.04), "Dark", verts=16)
+    cyl(0.035, 0.6, (0, 0, 0.36), "Dark", verts=8, r2=0.02)
+    for k, (x, y, z, r) in enumerate(((0, 0, 0.72, 0.17), (0.13, 0.05, 0.62, 0.11), (-0.12, -0.04, 0.6, 0.12), (0.03, -0.12, 0.66, 0.1), (-0.04, 0.12, 0.84, 0.09))):
+        ball(r, (x, y, z), "Accent", segs=12)
+
+
+@piece("hovercar")
+def _():
+    ball(0.16, (0, 0, 0.18), "Hull", scale=(0.9, 1.7, 0.55), segs=20)
+    ball(0.09, (0, -0.07, 0.25), "Glass", scale=(0.9, 1.4, 0.7), segs=14)
+    box((0.26, 0.4, 0.02), (0, 0.02, 0.1), "Accent")
+    for x in (-0.12, 0.12):
+        box((0.04, 0.03, 0.02), (x, -0.27, 0.17), "Light")
+
+
+@piece("rock")
+def _():
+    # a raised rocky outcrop for the wild ground
+    for k, (x, y, s, h) in enumerate(((0, 0, 0.42, 0.55), (0.32, 0.2, 0.25, 0.32), (-0.3, 0.18, 0.22, 0.26), (0.1, -0.33, 0.2, 0.2))):
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=s, location=(x, y, h * 0.45))
+        o = bpy.context.active_object
+        o.scale = (1.0, 0.9, h / s)
+        o.rotation_euler = (0.2 * k, 0.1, 0.7 * k)
+        finish(o, "Ground", smooth=False)
+
+
+@piece("mountain")
+def _():
+    # a far mountain: low-poly, flat-shaded, a little snow
+    bpy.ops.mesh.primitive_cone_add(vertices=9, radius1=1.0, radius2=0.0, depth=1.0, location=(0, 0, 0.5))
+    o = bpy.context.active_object
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=2, use_grid_fill=True)
+    import random
+    rnd = random.Random(7)
+    for v in bm.verts:
+        if 0.02 < v.co.z < 0.98:
+            v.co.x += rnd.uniform(-0.09, 0.09)
+            v.co.y += rnd.uniform(-0.09, 0.09)
+            v.co.z += rnd.uniform(-0.05, 0.05)
+    bm.to_mesh(o.data)
+    bm.free()
+    finish(o, "Ground", smooth=False)
+    bpy.ops.mesh.primitive_cone_add(vertices=9, radius1=0.24, radius2=0.0, depth=0.24, location=(0, 0, 0.885))
+    finish(bpy.context.active_object, "Hull", smooth=False)
+
+
 # ---- props ------------------------------------------------------------------------------------------------------------
 @piece("lamp")
 def _():

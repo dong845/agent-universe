@@ -354,3 +354,16 @@ Owner: "需不需要使用 blender" → picked Blender for the robots and the bu
 Pieces stand on their own origin, front towards the city's square; within a piece the meshes are joined per material, so a city draws one InstancedMesh per piece part. `Accent` and `Ground` take a per-instance colour (product kind, kind of work, faction, the planet's ground). A studio reflection made locally (three's RoomEnvironment) lights metal and glass — no downloaded HDR. While the kit loads, the plain shapes of D18 stand in. Space (the planets' tiny cities) keeps the plain shapes.
 
 Browser test note: entering a city under the tests' software renderer (SwiftShader) keeps the page busy long enough that Playwright's wait-after-click times out; the replay test clicks from inside the page.
+
+## D20 Prettier cities, planets in the kit, retina speed (2026-11-01)
+
+Owner: smaller robots, a prettier city, and the open items done.
+
+- **Robots** 1.9 → 1.15 (subagents 0.85) of the model's size.
+- **City**: each house tier has a second design picked per request (a pod house under an arched roof; twin towers with a sky bridge; a round tower with balcony rings); two holo fountains on the square, benches, glowing bio-trees and crates; raised rocks, trees and crystals on the wild ground; low-poly snow-capped mountains in two broken rings on the horizon; hover cars gliding out and back along each street; a haze in the planet's colour; the faction's star with its Dyson shell (as built by now) hanging in the sky. 36 kit pieces, 1.9 MB.
+- **Planets in space**: the planet the camera is on wears the kit, its pieces placed on the sphere and merged into one mesh per material (a hit finds its block from the vertex index); the other planets keep the plain shapes. A faint studio reflection keeps the kit's night side readable.
+- **Replay**: "⏭ 下一步" jumps to the next thing any agent starts doing.
+- **Frame rate** (`?fps=1` shows it), headless Chrome on the M4, 1440×900, production build — headless matched a real window at DPR 1 (60 fps in space before):
+  - DPR 1: space 60 fps, the biggest city 60, the live city 60 (p95 16.8 ms).
+  - DPR 2, before: space 34, cities 29. Two causes found by measuring: 4× multisampling under the post effects (space 34 → 60 without it), and the ground beyond the city computing its noise per pixel over most of the screen (cities 37 → 54 when moved to the vertex shader of a dense disc). Shadows from tiles and props were not the cost (tried; kept off anyway, map 1024).
+  - DPR 2, after: space 60, cities 53–55 (p95 33 ms). Multisampling is now off at DPR ≥ 1.5 (`?msaa=N` overrides).

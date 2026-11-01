@@ -107,6 +107,7 @@ test("a #req= link reopens the request; an old #task= link opens the request hol
 });
 
 test("clicking a planet enters its city: buildings named, back to space works", async ({ page }) => {
+  test.slow(); // a city under the tests' software renderer draws a few frames a second
   const errors: string[] = [];
   await open(page, errors);
   const k = (await keys(page))[0];
@@ -126,6 +127,7 @@ test("clicking a planet enters its city: buildings named, back to space works", 
 });
 
 test("a request replayed in its city: a robot appears with what it is doing over its head", async ({ page }) => {
+  test.slow();
   const errors: string[] = [];
   await open(page, errors);
   const k = (await keys(page))[0];

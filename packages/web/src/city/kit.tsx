@@ -85,13 +85,16 @@ export function KitInstances({ kit, placements, town }: { kit: Kit; placements: 
   return (
     <>
       {[...byPiece.entries()].flatMap(([piece, list]) =>
-        kit.get(piece)!.map((part, i) => <PartInstances key={`${piece}|${i}|${list.length}`} part={part} list={list} town={town} />),
+        kit.get(piece)!.map((part, i) => <PartInstances key={`${piece}|${i}|${list.length}`} part={part} list={list} town={town} cast={CASTS(piece)} />),
       )}
     </>
   );
 }
 
-function PartInstances({ part, list, town }: { part: KitPart; list: Placement[]; town: string }) {
+/** only standing things cast shadows: tiles, mountains and small props would cost a shadow pass for nothing */
+const CASTS = (piece: string) => !piece.startsWith("tile_") && piece !== "mountain" && piece !== "lamp" && piece !== "crates" && piece !== "bench" && piece !== "crystal" && piece !== "rock";
+
+function PartInstances({ part, list, town, cast }: { part: KitPart; list: Placement[]; town: string; cast: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const tinted = TINTED.has(part.material);
   useLayoutEffect(() => {
@@ -112,7 +115,7 @@ function PartInstances({ part, list, town }: { part: KitPart; list: Placement[];
     <instancedMesh
       ref={ref}
       args={[part.geometry, kitMaterial(part.material), list.length]}
-      castShadow={part.material !== "Ground"}
+      castShadow={cast && part.material !== "Accent" && part.material !== "Light"}
       receiveShadow
       raycast={pickable ? undefined : () => null}
       onPointerMove={pickable ? (e) => {

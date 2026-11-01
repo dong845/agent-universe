@@ -4,7 +4,10 @@ import { Billboard, OrbitControls } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Bloom, EffectComposer, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { kitMaterial, useKit } from "../city/kit.tsx";
+import { pieceOf, StudioEnvironment } from "../city/CityKit.tsx";
 import * as THREE from "three";
 import { absTime, useStore } from "../store.ts";
 import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, type Galaxy, type Planet, type StarSystem } from "./galaxyData.ts";
@@ -42,7 +45,7 @@ const EMBLEM = {
   "claude-code": { badge: emblemGeometry("claude-code", "badge"), corona: emblemGeometry("claude-code", "corona") },
   codex: { badge: emblemGeometry("codex", "badge"), corona: emblemGeometry("codex", "corona") },
 };
-const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, fog: false });
 
 /** the faction emblem, always facing the camera, turning slowly in its own plane */
 export function Emblem({ faction, use, scale, position = [0, 0, 0], speed = 0.05 }: { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number }) {
@@ -163,11 +166,11 @@ function shellGeometry(): { geo: THREE.BufferGeometry; faces: number } {
 const SHELL_GEO = shellGeometry();
 export const SHELL_FACES = SHELL_GEO.faces;
 
-function StarView({ s }: { s: StarSystem }) {
+export function StarView({ s, light = true }: { s: StarSystem; light?: boolean }) {
   const star = useMemo(() => new THREE.ShaderMaterial({ vertexShader: STAR.vertex, fragmentShader: STAR.fragment, uniforms: { uTime: { value: 0 }, uColor: { value: col(s.color) }, uHot: { value: col("#fff6e8") } } }), [s.color]);
   const shell = useMemo(() => new THREE.ShaderMaterial({ vertexShader: SHELL.vertex, fragmentShader: SHELL.fragment, uniforms: { uCount: { value: 0 }, uColor: { value: col(s.color, 1.2) }, uTime: { value: 0 } }, side: THREE.DoubleSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), [s.color]);
-  const spriteA = useMemo(() => new THREE.SpriteMaterial({ map: glowTexture(), color: col(s.color, 2.2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }), [s.color]);
-  const spriteB = useMemo(() => new THREE.SpriteMaterial({ map: glowTexture(), color: col(s.color, 0.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }), [s.color]);
+  const spriteA = useMemo(() => new THREE.SpriteMaterial({ map: glowTexture(), color: col(s.color, 2.2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, fog: false }), [s.color]);
+  const spriteB = useMemo(() => new THREE.SpriteMaterial({ map: glowTexture(), color: col(s.color, 0.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, fog: false }), [s.color]);
   const shellRef = useRef<THREE.Mesh>(null);
   useEffect(() => () => [star, shell, spriteA, spriteB].forEach((m) => m.dispose()), [star, shell, spriteA, spriteB]);
   useFrame(({ clock }) => {
@@ -189,7 +192,7 @@ function StarView({ s }: { s: StarSystem }) {
       <sprite material={spriteB} scale={s.radius * 22} raycast={noRay} />
       <Emblem faction={s.faction} use="corona" scale={s.shellRadius * (s.faction === "codex" ? 1.55 : 1.7)} speed={0.03} />
       <mesh ref={shellRef} geometry={SHELL_GEO.geo} material={shell} scale={s.shellRadius} raycast={noRay} rotation={[0.18, 0, 0.08]} />
-      <pointLight color={col(s.color).lerp(new THREE.Color("#ffffff"), 0.6)} intensity={3.2} decay={0} distance={0} />
+      {light ? <pointLight color={col(s.color).lerp(new THREE.Color("#ffffff"), 0.6)} intensity={3.2} decay={0} distance={0} /> : null}
     </group>
   );
 }
@@ -409,14 +412,108 @@ function City({ p }: { p: Planet }) {
     beltMat.uniforms.uTime.value = clock.elapsedTime;
     beamMat.opacity = 0.22 + 0.14 * Math.sin(clock.elapsedTime * 3);
   });
+  // the planet the camera is on wears the Blender kit; the rest keep the plain shapes (too small to tell)
+  const near = useStore((s) => s.focus === p.key);
+  const plain = [...groups.entries()].map(([k, parts]) => {
+    const [geom, mat] = k.split("|") as [GeomKey, keyof typeof MATS];
+    return <Instanced key={k} parts={parts} geom={geom} mat={mat} blocks={visBlocks} town={p.key} onBlock={mat === "hull"} />;
+  });
   return (
     <>
-      {[...groups.entries()].map(([k, parts]) => {
-        const [geom, mat] = k.split("|") as [GeomKey, keyof typeof MATS];
-        return <Instanced key={k} parts={parts} geom={geom} mat={mat} blocks={visBlocks} town={p.key} onBlock={mat === "hull"} />;
-      })}
+      {near ? (
+        <Suspense fallback={plain}>
+          <PlanetKit p={p} vis={visBlocks} />
+          {[...groups.entries()].filter(([k]) => k.endsWith("|beam")).map(([k, parts]) => <Instanced key={k} parts={parts} geom={k.split("|")[0] as GeomKey} mat="beam" blocks={visBlocks} town={p.key} onBlock={false} />)}
+        </Suspense>
+      ) : plain}
       <mesh geometry={belts} material={beltMat} raycast={noRay} />
       {hall ? <Emblem faction={p.town.faction} use="badge" scale={hall.foot * 0.95} position={hall.pos} speed={0.4} /> : null}
+    </>
+  );
+}
+
+/**
+ * A planet's city in the Blender kit: every standing block's piece placed on the sphere and merged
+ * into one mesh per material (a city is drawn in a handful of calls). A hit finds its block from the
+ * vertex it landed on.
+ */
+function PlanetKit({ p, vis }: { p: Planet; vis: Block[] }) {
+  const kit = useKit();
+  const merged = useMemo(() => {
+    const byMat = new Map<string, { geos: THREE.BufferGeometry[]; starts: { at: number; block: Block }[]; count: number }>();
+    const frame = planetFrame(p.radius);
+    for (const b of vis) {
+      const parts = kit.get(pieceOf(b));
+      if (!parts) throw new Error(`the city kit has no piece "${pieceOf(b)}"`);
+      const { origin, up, q } = frame(b);
+      const k = b.foot * (b.type === "notice" ? 1.4 : 1);
+      const m = new THREE.Matrix4().compose(origin.clone().addScaledVector(up, -b.foot * 0.04), q, new THREE.Vector3(k, k, k));
+      const c = new THREE.Color(b.color);
+      for (const part of parts) {
+        const src = part.geometry;
+        if (!src.index) throw new Error("kit geometry is expected to be indexed");
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", src.getAttribute("position").clone());
+        g.setAttribute("normal", src.getAttribute("normal").clone());
+        g.setIndex(src.index.clone());
+        g.applyMatrix4(m.clone().multiply(part.local));
+        const n = g.getAttribute("position").count;
+        const col = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+        g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+        const e = byMat.get(part.material) ?? { geos: [], starts: [], count: 0 };
+        e.starts.push({ at: e.count, block: b });
+        e.count += n;
+        e.geos.push(g);
+        byMat.set(part.material, e);
+      }
+    }
+    return [...byMat.entries()].map(([mat, e]) => {
+      const geo = mergeGeometries(e.geos, false);
+      if (!geo) throw new Error(`could not merge the ${mat} parts of ${p.key}`);
+      e.geos.forEach((g) => g.dispose());
+      return { mat, geo, starts: e.starts };
+    });
+  }, [kit, vis, p]);
+  useEffect(() => () => merged.forEach((x) => x.geo.dispose()), [merged]);
+  const accent = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(2.3, 2.3, 2.3), vertexColors: true, toneMapped: false }), []);
+  useEffect(() => () => accent.dispose(), [accent]);
+  const blockAt = (starts: { at: number; block: Block }[], v: number) => {
+    let lo = 0, hi = starts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid].at <= v) lo = mid;
+      else hi = mid - 1;
+    }
+    return starts[lo]?.block;
+  };
+  return (
+    <>
+      {merged.map(({ mat, geo, starts }) => {
+        const pick = mat !== "Accent" && mat !== "Light";
+        return (
+          <mesh
+            key={mat} geometry={geo} material={mat === "Accent" ? accent : kitMaterial(mat)}
+            raycast={pick ? undefined : noRay}
+            onPointerMove={pick ? (e) => {
+              const b = e.face ? blockAt(starts, e.face.a) : undefined;
+              if (!b) return;
+              e.stopPropagation();
+              const st = useStore.getState();
+              if (st.hovered?.kind !== "spot" || st.hovered.spot !== b.spot) st.setHovered({ kind: "spot", district: p.key, spot: b.spot });
+              document.body.style.cursor = "pointer";
+            } : undefined}
+            onPointerLeave={pick ? () => { useStore.getState().setHovered(null); document.body.style.cursor = ""; } : undefined}
+            onClick={pick ? (e) => {
+              const b = e.face ? blockAt(starts, e.face.a) : undefined;
+              if (!b || e.delta > 5) return;
+              e.stopPropagation();
+              const i = b.spot.info;
+              useStore.getState().select(i.kind === "house" || i.kind === "tent" ? { kind: "request", district: p.key, requestId: i.requestId } : { kind: "town", district: p.key });
+            } : undefined}
+          />
+        );
+      })}
     </>
   );
 }
@@ -677,9 +774,18 @@ function OrbitClock() {
   return null;
 }
 
+/**
+ * multisampling under the post effects: on a high-density screen the pixels are small enough without
+ * it, and it cost space 60 → 34 fps at DPR 2 (M4, 1440×900). `?msaa=N` overrides.
+ */
+const MSAA = (() => {
+  const q = new URLSearchParams(location.search).get("msaa");
+  return q !== null ? Number(q) : window.devicePixelRatio >= 1.5 ? 0 : 4;
+})();
+
 export function Effects() {
   return (
-    <EffectComposer multisampling={4} enableNormalPass={false}>
+    <EffectComposer multisampling={MSAA} enableNormalPass={false}>
       <Bloom mipmapBlur intensity={1.05} luminanceThreshold={0.82} luminanceSmoothing={0.22} radius={0.78} />
       <Vignette offset={0.24} darkness={0.72} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
@@ -693,6 +799,8 @@ export function GalaxyScene({ g }: { g: Galaxy }) {
       <Sky />
       <Starfield />
       <ambientLight intensity={0.06} />
+      {/* a faint reflection so the kit buildings on a near planet are not black on their night side */}
+      <StudioEnvironment intensity={0.3} />
       <hemisphereLight args={["#8fb6ff", "#1a0f22", 0.12]} />
       {g.systems.map((s) => (
         <group key={s.faction}>

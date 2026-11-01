@@ -49,6 +49,8 @@ interface ReplayStore {
   setFollow(f: boolean): void;
   setSpeed(s: number): void;
   seek(t: number): void;
+  /** jump to the next thing any agent starts doing */
+  next(): void;
   tick(dtMs: number): void;
 }
 
@@ -77,6 +79,13 @@ export const useReplay = create<ReplayStore>((set, get) => ({
   seek(t) {
     const r = get().r;
     if (r) set({ r: { ...r, t: Math.max(0, Math.min(t, r.tl.duration + 1500)) } });
+  },
+  next() {
+    const r = get().r;
+    if (!r) return;
+    let at = Infinity;
+    for (const a of r.tl.actors) for (const x of a.actions) if (x.start > r.t + 50 && x.start < at) at = x.start;
+    if (at < Infinity) set({ r: { ...r, t: at - 10 } });
   },
   tick(dtMs) {
     const r = get().r;

@@ -8,15 +8,15 @@ import * as THREE from "three";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { buildTimeline } from "../orchestrator/timeline.ts";
 import { absTime, useStore } from "../store.ts";
-import { Effects, Emblem, glowTexture, Instanced, MATS, partsOf, Sky, standing, Starfield, type Frame, type GeomKey, type Part } from "../galaxy/Galaxy.tsx";
-import { FACTION_COLOR, type Planet } from "../galaxy/galaxyData.ts";
+import { Effects, Emblem, Instanced, StarView, MATS, partsOf, Sky, standing, Starfield, type Frame, type GeomKey, type Part } from "../galaxy/Galaxy.tsx";
+import { FACTION_COLOR, type Planet, type StarSystem } from "../galaxy/galaxyData.ts";
 import { BELT, NOISE } from "../galaxy/shaders.ts";
 import type { TownLayout } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
 import { cityPlaces } from "./cityData.ts";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, robotInfo } from "./Robot.tsx";
-import { KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
+import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
 
 const noRay = () => null;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -36,29 +36,29 @@ const sunDir = (p: Planet) => new THREE.Vector3(p.town.faction === "codex" ? 1 :
 
 /** the planet's own ground beyond the city, fading into the night */
 function Terrain({ p, layout }: { p: Planet; layout: TownLayout }) {
+  // the ground's noise is broad: computed per vertex of a dense disc, not per pixel (it fills the screen)
   const terrain = useMemo(() => new THREE.ShaderMaterial({
     uniforms: { uA: { value: new THREE.Color(p.look.a) }, uB: { value: new THREE.Color(p.look.b) }, uC: { value: new THREE.Color(p.look.c) }, uR: { value: layout.radius }, uSeed: { value: p.seed } },
-    vertexShader: /* glsl */ `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
-    fragmentShader: /* glsl */ `
-uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform float uR; uniform float uSeed; varying vec3 vW;
+    vertexShader: /* glsl */ `
+uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform float uR; uniform float uSeed; varying vec3 vCol;
 ${NOISE}
 void main(){
-  vec2 q=vW.xz/uR;
-  float n=fbm(vec3(q*1.6,uSeed));
-  float h=n*0.5+0.5;
+  vec4 w=modelMatrix*vec4(position,1.0);
+  vec2 q=w.xz/uR;
+  float h=fbm(vec3(q*1.6,uSeed))*0.5+0.5;
   vec3 col=mix(uA,uB,smoothstep(0.3,0.65,h));
   col=mix(col,uC,smoothstep(0.7,0.85,h)*0.6);
-  float d=length(q);
   col*=0.32+0.18*fbm(vec3(q*6.0,uSeed+3.0));
-  float fade=1.0-smoothstep(1.4,5.5,d);
-  gl_FragColor=vec4(col*fade,1.0);
+  vCol=col*(1.0-smoothstep(1.4,5.5,length(q)));
+  gl_Position=projectionMatrix*viewMatrix*w;
 }`,
+    fragmentShader: /* glsl */ `varying vec3 vCol; void main(){ gl_FragColor=vec4(vCol,1.0); }`,
   }), [p, layout]);
+  const disc = useMemo(() => new THREE.RingGeometry(0.01, layout.radius * 7, 240, 120), [layout]);
+  useEffect(() => () => disc.dispose(), [disc]);
   useEffect(() => () => terrain.dispose(), [terrain]);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.13, 0]} material={terrain} raycast={noRay}>
-      <circleGeometry args={[layout.radius * 7, 96]} />
-    </mesh>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.13, 0]} geometry={disc} material={terrain} raycast={noRay} />
   );
 }
 
@@ -265,7 +265,13 @@ function CityCamera({ layout }: { layout: TownLayout }) {
     camera.position.set(R * 0.2, R * 0.95, R * 1.55);
     camera.lookAt(0, 0, 0);
   }, [camera, R]);
-  (window as unknown as { __agentTownFlying?: unknown }).__agentTownFlying = () => false;
+  (window as unknown as { __agentTownFlying?: unknown; __cityView?: unknown }).__agentTownFlying = () => false;
+  // test hook: look from a given direction and distance (screenshots of the sky and the horizon)
+  (window as unknown as { __cityView?: unknown }).__cityView = (phi: number, theta: number, dist: number) => {
+    if (!controls) return;
+    camera.position.copy(controls.target).add(new THREE.Vector3().setFromSphericalCoords(dist, phi, theta));
+    controls.update();
+  };
   return <OrbitControls makeDefault enableDamping dampingFactor={0.08} rotateSpeed={0.55} zoomSpeed={0.8} zoomToCursor minDistance={2} maxDistance={R * 3.2} maxPolarAngle={1.36} target={[0, 0, 0]} />;
 }
 
@@ -274,30 +280,31 @@ function Clock() {
   return null;
 }
 
-export function CityScene({ p, layout, w }: { p: Planet; layout: TownLayout; w: World25 }) {
+export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout; w: World25; sys?: StarSystem }) {
   const sun = useMemo(() => sunDir(p), [p]);
-  const sunMat = useMemo(() => new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(FACTION_COLOR[p.town.faction]).multiplyScalar(3), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }), [p]);
-  useEffect(() => () => sunMat.dispose(), [sunMat]);
   const R = layout.radius;
   const light = new THREE.Color(FACTION_COLOR[p.town.faction]).lerp(new THREE.Color("#ffffff"), 0.55);
+  // the faction's star hangs in the sky with its Dyson shell, as built by now
+  const K = 9;
   const far = sun.clone().multiplyScalar(900);
   return (
     <>
       <Sky />
       <Starfield />
-      <sprite material={sunMat} position={far} scale={260} raycast={noRay} />
-      <Emblem faction={p.town.faction} use="corona" scale={150} position={[far.x, far.y, far.z]} speed={0.02} />
+      {sys ? <group position={[far.x - sys.x * K, far.y, far.z - sys.z * K]} scale={K}><StarView s={sys} light={false} /></group> : null}
       <hemisphereLight args={["#9cc0ff", "#1a1420", 0.55]} />
       <ambientLight intensity={0.12} />
       <directionalLight
         color={light} intensity={2.4} position={sun.clone().multiplyScalar(R * 2)} castShadow
-        shadow-mapSize={[2048, 2048]} shadow-camera-left={-R * 1.3} shadow-camera-right={R * 1.3} shadow-camera-top={R * 1.3} shadow-camera-bottom={-R * 1.3} shadow-camera-far={R * 6} shadow-bias={-0.0005}
+        shadow-mapSize={[1024, 1024]} shadow-camera-left={-R * 1.3} shadow-camera-right={R * 1.3} shadow-camera-top={R * 1.3} shadow-camera-bottom={-R * 1.3} shadow-camera-far={R * 6} shadow-bias={-0.0005}
       />
       <Suspense fallback={<Ground p={p} layout={layout} />}>
         <Terrain p={p} layout={layout} />
         <KitGround p={p} layout={layout} />
       </Suspense>
       <StudioEnvironment />
+      <Haze p={p} layout={layout} />
+      <Suspense fallback={null}><HoverCars p={p} layout={layout} /></Suspense>
       <Buildings p={p} w={w} />
       <Suspense fallback={null}>
         <LiveAgents p={p} layout={layout} w={w} />
