@@ -343,3 +343,14 @@ Owner, after the 2.5D town (D17): "think of a style like Dyson Sphere"; picked *
 **Measured** (M4, Chrome, 1440×900, DPR 1, real data): space overview 60 fps p95 17.7 ms (after moving the nebula to the vertex shader; it was 51 fps p95 33 ms), a planet close-up 60 fps. Retina (DPR 2) not measured.
 
 **Bug found by looking**: the conveyor belts were built but invisible — their triangles faced into the planet and were back-face culled (a plain red material showed nothing either). Belts are double-sided now.
+
+## D19 The city in Blender (2026-11-01)
+
+Owner: "需不需要使用 blender" → picked Blender for the robots and the buildings; then "城市的设计也可以交给 blender，做一些精美的设计". Blender 5.2 (already in /Applications) runs headless on scripts; the models are generated, never hand-edited, so a change is a script change:
+
+- `scripts/models/robot.py` → `public/models/robot.glb` (0.3 MB): a hover robot about one unit tall — rounded torso with a chest light, backpack, thruster skirt with a glowing ring, a wide head with a dark glass visor and two glowing eyes, ear discs, antenna, two-finger claws. Moving parts are named nodes (`Body`, `Head`, `ArmL`, `ArmR`); the browser animates them by the timeline's pose (walk lean, working arms, a raised hand, falling over, shaking, a cheer) — no baked animation clips, so the motion keeps following the data. Glowing materials (`Visor`, `Chest`, `Accent`, `Thrust`) are recoloured per robot: faction for eyes and antenna, role for a subagent's chest.
+- `scripts/models/city.py` → `public/models/city.glb` (1.5 MB, 27 pieces): houses in three heights (by the request's size tier) with window bands, glass fronts and roof clutter; the investigation dome; **a different top for each kind of work** — 读代码 scanner telescope, 改代码 crane arm, 跑命令 reactor with stacks, 测试 ring gates, 联网 antenna mast with dishes, 外部工具 docking pad with a shuttle, 计划 holo-table, 看图/生图 crystal prism, 操作屏幕 big screen, 派子代理 hangar, 压缩记忆 compressor silo; the task hall; the landmark in three tiers; the Q&A board; hex ground tiles (lot, plaza, street with a runway light, wild ground); lamps, crates, crystals.
+
+Pieces stand on their own origin, front towards the city's square; within a piece the meshes are joined per material, so a city draws one InstancedMesh per piece part. `Accent` and `Ground` take a per-instance colour (product kind, kind of work, faction, the planet's ground). A studio reflection made locally (three's RoomEnvironment) lights metal and glass — no downloaded HDR. While the kit loads, the plain shapes of D18 stand in. Space (the planets' tiny cities) keeps the plain shapes.
+
+Browser test note: entering a city under the tests' software renderer (SwiftShader) keeps the page busy long enough that Playwright's wait-after-click times out; the replay test clicks from inside the page.

@@ -3,7 +3,7 @@
 // — the live ones, and a replayed request when one is playing.
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { buildTimeline } from "../orchestrator/timeline.ts";
@@ -16,6 +16,7 @@ import type { World25 } from "../v3/world25Data.ts";
 import { cityPlaces } from "./cityData.ts";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, robotInfo } from "./Robot.tsx";
+import { KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
 
 const noRay = () => null;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -32,6 +33,34 @@ export const cityFrame = (unit: number): Frame => (b) => ({
 
 /** the sun is the faction's star, low in the sky on its own side */
 const sunDir = (p: Planet) => new THREE.Vector3(p.town.faction === "codex" ? 1 : -1, 0.62, -0.55).normalize();
+
+/** the planet's own ground beyond the city, fading into the night */
+function Terrain({ p, layout }: { p: Planet; layout: TownLayout }) {
+  const terrain = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: { uA: { value: new THREE.Color(p.look.a) }, uB: { value: new THREE.Color(p.look.b) }, uC: { value: new THREE.Color(p.look.c) }, uR: { value: layout.radius }, uSeed: { value: p.seed } },
+    vertexShader: /* glsl */ `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+    fragmentShader: /* glsl */ `
+uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform float uR; uniform float uSeed; varying vec3 vW;
+${NOISE}
+void main(){
+  vec2 q=vW.xz/uR;
+  float n=fbm(vec3(q*1.6,uSeed));
+  float h=n*0.5+0.5;
+  vec3 col=mix(uA,uB,smoothstep(0.3,0.65,h));
+  col=mix(col,uC,smoothstep(0.7,0.85,h)*0.6);
+  float d=length(q);
+  col*=0.32+0.18*fbm(vec3(q*6.0,uSeed+3.0));
+  float fade=1.0-smoothstep(1.4,5.5,d);
+  gl_FragColor=vec4(col*fade,1.0);
+}`,
+  }), [p, layout]);
+  useEffect(() => () => terrain.dispose(), [terrain]);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.13, 0]} material={terrain} raycast={noRay}>
+      <circleGeometry args={[layout.radius * 7, 96]} />
+    </mesh>
+  );
+}
 
 function Ground({ p, layout }: { p: Planet; layout: TownLayout }) {
   const tiles = useRef<THREE.InstancedMesh>(null);
@@ -112,7 +141,7 @@ function beltRibbons(belts: { a: THREE.Vector3; b: THREE.Vector3; color: string;
     const n = Math.max(2, Math.ceil(len / 0.5));
     for (let k = 0; k <= n; k++) {
       const m = bt.a.clone().addScaledVector(dir, (k / n) * len);
-      pos.push(m.x + side.x, 0.13, m.z + side.z, m.x - side.x, 0.13, m.z - side.z);
+      pos.push(m.x + side.x, 0.04, m.z + side.z, m.x - side.x, 0.04, m.z - side.z);
       s.push((k / n) * len * 0.35, (k / n) * len * 0.35);
       t.push(1, -1);
       c.push(cc.r, cc.g, cc.b, cc.r, cc.g, cc.b);
@@ -152,7 +181,7 @@ function Buildings({ p, w }: { p: Planet; w: World25 }) {
       const density = i.kind === "public" ? 0.6 + Math.log10(Math.max(1, i.count)) * 0.9 : 0.4 + Math.log10(Math.max(1, (i.kind === "house" || i.kind === "tent" ? w.requests.get(i.requestId)?.calls : 1) ?? 1)) * 0.7;
       // from the building's edge to the hall's edge
       const dir = h.clone().sub(a).normalize();
-      return [{ a: a.addScaledVector(dir, (b.foot / p.unit) * 0.6), b: h.clone().addScaledVector(dir, -(hall.foot / p.unit) * 0.65), color: b.color, density }];
+      return [{ a: a.addScaledVector(dir, (b.foot / p.unit) * 0.55), b: h.clone().addScaledVector(dir, -(hall.foot / p.unit) * 0.62), color: b.color, density }];
     });
     return beltRibbons(list);
   }, [vis, hall, w, p.unit]);
@@ -163,14 +192,22 @@ function Buildings({ p, w }: { p: Planet; w: World25 }) {
     beltMat.uniforms.uTime.value = clock.elapsedTime;
     MATS.beam.opacity = 0.22 + 0.14 * Math.sin(clock.elapsedTime * 3);
   });
-  return (
+  const fallback = (
     <>
       {[...groups.entries()].map(([k, parts]) => {
         const [geom, mat] = k.split("|") as [GeomKey, keyof typeof MATS];
         return <Instanced key={k} parts={parts} geom={geom} mat={mat} blocks={vis} town={p.key} onBlock={mat === "hull"} />;
       })}
+    </>
+  );
+  const beams = [...groups.entries()].filter(([k]) => k.endsWith("|beam"));
+  return (
+    <>
+      {/* the Blender kit; the plain shapes stand in while it loads */}
+      <Suspense fallback={fallback}><KitBuildings p={p} vis={vis} /></Suspense>
+      {beams.map(([k, parts]) => <Instanced key={k} parts={parts} geom={k.split("|")[0] as GeomKey} mat="beam" blocks={vis} town={p.key} onBlock={false} />)}
       {belts ? <mesh geometry={belts} material={beltMat} raycast={noRay} /> : null}
-      {hall ? <Emblem faction={p.town.faction} use="badge" scale={0.6} position={[hall.spot.x, (hall.height / p.unit) + 2.4, hall.spot.z]} speed={0.4} /> : null}
+      {hall ? <Emblem faction={p.town.faction} use="badge" scale={0.6} position={[hall.spot.x, (hall.foot / p.unit) * 1.05 + 0.9, hall.spot.z]} speed={0.4} /> : null}
     </>
   );
 }
@@ -256,10 +293,16 @@ export function CityScene({ p, layout, w }: { p: Planet; layout: TownLayout; w: 
         color={light} intensity={2.4} position={sun.clone().multiplyScalar(R * 2)} castShadow
         shadow-mapSize={[2048, 2048]} shadow-camera-left={-R * 1.3} shadow-camera-right={R * 1.3} shadow-camera-top={R * 1.3} shadow-camera-bottom={-R * 1.3} shadow-camera-far={R * 6} shadow-bias={-0.0005}
       />
-      <Ground p={p} layout={layout} />
+      <Suspense fallback={<Ground p={p} layout={layout} />}>
+        <Terrain p={p} layout={layout} />
+        <KitGround p={p} layout={layout} />
+      </Suspense>
+      <StudioEnvironment />
       <Buildings p={p} w={w} />
-      <LiveAgents p={p} layout={layout} w={w} />
-      <ReplayAgents p={p} />
+      <Suspense fallback={null}>
+        <LiveAgents p={p} layout={layout} w={w} />
+        <ReplayAgents p={p} />
+      </Suspense>
       <CityCamera layout={layout} />
       <Clock />
       <Effects />

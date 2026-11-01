@@ -131,11 +131,14 @@ test("a request replayed in its city: a robot appears with what it is doing over
   const k = (await keys(page))[0];
   const rid = await page.evaluate((key) => (window as any).__agentTown.requestsOf(key)[0], k);
   await page.evaluate(([key, r]) => (window as any).__agentTown.select({ kind: "request", district: key, requestId: r }), [k, rid]);
-  await page.getByTestId("city-replay").click({ timeout: 20_000 });
+  // clicked from inside the page: entering the city loads the kit and compiles its shaders, which can keep
+  // the software renderer the tests use busy past Playwright's wait-after-click
+  await page.getByTestId("city-replay").waitFor({ timeout: 20_000 });
+  await page.getByTestId("city-replay").evaluate((b) => (b as HTMLButtonElement).click());
   await expect(page.getByTestId("replay-bar")).toBeVisible();
   await expect(page.getByTestId("leave-city")).toBeVisible();
   await page.keyboard.press("Escape"); // the diary closes; the city and the replay stay
-  await expect(page.locator("[data-testid=robot-bubble]").filter({ hasText: "主代理" }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator("[data-testid=robot-bubble]").filter({ hasText: "主代理" }).first()).toBeVisible({ timeout: 40_000 });
   await page.getByRole("button", { name: "结束重放" }).click();
   await expect(page.getByTestId("replay-bar")).toBeHidden();
   expect(errors).toEqual([]);

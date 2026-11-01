@@ -22,9 +22,10 @@ export function cityLabelsOf(p: Planet, layout: TownLayout): CL[] {
   const out: CL[] = [];
   for (const b of p.blocks) {
     const i = b.spot.info;
-    const top = b.height / p.unit + b.foot / p.unit;
+    // the kit pieces stand about 1.2 footprints tall (work towers with their tops ~1.5)
+    const top = (b.foot / p.unit) * (i.kind === "public" ? 1.55 : 1.2);
     if (i.kind === "public") out.push({ id: `c-pub|${b.spot.cell}`, cls: "g-tag", title: WORK_NAMES[i.work] ?? i.work, sub: i.count.toLocaleString(), at: new THREE.Vector3(b.spot.x, top + 0.3, b.spot.z), priority: 1000 + i.count });
-    if (i.kind === "hall") out.push({ id: "c-hall", cls: "g-tag", title: "任务大厅", at: new THREE.Vector3(b.spot.x, top + 2.4, b.spot.z), priority: 1e6 });
+    if (i.kind === "hall") out.push({ id: "c-hall", cls: "g-tag", title: "任务大厅", at: new THREE.Vector3(b.spot.x, top + 1.3, b.spot.z), priority: 1e6 });
     if (i.kind === "notice") out.push({ id: "c-notice", cls: "g-tag", title: "问答", sub: String(i.chats), at: new THREE.Vector3(b.spot.x, top + 0.2, b.spot.z), priority: 500 });
   }
   for (const s of layout.streets) out.push({ id: `c-street|${s.name}`, cls: "g-street", title: `${s.name} 街`, sub: `${s.drawn} 栋${s.minor ? ` · 另有 ${s.minor} 件小改动` : ""}`, at: new THREE.Vector3(s.x, 0.2, s.z), priority: 100 });
