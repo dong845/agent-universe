@@ -12,6 +12,8 @@ import { buildTowns } from "../../schema/src/towns.ts";
 import type { Loaded } from "./load.ts";
 import { compactPayload, townOptions, type WorldPayload } from "./payload.ts";
 import { readOverrides } from "./townsFs.ts";
+import { readSettings, writeSettings, type Settings } from "./settings.ts";
+import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
   phase: "loading" | "ready" | "error";
@@ -33,6 +35,8 @@ export interface ServerOptions {
   watch?: (onChange: () => void) => () => void;
   /** a watched change reloads no sooner than this after the last reload ended, or twice that reload's duration if longer */
   reloadGapMs?: number;
+  /** the owner's settings (default ~/.agent-town/settings.json) */
+  settingsFile?: string;
 }
 
 /** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
@@ -77,6 +81,7 @@ export function createServer(o: ServerOptions) {
     for (const l of attentionListeners) l(attention);
   };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
+  const settingsFile = o.settingsFile ?? join(homedir(), ".agent-town", "settings.json");
   const towns = () => townOptions({ overrides: readOverrides(themesFile) }, o.home);
 
   let lastEnd = 0;
@@ -205,6 +210,8 @@ export function createServer(o: ServerOptions) {
       return;
     }
     if (path === "/api/attention") return json(res, 200, attention);
+    if (path === "/api/settings" && req.method === "GET") return json(res, 200, readSettings(settingsFile));
+    if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
     if (path === "/api/hook" && req.method === "POST") return receiveHook(req, res, url.searchParams.get("src"));
     if (path === "/api/refresh" && req.method === "POST") {
       void reload();
@@ -263,6 +270,24 @@ export function createServer(o: ServerOptions) {
     });
   };
 
+  /** POST /api/settings {notify?, notifyTurnDone?}: the notification switches (hooks change via /api/hooks) */
+  const saveSettings = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 4096) body += c; });
+    req.on("end", () => {
+      let b: Partial<Settings>;
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      const cur = readSettings(settingsFile);
+      const next: Settings = { ...cur, notify: typeof b.notify === "boolean" ? b.notify : cur.notify, notifyTurnDone: typeof b.notifyTurnDone === "boolean" ? b.notifyTurnDone : cur.notifyTurnDone };
+      writeSettings(settingsFile, next);
+      json(res, 200, next);
+    });
+  };
+
   /** POST /api/hook?src=claude|codex: a hook's own JSON from stdin (spec A3); loopback only, via allowed() */
   const receiveHook = (req: http.IncomingMessage, res: http.ServerResponse, src: string | null) => {
     const faction = src === "claude" ? "claude-code" : src === "codex" ? "codex" : null;
@@ -314,6 +339,9 @@ export function createServer(o: ServerOptions) {
     state: () => ({ ...state }),
     reload,
     attention: () => attention,
+    settingsFile,
+    /** a town's display name for a notification: its world name, else the folder's last part */
+    townName: (projectId: string, faction: Faction) => payload?.towns.find((t) => t.key === `${faction}|${projectId}`)?.name ?? (projectId.split("/").filter(Boolean).pop() || projectId),
     onAttention: (cb: (a: Attention[]) => void) => {
       attentionListeners.add(cb);
       return () => void attentionListeners.delete(cb);

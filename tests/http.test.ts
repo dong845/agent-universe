@@ -133,6 +133,7 @@ describe("attention: stream, hook endpoint", () => {
       themesFile: join(root, "agent-town", "themes2.json"),
       watch: (cb) => { changed = cb; return () => {}; },
       reloadGapMs: 0,
+      settingsFile: join(root, "agent-town", "settings-test.json"),
     });
     await new Promise<void>((r) => s.server.listen(0, "127.0.0.1", r));
     b = `http://127.0.0.1:${(s.server.address() as AddressInfo).port}`;
@@ -161,6 +162,19 @@ describe("attention: stream, hook endpoint", () => {
     expect(r.status).toBe(204);
     const a1 = await (await fetch(`${b}/api/attention`)).json();
     expect(a1[0]).toMatchObject({ state: "waiting", exact: true });
+  });
+
+  it("settings: defaults, then a switch saved", async () => {
+    expect(await (await fetch(`${b}/api/settings`)).json()).toMatchObject({ notify: true, notifyTurnDone: false });
+    const r = await fetch(`${b}/api/settings`, { method: "POST", body: JSON.stringify({ notifyTurnDone: true, hooks: { claude: true } }) });
+    expect(r.status).toBe(200);
+    const s2 = await (await fetch(`${b}/api/settings`)).json();
+    expect(s2.notifyTurnDone).toBe(true);
+    expect(s2.hooks.claude).toBe(false); // hooks change only through /api/hooks
+  });
+
+  it("names a town for a notification", () => {
+    expect(s.townName("/synthetic/p", "claude-code")).toBeTruthy();
   });
 
   it("hook refused from a foreign origin", async () => {
