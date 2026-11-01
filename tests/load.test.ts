@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdtempSync, readdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -36,6 +36,24 @@ describe("loadEvents", () => {
     expect(b.cached).toBe(4);
     expect(b.events).toEqual(a.events);
     expect(b.totals).toEqual(a.totals);
+  });
+
+  it("with a memo, a reload reads no cache files and leaves earlier results untouched", () => {
+    const c = corpus();
+    const memo = new Map();
+    const a = loadEvents({ ...c, memo });
+    const projects = a.events.map((e) => e.projectId);
+    rmSync(c.cacheDir, { recursive: true });
+    const b = loadEvents({ ...c, memo });
+    expect(b.parsed).toBe(0);
+    expect(b.cached).toBe(4);
+    expect(b.events.map((e) => e.projectId)).toEqual(projects);
+    // project assignment rewrote b's events, not the memo's
+    expect(b.events[0]).not.toBe(a.events[0]);
+    writeClaudeSession(c.claudeRoot, { sessionId: "c9", cwd: "/synth/nine", t0: T0, turns: [{ prompt: "n", tokens: tk(1, 1, 1) }] });
+    const d = loadEvents({ ...c, memo });
+    expect(d.parsed).toBe(1);
+    expect(memo.size).toBe(5);
   });
 
   it("re-reads only the unit whose file changed", () => {

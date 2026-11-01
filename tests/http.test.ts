@@ -118,3 +118,58 @@ describe("local server, v3 routes", () => {
     expect((await post({ key, theme: "film" }, { origin: "http://evil.example" })).status).toBe(403);
   });
 });
+
+describe("attention: stream, hook endpoint", () => {
+  const now = Date.now();
+  const mk = (kind: string, ago: number, extra: Record<string, unknown> = {}) => ({ id: `${kind}-${ago}`, ts: now - ago, faction: "claude-code", projectId: "/synthetic/p", sessionId: "live1", taskId: "live1-t", agentId: "main", kind, raw: { file: "/synthetic/live1.jsonl", line: 1 }, ...extra });
+  const events = [mk("task_start", 40_000, { trigger: "human", title: "x", permissionMode: "default" }), mk("tool_start", 25_000, { tool: "Bash", toolUseId: "b1", target: "make" })];
+  let changed: (() => void) | null = null;
+  let s: ReturnType<typeof createServer>;
+  let b = "";
+  beforeAll(async () => {
+    s = createServer({
+      load: async () => ({ events, requestOf: new Map([["live1-t", "live1-t"]]), mtimes: new Map() }) as never,
+      staticDir: null,
+      themesFile: join(root, "agent-town", "themes2.json"),
+      watch: (cb) => { changed = cb; return () => {}; },
+      reloadGapMs: 0,
+    });
+    await new Promise<void>((r) => s.server.listen(0, "127.0.0.1", r));
+    b = `http://127.0.0.1:${(s.server.address() as AddressInfo).port}`;
+    for (let i = 0; i < 100 && s.state().phase !== "ready"; i++) await new Promise((r) => setTimeout(r, 20));
+  });
+  afterAll(() => s.server.close());
+
+  it("stream sends world after a watched reload", async () => {
+    const ctl = new AbortController();
+    const r = await fetch(`${b}/api/stream`, { signal: ctl.signal });
+    expect(r.headers.get("content-type")).toContain("text/event-stream");
+    const reader = r.body!.getReader();
+    changed!();
+    let text = "";
+    const dec = new TextDecoder();
+    for (let i = 0; i < 20 && !text.includes("event: world"); i++) text += dec.decode((await reader.read()).value);
+    ctl.abort();
+    expect(text).toContain("event: world");
+    expect(text).toContain("event: attention");
+  });
+
+  it("hook flips maybe-waiting to waiting", async () => {
+    const a0 = await (await fetch(`${b}/api/attention`)).json();
+    expect(a0.map((x: { state: string }) => x.state)).toEqual(["maybe-waiting"]);
+    const r = await fetch(`${b}/api/hook?src=claude`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session_id: "live1", hook_event_name: "Notification", message: "Claude needs your permission to use Bash" }) });
+    expect(r.status).toBe(204);
+    const a1 = await (await fetch(`${b}/api/attention`)).json();
+    expect(a1[0]).toMatchObject({ state: "waiting", exact: true });
+  });
+
+  it("hook refused from a foreign origin", async () => {
+    const r = await fetch(`${b}/api/hook?src=claude`, { method: "POST", headers: { origin: "http://evil.example", "content-type": "application/json" }, body: "{}" });
+    expect(r.status).toBe(403);
+  });
+
+  it("hook with bad JSON or unknown source is refused", async () => {
+    expect((await fetch(`${b}/api/hook?src=claude`, { method: "POST", body: "not json" })).status).toBe(400);
+    expect((await fetch(`${b}/api/hook?src=other`, { method: "POST", body: "{}" })).status).toBe(400);
+  });
+});

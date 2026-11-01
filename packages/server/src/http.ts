@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import http from "node:http";
 import { homedir } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
+import { attentionOf, type Attention, type HookSignal } from "../../schema/src/attention.ts";
 import type { AgentTownEvent } from "../../schema/src/event.ts";
 import { themeIds } from "../../schema/src/themes.ts";
 import { buildTowns } from "../../schema/src/towns.ts";
@@ -28,7 +29,15 @@ export interface ServerOptions {
   home?: string;
   /** the owner's theme choices (default ~/.agent-town/themes.json); never in the repository */
   themesFile?: string;
+  /** starts watching the logs; calls back when they changed; returns a stop function */
+  watch?: (onChange: () => void) => () => void;
+  /** a watched change reloads no sooner than this after the last reload ended, or twice that reload's duration if longer */
+  reloadGapMs?: number;
 }
+
+/** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
+const ATTENTION_TICK_MS = 5000;
+const PING_MS = 25_000;
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
@@ -47,12 +56,50 @@ export function createServer(o: ServerOptions) {
   let byRequest = new Map<string, AgentTownEvent[]>();
   let all: AgentTownEvent[] = [];
   let loading: Promise<void> | null = null;
+  let again = false;
+  let requestOf = new Map<string, string>();
+  let hooks: HookSignal[] = [];
+  let attention: Attention[] = [];
+  const streams = new Set<http.ServerResponse>();
+  const attentionListeners = new Set<(a: Attention[]) => void>();
+  const send = (event: string, data: unknown) => {
+    const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const r of streams) r.write(msg);
+  };
+  const recompute = () => {
+    if (state.phase !== "ready") return;
+    const t = now();
+    hooks = hooks.filter((h) => t - h.ts < 600_000);
+    const next = attentionOf(all, t, hooks, requestOf);
+    if (JSON.stringify(next) === JSON.stringify(attention)) return;
+    attention = next;
+    send("attention", attention);
+    for (const l of attentionListeners) l(attention);
+  };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
   const towns = () => townOptions({ overrides: readOverrides(themesFile) }, o.home);
 
-  const reload = () => {
-    if (loading) return loading;
-    state.phase = "loading";
+  let lastEnd = 0;
+  let lastDur = 0;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  /** a watched change: reload soon, but never back to back — a huge live session takes seconds to re-read */
+  const requestReload = () => {
+    if (pending) return;
+    const gap = Math.max(o.reloadGapMs ?? 3000, 2 * lastDur);
+    pending = setTimeout(() => {
+      pending = null;
+      void reload();
+    }, Math.max(0, lastEnd + gap - Date.now()));
+  };
+  const reload = (): Promise<void> => {
+    if (loading) {
+      // logs changed while reading: read once more afterwards, so the last write is never lost
+      again = true;
+      return loading;
+    }
+    const started = Date.now();
+    // a reload with data already shown stays "ready": the page keeps the old world until the new one is in
+    if (!payload) state.phase = "loading";
     state.done = 0;
     state.error = undefined;
     loading = o
@@ -76,8 +123,13 @@ export function createServer(o: ServerOptions) {
         byTask = m;
         byRequest = q;
         all = r.events;
+        requestOf = r.requestOf;
         payload = compactPayload(r.events, r.mtimes, now(), { home: o.home, requestOf: r.requestOf, towns: towns() });
         state.phase = "ready";
+        send("world", { generatedAt: payload.generatedAt });
+        attention = [];
+        recompute();
+        if (!attention.length) send("attention", attention);
       })
       .catch((err: unknown) => {
         state.phase = "error";
@@ -85,10 +137,21 @@ export function createServer(o: ServerOptions) {
       })
       .finally(() => {
         loading = null;
+        lastEnd = Date.now();
+        lastDur = lastEnd - started;
+        if (again) {
+          again = false;
+          void reload();
+        }
       });
     return loading;
   };
   void reload();
+  const stopWatch = o.watch?.(requestReload);
+  const tick = setInterval(recompute, ATTENTION_TICK_MS);
+  const ping = setInterval(() => { for (const r of streams) r.write(": ping\n\n"); }, PING_MS);
+  tick.unref?.();
+  ping.unref?.();
 
   const json = (res: http.ServerResponse, code: number, body: unknown) => {
     res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -134,6 +197,15 @@ export function createServer(o: ServerOptions) {
       return evs ? json(res, 200, { requestId: id, events: evs }) : json(res, 404, { error: "no such request" });
     }
     if (path === "/api/theme" && req.method === "POST") return saveTheme(req, res);
+    if (path === "/api/stream") {
+      res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
+      res.write(`event: attention\ndata: ${JSON.stringify(attention)}\n\n`);
+      streams.add(res);
+      req.on("close", () => streams.delete(res));
+      return;
+    }
+    if (path === "/api/attention") return json(res, 200, attention);
+    if (path === "/api/hook" && req.method === "POST") return receiveHook(req, res, url.searchParams.get("src"));
     if (path === "/api/refresh" && req.method === "POST") {
       void reload();
       return json(res, 202, state);
@@ -191,6 +263,35 @@ export function createServer(o: ServerOptions) {
     });
   };
 
+  /** POST /api/hook?src=claude|codex: a hook's own JSON from stdin (spec A3); loopback only, via allowed() */
+  const receiveHook = (req: http.IncomingMessage, res: http.ServerResponse, src: string | null) => {
+    const faction = src === "claude" ? "claude-code" : src === "codex" ? "codex" : null;
+    let body = "";
+    let tooBig = false;
+    req.on("data", (c: Buffer) => {
+      body += c;
+      if (body.length > 65_536) tooBig = true;
+    });
+    req.on("end", () => {
+      if (tooBig) return json(res, 413, { error: "too large" });
+      if (!faction) return json(res, 400, { error: "src must be claude or codex" });
+      let b: Record<string, unknown>;
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      const sid = b.session_id ?? b.sessionId ?? b["thread-id"] ?? b.thread_id;
+      const event = b.hook_event_name ?? b.type;
+      if (typeof sid !== "string" || typeof event !== "string") return json(res, 400, { error: "no session or event" });
+      const text = `${b.notification_type ?? ""} ${b.message ?? ""}`.toLowerCase();
+      hooks.push({ session: `${faction}|${sid}`, event, ts: now(), kind: event === "Notification" ? (/permission|approv/.test(text) ? "permission" : "idle") : undefined });
+      recompute();
+      res.writeHead(204, { "cache-control": "no-store" });
+      res.end();
+    });
+  };
+
   const server = http.createServer((req, res) => {
     if (!allowed(req)) return json(res, 403, { error: "only this machine's loopback address is served" });
     try {
@@ -201,5 +302,21 @@ export function createServer(o: ServerOptions) {
       else res.end();
     }
   });
-  return { server, state: () => ({ ...state }), reload };
+  server.on("close", () => {
+    stopWatch?.();
+    if (pending) clearTimeout(pending);
+    clearInterval(tick);
+    clearInterval(ping);
+    for (const r of streams) r.end();
+  });
+  return {
+    server,
+    state: () => ({ ...state }),
+    reload,
+    attention: () => attention,
+    onAttention: (cb: (a: Attention[]) => void) => {
+      attentionListeners.add(cb);
+      return () => void attentionListeners.delete(cb);
+    },
+  };
 }
