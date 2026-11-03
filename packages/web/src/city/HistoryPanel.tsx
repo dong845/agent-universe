@@ -8,7 +8,7 @@ import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { fetchRequest } from "../data.ts";
 import type { Planet } from "../galaxy/galaxyData.ts";
 import { useStore } from "../store.ts";
-import { historySteps, stepFacts, useHistory, type HistoryStep } from "./history.ts";
+import { historySteps, stepDay, stepFacts, useHistory, type HistoryStep } from "./history.ts";
 
 /** the steps of the open history (empty when closed) */
 export function useSteps(): HistoryStep[] {
@@ -42,6 +42,16 @@ export function HistoryPanel() {
   const cur = step ? steps[step - 1] : undefined;
   const [events, setEvents] = useState<{ id: string; ev: AgentTownEvent[] | null }>({ id: "", ev: null });
   const list = useRef<HTMLOListElement>(null);
+  // the rows change only with the steps and the chosen one: never rebuilt on other renders
+  const rows = useMemo(() => steps.map((s) => (
+    <li key={s.request.requestId} className={`${s.index === step ? "on" : ""} c-${s.request.class}`}>
+      <button onClick={() => goToStep(steps, s.index)} data-testid="history-step">
+        <span className="n">{s.index}</span>
+        <span className="d">{stepDay(s.request.endTs)}</span>
+        <span className="t">{s.request.title ?? "（无标题）"}</span>
+      </button>
+    </li>
+  )), [steps, step]);
   useEffect(() => {
     if (!cur || shared) return;
     let alive = true;
@@ -79,15 +89,7 @@ export function HistoryPanel() {
       </header>
       <p className="muted">每一步是这个项目的一次请求，按完成先后排。选中一步，城市停在它完成的那一刻：只显示那时已经建成的楼。说明全部来自日志记录。</p>
       <ol ref={list} className="g-history-list">
-        {steps.map((s) => (
-          <li key={s.request.requestId} className={`${s.index === step ? "on" : ""} c-${s.request.class}`}>
-            <button onClick={() => goToStep(steps, s.index)} data-testid="history-step">
-              <span className="n">{s.index}</span>
-              <span className="d">{new Date(s.request.endTs).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}</span>
-              <span className="t">{s.request.title ?? "（无标题）"}</span>
-            </button>
-          </li>
-        ))}
+        {rows}
       </ol>
       <div className="g-history-nav">
         <button onClick={() => goToStep(steps, cur.index - 1)} disabled={cur.index <= 1} data-testid="history-prev">◀ 上一步</button>

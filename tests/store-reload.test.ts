@@ -53,3 +53,27 @@ describe("a shared world (no events)", () => {
     expect(absTime(st.t)).toBe(Math.max(...p.requests.map((r) => r.endTs)));
   });
 });
+
+describe("live data catches up instead of jumping (owner 2026-11-03: agents teleported)", () => {
+  it("a newer world arriving while the clock follows now plays the missed stretch quickly, then stops at the new end", () => {
+    const p1 = { ...demoPayload(), source: "real" as const };
+    useStore.getState().load(p1);
+    useStore.getState().setSpeed(1);
+    const s1 = useStore.getState();
+    const end1 = s1.t0 + s1.duration;
+    expect(s1.t).toBe(s1.duration); // real data opens at now
+    const last = p1.events[p1.events.length - 1];
+    const later = { ...last, id: "later-event", ts: last.ts + 60_000 };
+    const p2 = { ...p1, events: [...p1.events, later] };
+    useStore.getState().reload(p2);
+    const s2 = useStore.getState();
+    expect(s2.t0 + s2.t).toBe(end1); // still where the agents were
+    expect(s2.playing).toBe(true);
+    expect(s2.speed).toBeGreaterThan(1);
+    for (let i = 0; i < 200 && useStore.getState().playing; i++) useStore.getState().advance(100);
+    const s3 = useStore.getState();
+    expect(s3.t).toBe(s3.duration);
+    expect(s3.playing).toBe(false);
+    expect(s3.speed).toBe(1); // the owner's speed comes back
+  });
+});

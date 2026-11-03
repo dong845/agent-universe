@@ -36,6 +36,9 @@ export function duration(ms: number): string {
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
+/** one formatter for every row: creating one per call made a long list stall the page (owner 2026-11-03: 抖动) */
+const DAY = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" });
+export const stepDay = (ts: number) => DAY.format(ts);
 const when = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 export interface StepFacts {

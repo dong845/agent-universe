@@ -66,3 +66,10 @@ describe("stepFacts", () => {
     expect(f.rows.find(([k]) => k === "技能")).toBeUndefined();
   });
 });
+
+describe("stepDay", () => {
+  it("formats month and day with one shared formatter", async () => {
+    const { stepDay } = await import("../packages/web/src/city/history.ts");
+    expect(stepDay(Date.UTC(2026, 9, 25, 12))).toBe(new Date(Date.UTC(2026, 9, 25, 12)).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" }));
+  });
+});

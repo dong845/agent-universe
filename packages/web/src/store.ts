@@ -112,6 +112,9 @@ interface Store {
 }
 
 let lastUi = 0;
+/** a live catch-up in progress: the speed to restore when it reaches the end */
+let catchUp: { speed: number } | null = null;
+const CATCH_UP_MS = 6000;
 /** the runtime and clock length a replay replaced */
 let saved: { runtime: Runtime; duration: number } | null = null;
 
@@ -237,8 +240,10 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
   reload(p) {
-    const { focus, city, selected, t, duration, playing, speed } = get();
+    const { focus, city, selected, t, duration, playing, speed, t0: oldT0, source: oldSource } = get();
     const atEnd = t >= duration;
+    const wasAt = oldT0 + t;
+    const ownSpeed = catchUp ? catchUp.speed : speed;
     get().load(p);
     const w = get().w25;
     const still = (sel: Selection | null): Selection | null => {
@@ -249,7 +254,17 @@ export const useStore = create<Store>((set, get) => ({
     };
     const keep = (k: string | null) => (k && w?.towns.has(k) ? k : null);
     const next = get().duration;
-    set({ focus: keep(focus), city: keep(city), selected: still(selected), playing, speed, ...(atEnd ? { t: next, uiT: next } : { t: Math.min(t, next), uiT: Math.min(t, next) }) });
+    const t0 = get().t0;
+    // following now on live data: play the stretch the agents missed, quickly, instead of jumping to the
+    // new end — a jump made them teleport (owner 2026-11-03). Done in about CATCH_UP_MS, never below 1×.
+    const from = wasAt - t0;
+    if (atEnd && oldSource === "real" && p.source === "real" && from >= 0 && from < next) {
+      const fast = Math.max(1, (next - from) / CATCH_UP_MS);
+      catchUp = { speed: ownSpeed };
+      set({ focus: keep(focus), city: keep(city), selected: still(selected), t: from, uiT: from, playing: true, speed: fast });
+      return;
+    }
+    set({ focus: keep(focus), city: keep(city), selected: still(selected), playing, speed: ownSpeed, ...(atEnd ? { t: next, uiT: next } : { t: Math.min(t, next), uiT: Math.min(t, next) }) });
   },
   load(p) {
     const { events, source } = p;
@@ -294,7 +309,10 @@ export const useStore = create<Store>((set, get) => ({
     const now = performance.now();
     const ui = now - lastUi >= UI_REFRESH_MS || next >= duration;
     if (ui) lastUi = now;
-    set(ui ? { t: next, uiT: next, playing: next < duration } : { t: next });
+    // a catch-up ends at the new end: the owner's own speed comes back
+    const done = next >= duration && catchUp ? { speed: catchUp.speed } : {};
+    if (next >= duration) catchUp = null;
+    set(ui ? { t: next, uiT: next, playing: next < duration, ...done } : { t: next });
   },
   setPlaying(p) {
     const { t, duration } = get();
@@ -302,6 +320,8 @@ export const useStore = create<Store>((set, get) => ({
     set({ playing: p, ...(p && t >= duration ? { t: 0, uiT: 0 } : {}) });
   },
   setSpeed(s) {
+    // the owner choosing a speed ends a catch-up
+    catchUp = null;
     set({ speed: s });
   },
   setHovered(h) {
