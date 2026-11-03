@@ -84,7 +84,11 @@ interface Store {
   w25: World25 | null;
   load(p: WorldPayload): void;
   /** a newer world from the log watcher: like load, but the view (focus, city, selection, a scrubbed clock) stays */
-  reload(p: WorldPayload): void;
+  reload(p: WorldPayload, prepared?: Prepared): void;
+  /** the heavy part of load, computed without touching the page: a reload can apply it a frame later */
+  prepare(p: WorldPayload): Prepared;
+  /** the same, spread over frames (each step waits for `nextFrame`) */
+  prepareInFrames(p: WorldPayload, nextFrame: () => Promise<unknown>): Promise<Prepared>;
   /** sessions that need the owner now, from the server's attention stream */
   attention: Attention[];
   setAttention(a: Attention[]): void;
@@ -100,6 +104,9 @@ interface Store {
   /** on: neutral emblems, no diary; names = code names (null keeps project names); titles: keep request titles */
   setShare(on: boolean, names?: Record<string, string> | null, titles?: boolean): void;
   shareTitles: boolean;
+  /** live: the clock follows the newest record (real data opens so; scrubbing leaves it; 实时 returns) */
+  following: boolean;
+  setFollowing(f: boolean): void;
   /** a history step's moment: the world is drawn as it stood then (null = the clock) */
   historyAt: number | null;
   setHistoryAt(ts: number | null): void;
@@ -112,9 +119,12 @@ interface Store {
 }
 
 let lastUi = 0;
-/** a live catch-up in progress: the speed to restore when it reaches the end */
-let catchUp: { speed: number } | null = null;
-const CATCH_UP_MS = 6000;
+/** what load computes from a payload, ready to be set */
+export type Prepared = Pick<Store, "w25" | "events" | "source" | "unended" | "live" | "replay" | "selected" | "world" | "runtimes" | "primary" | "t0" | "duration" | "ledger" | "t" | "uiT" | "playing" | "following"> & { realW25?: World25 | null };
+/** live: within this much of the newest record the clock goes at real speed (records arrive in batches) */
+const FOLLOW_SLACK_MS = 15_000;
+/** further behind, the extra speed per this much of extra gap */
+const FOLLOW_HURRY_MS = 2_000;
 /** the runtime and clock length a replay replaced */
 let saved: { runtime: Runtime; duration: number } | null = null;
 
@@ -227,6 +237,13 @@ export const useStore = create<Store>((set, get) => ({
   realW25: null,
   shareTitles: false,
   historyAt: null,
+  following: false,
+  setFollowing(f) {
+    const { t, duration } = get();
+    // pressing 实时 far back in the record goes straight to now; close behind, the clock walks on
+    const jump = f && duration - t > 60_000 ? { t: duration, uiT: duration } : {};
+    set({ following: f, ...(f ? { playing: true } : {}), ...jump });
+  },
   setHistoryAt(ts) {
     set({ historyAt: ts });
   },
@@ -239,13 +256,14 @@ export const useStore = create<Store>((set, get) => ({
       set({ share: false, shareNames: null, w25: st.realW25, realW25: null });
     }
   },
-  reload(p) {
+  reload(p, prepared) {
     const { focus, city, selected, t, duration, playing, speed, t0: oldT0, source: oldSource } = get();
     const atEnd = t >= duration;
     const wasAt = oldT0 + t;
-    const ownSpeed = catchUp ? catchUp.speed : speed;
-    get().load(p);
-    const w = get().w25;
+    const following = get().following;
+    const patch = prepared ?? get().prepare(p);
+    saved = null;
+    const w = patch.w25;
     const still = (sel: Selection | null): Selection | null => {
       if (!sel || !w) return null;
       if (sel.kind === "request") return w.requests.has(sel.requestId) ? sel : null;
@@ -253,75 +271,71 @@ export const useStore = create<Store>((set, get) => ({
       return sel;
     };
     const keep = (k: string | null) => (k && w?.towns.has(k) ? k : null);
-    const next = get().duration;
-    const t0 = get().t0;
-    // following now on live data: play the stretch the agents missed, quickly, instead of jumping to the
-    // new end — a jump made them teleport (owner 2026-11-03). Done in about CATCH_UP_MS, never below 1×.
-    const from = wasAt - t0;
-    if (atEnd && oldSource === "real" && p.source === "real" && from >= 0 && from < next) {
-      const fast = Math.max(1, (next - from) / CATCH_UP_MS);
-      catchUp = { speed: ownSpeed };
-      set({ focus: keep(focus), city: keep(city), selected: still(selected), t: from, uiT: from, playing: true, speed: fast });
+    const next = patch.duration;
+    const t0 = patch.t0;
+    // live: the agents stay where they were and the clock walks on through the newer records — jumping to
+    // the new end made them teleport (owner 2026-11-03). advance() sets the pace.
+    if (following && oldSource === "real" && p.source === "real") {
+      const from = Math.max(0, Math.min(next, wasAt - t0));
+      set({ ...patch, focus: keep(focus), city: keep(city), selected: still(selected), t: from, uiT: from, playing: true, speed, following: true });
       return;
     }
-    set({ focus: keep(focus), city: keep(city), selected: still(selected), playing, speed: ownSpeed, ...(atEnd ? { t: next, uiT: next } : { t: Math.min(t, next), uiT: Math.min(t, next) }) });
+    // one update: the new world and the kept view together, so the page redraws once
+    set({ ...patch, focus: keep(focus), city: keep(city), selected: still(selected), playing, speed, following, ...(atEnd ? { t: next, uiT: next } : { t: Math.min(t, next), uiT: Math.min(t, next) }) });
   },
   load(p) {
-    const { events, source } = p;
-    const live = new Set(p.liveTaskIds);
-    const world = buildWorld(events, source === "real" ? live : undefined, p.home);
-    let { runtimes, t0, duration } = runtimesOf(events, world, live);
-    const ended = new Set(events.filter((e) => e.kind === "task_end" && e.taskId).map((e) => e.taskId!));
-    const unended = new Set(events.filter((e) => e.kind === "task_start" && e.taskId && !ended.has(e.taskId) && !live.has(e.taskId)).map((e) => e.taskId!));
-    let t = 0;
-    if (source === "real" && events.length) {
-      // real data: the clock spans the whole record and opens at its end, "now" (spec 12.2)
-      const first = events[0].ts;
-      const last = events[events.length - 1].ts;
-      runtimes = runtimes.map((r) => (r.timeline ? { ...r, offset: r.timeline.t0 - first } : r));
-      duration = Math.max(last - first, ...runtimes.map((r) => (r.timeline ? r.offset + r.timeline.duration : 0)));
-      t0 = first;
-      t = duration;
-    }
-    if (source === "share" && p.requests.length) {
-      // a shared world has no events: its clock spans its requests and opens at the end, finished
-      t0 = Math.min(...p.requests.map((r) => r.startTs));
-      duration = Math.max(...p.requests.map((r) => r.endTs)) - t0;
-      t = duration;
-    }
-    const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
     saved = null;
-    const built = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, live) : null;
-    const { share, shareNames, shareTitles } = get();
-    const w25 = built && share && (shareNames || !shareTitles) ? maskWorld(built, shareNames, shareTitles) : built;
-    if (share) set({ realW25: built });
-    set({ w25, events, source, unended, live, replay: null, selected: null, world, runtimes, primary, t0, duration, ledger: buildLedger(events, p.buildingRows), t, uiT: t, playing: source === "demo" ? get().playing : false });
+    set(get().prepare(p));
+  },
+  prepare(p) {
+    const a = prepareClock(p);
+    const ledger = buildLedger(p.events, p.buildingRows);
+    return finishPrepare(p, a, ledger, get);
+  },
+  async prepareInFrames(p, nextFrame) {
+    // three short frames instead of one long one (spec 2026-11-03 A2)
+    const a = prepareClock(p);
+    await nextFrame();
+    const ledger = buildLedger(p.events, p.buildingRows);
+    await nextFrame();
+    return finishPrepare(p, a, ledger, get);
   },
   setTime(t) {
     const c = Math.max(0, Math.min(get().duration, t));
     lastUi = performance.now();
-    set({ t: c, uiT: c });
+    // the owner moving the clock leaves live
+    set({ t: c, uiT: c, following: false });
   },
   advance(dtMs) {
-    const { playing, speed, t, duration } = get();
+    const { playing, speed, t, duration, following } = get();
+    if (following) {
+      // live: real speed while close behind the newest record; far behind, hurry back to within the slack;
+      // at the newest record, wait for the next
+      const gap = duration - t;
+      if (gap <= 0) return;
+      const rate = gap > FOLLOW_SLACK_MS ? 1 + (gap - FOLLOW_SLACK_MS) / FOLLOW_HURRY_MS : 1;
+      const next = Math.min(duration, t + dtMs * rate);
+      const now = performance.now();
+      const ui = now - lastUi >= UI_REFRESH_MS || next >= duration;
+      if (ui) lastUi = now;
+      set(ui ? { t: next, uiT: next } : { t: next });
+      return;
+    }
     if (!playing) return;
     const next = Math.min(duration, t + dtMs * speed);
     const now = performance.now();
     const ui = now - lastUi >= UI_REFRESH_MS || next >= duration;
     if (ui) lastUi = now;
-    // a catch-up ends at the new end: the owner's own speed comes back
-    const done = next >= duration && catchUp ? { speed: catchUp.speed } : {};
-    if (next >= duration) catchUp = null;
-    set(ui ? { t: next, uiT: next, playing: next < duration, ...done } : { t: next });
+    set(ui ? { t: next, uiT: next, playing: next < duration } : { t: next });
   },
   setPlaying(p) {
     const { t, duration } = get();
+    // pausing leaves live
+    if (!p) set({ following: false });
     // pressing play at the end starts the replay over
     set({ playing: p, ...(p && t >= duration ? { t: 0, uiT: 0 } : {}) });
   },
   setSpeed(s) {
-    // the owner choosing a speed ends a catch-up
-    catchUp = null;
     set({ speed: s });
   },
   setHovered(h) {
@@ -331,6 +345,44 @@ export const useStore = create<Store>((set, get) => ({
     set({ pointer: { x, y } });
   },
 }));
+
+
+/** step 1 of preparing a world: the districts, their live timelines and the clock */
+function prepareClock(p: WorldPayload) {
+  const { events, source } = p;
+  const live = new Set(p.liveTaskIds);
+  const world = buildWorld(events, source === "real" ? live : undefined, p.home);
+  let { runtimes, t0, duration } = runtimesOf(events, world, live);
+  const ended = new Set(events.filter((e) => e.kind === "task_end" && e.taskId).map((e) => e.taskId!));
+  const unended = new Set(events.filter((e) => e.kind === "task_start" && e.taskId && !ended.has(e.taskId) && !live.has(e.taskId)).map((e) => e.taskId!));
+  let t = 0;
+  if (source === "real" && events.length) {
+    // real data: the clock spans the whole record and opens at its end, "now" (spec 12.2)
+    const first = events[0].ts;
+    const last = events[events.length - 1].ts;
+    runtimes = runtimes.map((r) => (r.timeline ? { ...r, offset: r.timeline.t0 - first } : r));
+    duration = Math.max(last - first, ...runtimes.map((r) => (r.timeline ? r.offset + r.timeline.duration : 0)));
+    t0 = first;
+    t = duration;
+  }
+  if (source === "share" && p.requests.length) {
+    // a shared world has no events: its clock spans its requests and opens at the end, finished
+    t0 = Math.min(...p.requests.map((r) => r.startTs));
+    duration = Math.max(...p.requests.map((r) => r.endTs)) - t0;
+    t = duration;
+  }
+  const primary = runtimes.find((r) => r.timeline && r.district.faction === "claude-code") ?? runtimes.find((r) => r.timeline) ?? null;
+  return { live, world, runtimes, t0, duration, unended, t, primary };
+}
+
+/** the last step: the towns and planets' data (kept where unchanged), assembled */
+function finishPrepare(p: WorldPayload, a: ReturnType<typeof prepareClock>, ledger: Ledger, get: () => Store): Prepared {
+  const { events, source } = p;
+  const built = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, a.live) : null;
+  const { share, shareNames, shareTitles } = get();
+  const w25 = built && share && (shareNames || !shareTitles) ? maskWorld(built, shareNames, shareTitles) : built;
+  return { ...(share ? { realW25: built } : {}), following: source === "real", w25, events, source, unended: a.unended, live: a.live, replay: null, selected: null, world: a.world, runtimes: a.runtimes, primary: a.primary, t0: a.t0, duration: a.duration, ledger, t: a.t, uiT: a.t, playing: source === "demo" ? get().playing : false };
+}
 
 /** absolute timestamp of the playback clock, for ledger lookups */
 export function absTime(t: number): number {

@@ -66,7 +66,7 @@ export function TimelineBar() {
         <input type="range" min={0} max={d} step={50} value={t} onChange={(e) => setTime(Number(e.target.value))} aria-label="时间轴" />
       </div>
       <span className="time" data-testid="clock">{clock(t)} / {clock(d)}</span>
-      <button disabled title="实时模式在第 4 阶段接入">实时</button>
+      <LiveButton />
     </div>
   );
 }
@@ -88,5 +88,17 @@ export function Nav() {
       <button onClick={next} disabled={!live.length} data-testid="nav-live">进行中{live.length ? ` (${live.length})` : ""}</button>
       {current ? <span className="where">{current.faction === "codex" ? "Codex" : "Claude Code"} · {current.name}</span> : <span className="where">世界 · {w?.towns.size ?? 0} 个镇</span>}
     </div>
+  );
+}
+
+/** 实时: the clock follows the newest record (spec 2026-11-03 A3); scrubbing or pausing leaves it */
+function LiveButton() {
+  const source = useStore((s) => s.source);
+  const following = useStore((s) => s.following);
+  if (source !== "real") return <button disabled title="只有真实数据有实时">实时</button>;
+  return (
+    <button className={following ? "live-on" : ""} data-testid="live" aria-pressed={following}
+      title={following ? "正在跟随最新记录：拖动时间轴或暂停即离开" : "回到实时：跟随最新记录"}
+      onClick={() => useStore.getState().setFollowing(true)}>{following ? "● 实时" : "实时"}</button>
   );
 }

@@ -8,7 +8,8 @@ import { useRecorder } from "./share/recorder.ts";
 import { latestEvery } from "./throttle.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
 
-const WORLD_EVERY_MS = 30_000;
+// a newer world now costs one short frame (spec 2026-11-03 A2), so it can come often
+const WORLD_EVERY_MS = 5_000;
 import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { orbit } from "./galaxy/Galaxy.tsx";
@@ -35,7 +36,15 @@ if (payload.source === "share") store.setShare(true, null, true);
 // A newer world rebuilds the page's world (~0.2 s on a big record): at most one every 30 s, never during
 // a recording. The 需要你 list has its own small message and is applied at once.
 if (payload.source === "real") {
-  const world = latestEvery<WorldPayload>((p) => useStore.getState().reload(p), WORLD_EVERY_MS, () => !!useRecorder.getState().session);
+  // compute the newer world in one frame, hand it to the page in the next: one long frame was two short ones
+  const frame = () => new Promise((res) => requestAnimationFrame(res));
+  const apply = (p: WorldPayload) => {
+    void useStore.getState().prepareInFrames(p, frame).then(async (prepared) => {
+      await frame();
+      useStore.getState().reload(p, prepared);
+    });
+  };
+  const world = latestEvery<WorldPayload>(apply, WORLD_EVERY_MS, () => !!useRecorder.getState().session);
   subscribe({ world, attention: (a) => useStore.getState().setAttention(a) });
 }
 
@@ -97,6 +106,26 @@ window.__agentTown = {
   orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
+  /** test hook: fetch the newest world and apply it now (real data) */
+  reloadNow: async () => {
+    // the same path the stream takes: download, parse and apply in separate frames
+    const r = await fetch("/api/world");
+    if (!r.ok) return;
+    const text = await r.text();
+    await new Promise((res) => requestAnimationFrame(res));
+    let t = performance.now();
+    const p = JSON.parse(text);
+    const parseMs = performance.now() - t;
+    await new Promise((res) => requestAnimationFrame(res));
+    t = performance.now();
+    const prepared = await useStore.getState().prepareInFrames(p, () => new Promise((res) => requestAnimationFrame(res)));
+    const prepareMs = performance.now() - t;
+    await new Promise((res) => requestAnimationFrame(res));
+    t = performance.now();
+    useStore.getState().reload(p, prepared);
+    // timings for the frame-cost check (spec 2026-11-03 A2)
+    return { parseMs: Math.round(parseMs), prepareMs: Math.round(prepareMs), applyMs: Math.round(performance.now() - t) };
+  },
   /** share mode on/off (demo: stand-in code names; real data: the server's code names) */
   setShare: (on: boolean, show = { townNames: false, titles: false }) => (on ? enterShare(show) : leaveShare()),
   /** share mode on? */

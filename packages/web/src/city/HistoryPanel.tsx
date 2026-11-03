@@ -49,7 +49,9 @@ export function HistoryPanel() {
   const events = { id: loaded?.requestId ?? "", ev: loaded?.ev ?? null };
   const agents = useMemo(() => stepAgents(events.ev), [events.ev]);
   const list = useRef<HTMLOListElement>(null);
-  // the rows change only with the steps and the chosen one: never rebuilt on other renders
+  // the rows change only with the steps' content and the chosen one: a newer world with the same steps
+  // (new objects, same values) does not rebuild them
+  const stepsSig = steps.map((s) => `${s.request.requestId}:${s.request.endTs}:${s.request.title ?? ""}`).join("|");
   const rows = useMemo(() => steps.map((s) => (
     <li key={s.request.requestId} className={`${s.index === step ? "on" : ""} c-${s.request.class}`}>
       <button onClick={() => goToStep(steps, s.index)} data-testid="history-step">
@@ -58,7 +60,8 @@ export function HistoryPanel() {
         <span className="t">{s.request.title ?? "（无标题）"}</span>
       </button>
     </li>
-  )), [steps, step]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the steps' content (stepsSig), not their identity
+  )), [stepsSig, step]);
   useEffect(() => {
     if (!cur || shared) return;
     let alive = true;
