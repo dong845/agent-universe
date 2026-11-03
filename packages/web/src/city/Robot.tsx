@@ -32,7 +32,7 @@ export interface RobotInfo {
 /** what each robot shows over its head, for the label overlay */
 export const robotInfo = new Map<string, RobotInfo>();
 
-export function Robot({ id, actor, time, faction, end }: { id: string; actor: Actor; time: () => number; faction: Faction; end: number }) {
+export function Robot({ id, actor, time, faction, end, label }: { id: string; actor: Actor; time: () => number; faction: Faction; end: number; label?: string }) {
   const sub = actor.kind === "subagent";
   const roleHex = sub ? WORK_COLOR[actor.baseRole] ?? FACTION_COLOR[faction] : FACTION_COLOR[faction];
   const mats = useMemo(() => ({ visor: glow(FACTION_COLOR[faction], 2.4), chest: glow(roleHex), thrust: glow("#9fe8ff", 2.2), red: glow("#ff4d4d", 3), cube: glow("#7fd8ff", 2.4) }), [faction, roleHex]);
@@ -117,7 +117,7 @@ export function Robot({ id, actor, time, faction, end }: { id: string; actor: Ac
     think.current!.rotation.y = k * 3;
     const sc = sub ? SCALE.sub : SCALE.main;
     info.anchor.set(s.pos.x, (1.2 + hover) * sc, s.pos.z);
-    info.text = `${sub ? "子代理" : "主代理"} · ${done ? "完成" : activityOf(s.pose, s.building, sub)}`;
+    info.text = label ?? `${sub ? "子代理" : "主代理"} · ${done ? "完成" : activityOf(s.pose, s.building, sub)}`;
     info.alert = s.pose === "raise_hand" || hurt;
   });
 

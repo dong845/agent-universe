@@ -8,7 +8,12 @@ import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { fetchRequest } from "../data.ts";
 import type { Planet } from "../galaxy/galaxyData.ts";
 import { useStore } from "../store.ts";
-import { historySteps, stepDay, stepFacts, useHistory, type HistoryStep } from "./history.ts";
+import { historySteps, stepAgents, stepDay, stepFacts, useHistory, type HistoryStep } from "./history.ts";
+import { Robot } from "./Robot.tsx";
+import type { Actor } from "../orchestrator/timeline.ts";
+
+/** at most this many subagents stand in the city for one step (the rest are listed) */
+const MAX_SUBS = 12;
 
 /** the steps of the open history (empty when closed) */
 export function useSteps(): HistoryStep[] {
@@ -40,7 +45,9 @@ export function HistoryPanel() {
   const steps = useSteps();
   const shared = useStore((s) => s.source === "share");
   const cur = step ? steps[step - 1] : undefined;
-  const [events, setEvents] = useState<{ id: string; ev: AgentTownEvent[] | null }>({ id: "", ev: null });
+  const loaded = useHistory((s) => s.events);
+  const events = { id: loaded?.requestId ?? "", ev: loaded?.ev ?? null };
+  const agents = useMemo(() => stepAgents(events.ev), [events.ev]);
   const list = useRef<HTMLOListElement>(null);
   // the rows change only with the steps and the chosen one: never rebuilt on other renders
   const rows = useMemo(() => steps.map((s) => (
@@ -55,10 +62,11 @@ export function HistoryPanel() {
   useEffect(() => {
     if (!cur || shared) return;
     let alive = true;
-    setEvents({ id: cur.request.requestId, ev: null });
-    fetchRequest(cur.request.requestId, cur.request.taskIds)
-      .then((ev) => alive && setEvents({ id: cur.request.requestId, ev }))
-      .catch(() => alive && setEvents({ id: cur.request.requestId, ev: null }));
+    const id = cur.request.requestId;
+    useHistory.getState().setEvents(id, null);
+    fetchRequest(id, cur.request.taskIds)
+      .then((ev) => alive && useHistory.getState().setEvents(id, ev))
+      .catch(() => alive && useHistory.getState().setEvents(id, null));
     return () => { alive = false; };
   }, [cur, shared]);
   // ← → walk the steps
@@ -101,6 +109,21 @@ export function HistoryPanel() {
         {facts.rows.map(([k, v]) => <div key={k} className="row"><span>{k}</span><b>{v}</b></div>)}
         {!cur.drawn ? <p className="muted">{r.class === "chat" ? "问答不建楼：记在城里的问答牌上。" : "城里没有单独画出这一步的楼（一座城最多画 20 栋房子、6 顶帐篷，挑的是最大的）。"}</p> : null}
         {facts.work.length ? (<><h5>做了什么</h5><div className="chips">{facts.work.map((x) => <span key={x.name}>{x.name} <b>{x.n}</b></span>)}</div></>) : null}
+        {agents.length ? (
+          <>
+            <h5>代理（站在任务大厅旁）</h5>
+            <ul className="agents" data-testid="history-agents">
+              {agents.slice(0, 1 + MAX_SUBS).map((a) => (
+                <li key={a.id}>
+                  <b>{a.kind === "main" ? "主代理" : `子代理${a.agentType ? ` · ${a.agentType}` : ""}`}</b>
+                  {a.task ? <span className="task">{a.task}</span> : null}
+                  <span className="muted">{a.calls ? a.work.slice(0, 3).map((w) => `${w.name} ${w.n}`).join(" · ") : "没有调用工具"}</span>
+                </li>
+              ))}
+            </ul>
+            {agents.length > 1 + MAX_SUBS ? <p className="muted">另有 {agents.length - 1 - MAX_SUBS} 个子代理没有画出</p> : null}
+          </>
+        ) : null}
         {facts.files.length ? (<><h5>改了哪些文件</h5><ul className="files">{facts.files.slice(0, 8).map((f) => <li key={f.path}><code>{f.path}</code>{f.edits > 1 ? <b>×{f.edits}</b> : null}</li>)}</ul>{facts.files.length > 8 ? <p className="muted">另有 {facts.files.length - 8} 个文件</p> : null}</>) : null}
         {!shared && events.id === r.requestId && events.ev === null ? <p className="muted">正在读这一步的记录…</p> : null}
       </section>
@@ -140,4 +163,40 @@ export function HistoryFocus({ p }: { p: Planet }) {
   });
   if (!block) return null;
   return <mesh ref={ring} geometry={RING} material={RING_MAT} position={[block.spot.x, 0.06, block.spot.z]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} />;
+}
+
+/**
+ * Inside the city: the chosen step's agents standing by the task hall — the main agent in front, the
+ * subagents on an arc beside it — each with who it was over its head. Still figures, not a replay.
+ */
+export function StandingAgents({ p }: { p: Planet }) {
+  const on = useHistory((s) => s.town === p.key && s.step !== null);
+  const loaded = useHistory((s) => s.events);
+  const agents = useMemo(() => (on ? stepAgents(loaded?.ev ?? null) : []), [on, loaded]);
+  const hall = p.blocks.find((b) => b.type === "hall");
+  const actors = useMemo(() => {
+    if (!hall || !agents.length) return [];
+    const hx = hall.spot.x, hz = hall.spot.z;
+    // facing the square: from the hall towards the city's centre
+    const out = Math.atan2(-hz, -hx);
+    const r0 = (hall.foot / p.unit) * 0.95 + 1.2;
+    const subs = agents.slice(1, 1 + MAX_SUBS);
+    return agents.slice(0, 1 + MAX_SUBS).map((a, i): { a: typeof a; actor: Actor } => {
+      const k = a.kind === "main" ? 0 : subs.indexOf(a) + 1;
+      // the main agent straight out from the door; subagents alternate left and right, a step further each
+      const ang = out + (k === 0 ? 0 : (k % 2 ? 1 : -1) * (0.38 + Math.floor((k - 1) / 2) * 0.32));
+      const r = r0 + (k === 0 ? 0 : 0.9 + Math.floor((k - 1) / 2) * 0.15);
+      return { a, actor: { id: `hist|${a.id}|${i}`, kind: a.kind === "main" ? "commander" : "subagent", baseRole: a.role ?? "scout", agentType: a.agentType, home: { x: hx + Math.cos(ang) * r, z: hz + Math.sin(ang) * r }, lane: 0, appear: 0, vanish: null, actions: [], backpack: [] } };
+    });
+  }, [agents, hall, p.unit]);
+  if (!actors.length) return null;
+  const time = () => 1;
+  return (
+    <>
+      {actors.map(({ a, actor }) => (
+        <Robot key={actor.id} id={actor.id} actor={actor} time={time} faction={p.town.faction} end={Infinity}
+          label={a.kind === "main" ? `主代理 · ${a.calls} 次调用` : `子代理${a.agentType ? ` · ${a.agentType}` : ""} · ${a.calls} 次`} />
+      ))}
+    </>
+  );
 }

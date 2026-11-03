@@ -14,7 +14,8 @@ import { BELT, NOISE } from "../galaxy/shaders.ts";
 import type { TownLayout } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
 import { cityPlaces } from "./cityData.ts";
-import { HistoryFocus } from "./HistoryPanel.tsx";
+import { HistoryFocus, StandingAgents } from "./HistoryPanel.tsx";
+import { useHistory } from "./history.ts";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, robotInfo } from "./Robot.tsx";
 import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
@@ -215,6 +216,8 @@ function Buildings({ p, w }: { p: Planet; w: World25 }) {
 
 /** the live requests of this town, played on the world clock */
 function LiveAgents({ p, layout, w }: { p: Planet; layout: TownLayout; w: World25 }) {
+  // at a history step the world is pinned to the past: the step's own agents stand instead
+  const history = useHistory((s) => s.town === p.key);
   const events = useStore((s) => s.events);
   const live = useStore((s) => s.live);
   const tl = useMemo(() => {
@@ -224,7 +227,7 @@ function LiveAgents({ p, layout, w }: { p: Planet; layout: TownLayout; w: World2
     const evs = events.filter((e): e is AgentTownEvent => !!e.taskId && tasks.has(e.taskId));
     return evs.length ? buildTimeline(evs, cityPlaces(layout, reqs[0].requestId)) : null;
   }, [events, live, w, p.key, layout]);
-  if (!tl) return null;
+  if (!tl || history) return null;
   const time = () => absTime(useStore.getState().t) - tl.t0;
   return <>{tl.actors.map((a) => <Robot key={`live|${a.id}`} id={`live|${a.id}`} actor={a} time={time} faction={p.town.faction} end={tl.roofAt ?? Infinity} />)}</>;
 }
@@ -313,6 +316,7 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
       </Suspense>
       <CityCamera layout={layout} />
       <HistoryFocus p={p} />
+      <Suspense fallback={null}><StandingAgents p={p} /></Suspense>
       <Clock />
       <Effects />
     </>

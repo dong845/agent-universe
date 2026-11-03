@@ -35,6 +35,9 @@ export function duration(ms: number): string {
   return `${Math.floor(m / 60)} 小时 ${m % 60} 分`;
 }
 
+/** a tool call's kind of work in plain words; the main agent's spawning calls carry the role "commander" */
+const workName = (role: AgentTownEvent["role"] | undefined) => (!role ? "其他" : role === "commander" ? WORK_NAMES.spawn ?? "派子代理" : WORK_NAMES[role] ?? role);
+
 const pad = (n: number) => String(n).padStart(2, "0");
 /** one formatter for every row: creating one per call made a long list stall the page (owner 2026-11-03: 抖动) */
 const DAY = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" });
@@ -69,7 +72,7 @@ export function stepFacts(r: RequestRow, events: AgentTownEvent[] | null): StepF
   const root = r.projectId.replace(/\/+$/, "") + "/";
   for (const e of events ?? []) {
     if (e.kind !== "tool_start") continue;
-    const name = e.role ? WORK_NAMES[e.role] ?? e.role : "其他";
+    const name = workName(e.role);
     work.set(name, (work.get(name) ?? 0) + 1);
     for (const f of e.files ?? []) {
       if (f.access !== "edit") continue;
@@ -85,11 +88,59 @@ export function stepFacts(r: RequestRow, events: AgentTownEvent[] | null): StepF
   };
 }
 
+export interface StepAgent {
+  id: string;
+  kind: "main" | "sub";
+  role?: AgentTownEvent["role"];
+  /** a subagent's type and the task it was given, as logged */
+  agentType?: string;
+  task?: string;
+  calls: number;
+  work: { name: string; n: number }[];
+}
+
+/** the agents a step used: the main agent first, then each subagent in the order it was sent out */
+export function stepAgents(events: AgentTownEvent[] | null): StepAgent[] {
+  if (!events?.length) return [];
+  const spawned = new Map<string, AgentTownEvent>();
+  for (const e of events) if (e.kind === "agent_spawn" && !spawned.has(e.agentId)) spawned.set(e.agentId, e);
+  const calls = new Map<string, Map<string, number>>();
+  const order: string[] = [];
+  for (const e of events) {
+    if (!calls.has(e.agentId)) { calls.set(e.agentId, new Map()); order.push(e.agentId); }
+    if (e.kind !== "tool_start") continue;
+    const name = workName(e.role);
+    const m = calls.get(e.agentId)!;
+    m.set(name, (m.get(name) ?? 0) + 1);
+  }
+  const of = (id: string) => {
+    const m = calls.get(id) ?? new Map<string, number>();
+    const work = [...m].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || (a.name < b.name ? -1 : 1));
+    return { calls: work.reduce((a, w) => a + w.n, 0), work };
+  };
+  // the main agent: the busiest agent that was not sent out by another
+  const mains = order.filter((id) => !spawned.has(id)).sort((a, b) => of(b).calls - of(a).calls);
+  const out: StepAgent[] = mains.slice(0, 1).map((id) => ({ id, kind: "main", role: "commander", ...of(id) }));
+  for (const [id, sp] of spawned) out.push({ id, kind: "sub", role: sp.role, agentType: sp.agentType, task: sp.agentTask, ...of(id) });
+  return out;
+}
+
 /** the history panel's state: which town, which step (null = closed) */
-export const useHistory = create<{ town: string | null; step: number | null; open(town: string, step: number): void; go(step: number): void; close(): void }>((set) => ({
+export const useHistory = create<{
+  town: string | null;
+  step: number | null;
+  /** the chosen step's events, once loaded (shared by the panel and the agents standing in the city) */
+  events: { requestId: string; ev: AgentTownEvent[] | null } | null;
+  open(town: string, step: number): void;
+  go(step: number): void;
+  setEvents(requestId: string, ev: AgentTownEvent[] | null): void;
+  close(): void;
+}>((set) => ({
   town: null,
   step: null,
+  events: null,
   open: (town, step) => set({ town, step }),
   go: (step) => set({ step }),
-  close: () => set({ town: null, step: null }),
+  setEvents: (requestId, ev) => set({ events: { requestId, ev } }),
+  close: () => set({ town: null, step: null, events: null }),
 }));

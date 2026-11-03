@@ -73,3 +73,33 @@ describe("stepDay", () => {
     expect(stepDay(Date.UTC(2026, 9, 25, 12))).toBe(new Date(Date.UTC(2026, 9, 25, 12)).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" }));
   });
 });
+
+describe("stepAgents (owner 2026-11-03: show the step's agents)", () => {
+  it("the main agent and each subagent, with type, task and what it did", async () => {
+    const { stepAgents } = await import("../packages/web/src/city/history.ts");
+    const base = { faction: "claude-code" as const, projectId: "/p", sessionId: "s", taskId: "t1", raw: { file: "", line: 0 } };
+    let n = 0;
+    const ev = (agentId: string, kind: AgentTownEvent["kind"], extra: Partial<AgentTownEvent> = {}): AgentTownEvent => ({ ...base, id: `e${n++}`, ts: n, agentId, kind, ...extra });
+    const events: AgentTownEvent[] = [
+      ev("main", "task_start"),
+      ev("main", "tool_start", { tool: "Agent", role: "commander" }),
+      ev("sub-a", "agent_spawn", { agentType: "Explore", agentTask: "找出所有用到 X 的地方", parentAgentId: "main", role: "scout" }),
+      ev("sub-a", "tool_start", { tool: "Read", role: "scout" }),
+      ev("sub-a", "tool_start", { tool: "Grep", role: "scout" }),
+      ev("sub-b", "agent_spawn", { agentType: "general-purpose", agentTask: "改测试", parentAgentId: "main", role: "smith" }),
+      ev("sub-b", "tool_start", { tool: "Edit", role: "smith" }),
+      ev("main", "tool_start", { tool: "Bash", role: "engineer" }),
+    ];
+    const a = stepAgents(events);
+    expect(a.map((x) => [x.id, x.kind])).toEqual([["main", "main"], ["sub-a", "sub"], ["sub-b", "sub"]]);
+    expect(a[1]).toMatchObject({ agentType: "Explore", task: "找出所有用到 X 的地方", calls: 2, role: "scout" });
+    expect(a[1].work).toEqual([{ name: "读代码", n: 2 }]);
+    expect(a[0].calls).toBe(2);
+    // the main agent's own spawning calls are named in plain words, not by their role id
+    expect(a[0].work.map((w) => w.name)).toEqual(["派子代理", "跑命令"]);
+  });
+  it("no events, no agents", async () => {
+    const { stepAgents } = await import("../packages/web/src/city/history.ts");
+    expect(stepAgents(null)).toEqual([]);
+  });
+});
