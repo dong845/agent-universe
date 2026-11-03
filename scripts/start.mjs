@@ -59,21 +59,32 @@ export function needsBuild(root) {
   return !built || newestSource(root) > built;
 }
 
-function run(cmd, args, root, what) {
+/** the dependency install: corepack's pnpm; on Windows a .cmd shim, which Node runs only through a shell */
+export function installCommand(platform = process.platform) {
+  return { cmd: "corepack", args: ["pnpm", "install", "--frozen-lockfile"], shell: platform === "win32" };
+}
+
+function run(cmd, args, root, what, shell = false) {
   console.log(`→ ${what}`);
-  const r = spawnSync(cmd, args, { cwd: root, stdio: "inherit", env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" } });
+  const r = spawnSync(cmd, args, { cwd: root, stdio: "inherit", shell, env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" } });
   if (r.status !== 0) {
-    console.error(`✗ ${what}失败（${cmd} ${args.join(" ")}，退出码 ${r.status ?? r.signal}）`);
+    const why = r.error ? r.error.message : `退出码 ${r.status ?? r.signal}`;
+    const hint = cmd === "corepack" && r.error ? "。这个 Node 没有带 corepack：运行 npm install -g corepack 后再试" : "";
+    console.error(`✗ ${what}失败（${cmd} ${args.join(" ")}：${why}）${hint}`);
     process.exit(1);
   }
 }
 
-function openBrowser(url) {
-  const [cmd, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
+/** opens the page; when the system has no opener, says where the page is instead (never crashes) */
+export function openBrowser(url, override) {
+  const [cmd, args] = override ? [override, [url]] : process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
+  const say = () => console.log(`请在浏览器打开 ${url}`);
   try {
-    spawn(cmd, args, { stdio: "ignore", detached: true }).unref();
+    const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+    child.on("error", say);
+    child.unref();
   } catch {
-    console.log(`请在浏览器打开 ${url}`);
+    say();
   }
 }
 
@@ -104,7 +115,10 @@ async function main() {
     if (!noOpen) openBrowser(url);
     return;
   }
-  if (needsInstall(root)) run(process.platform === "win32" ? "corepack.cmd" : "corepack", ["pnpm", "install", "--frozen-lockfile"], root, "安装依赖（第一次需要一两分钟）");
+  if (needsInstall(root)) {
+    const ic = installCommand();
+    run(ic.cmd, ic.args, root, "安装依赖（第一次需要一两分钟）", ic.shell);
+  }
   if (needsBuild(root)) run(process.execPath, ["--run", "build"], root, "构建网页");
 
   const server = spawn(process.execPath, [join(root, "scripts", "serve.ts"), ...pass], { cwd: root, stdio: "inherit" });

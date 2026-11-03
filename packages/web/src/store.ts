@@ -194,6 +194,8 @@ export const useStore = create<Store>((set, get) => ({
     set(k ? { city: k, focus: k } : { city: null });
   },
   startReplay(district, events) {
+    // a replay plays at its own speed: it leaves live (review 2026-11-04)
+    if (get().following) set({ following: false });
     get().stopReplay();
     const { runtimes, t, duration, primary } = get();
     const i = runtimes.findIndex((r) => r.district.key === district);
@@ -276,7 +278,7 @@ export const useStore = create<Store>((set, get) => ({
     const atEnd = t >= duration;
     const wasAt = oldT0 + t;
     const following = get().following;
-    const patch = prepared ?? get().prepare(p);
+    const patch = sharedPatch(prepared ?? get().prepare(p), get);
     saved = null;
     const w = patch.w25;
     const still = (sel: Selection | null): Selection | null => {
@@ -300,7 +302,7 @@ export const useStore = create<Store>((set, get) => ({
   },
   load(p) {
     saved = null;
-    set(get().prepare(p));
+    set(sharedPatch(get().prepare(p), get));
   },
   prepare(p) {
     const a = prepareClock(p);
@@ -362,6 +364,14 @@ export const useStore = create<Store>((set, get) => ({
 }));
 
 
+/** a prepared world as share mode stands now: masked while sharing, the real world kept aside */
+function sharedPatch(patch: Prepared, get: () => Store): Prepared {
+  const { share, shareNames, shareTitles } = get();
+  const built = patch.realW25 ?? patch.w25;
+  const w25 = built && share && (shareNames || !shareTitles) ? maskWorld(built, shareNames, shareTitles) : built;
+  return { ...patch, w25, realW25: share ? built : null };
+}
+
 /** step 1 of preparing a world: the districts, their live timelines and the clock */
 function prepareClock(p: WorldPayload) {
   const { events, source } = p;
@@ -394,9 +404,8 @@ function prepareClock(p: WorldPayload) {
 function finishPrepare(p: WorldPayload, a: ReturnType<typeof prepareClock>, ledger: Ledger, get: () => Store): Prepared {
   const { events, source } = p;
   const built = p.towns && p.requests ? buildWorld25(p.towns, p.requests, manifest as unknown as Manifest, a.live) : null;
-  const { share, shareNames, shareTitles } = get();
-  const w25 = built && share && (shareNames || !shareTitles) ? maskWorld(built, shareNames, shareTitles) : built;
-  return { ...(share ? { realW25: built } : {}), following: source === "real", w25, events, source, unended: a.unended, live: a.live, replay: null, selected: null, world: a.world, runtimes: a.runtimes, primary: a.primary, t0: a.t0, duration: a.duration, ledger, t: a.t, uiT: a.t, playing: source === "demo" ? get().playing : false };
+  // the unmasked world: share mode is applied when the patch is set (it may change in between)
+  return { realW25: built, w25: built, following: source === "real", events, source, unended: a.unended, live: a.live, replay: null, selected: null, world: a.world, runtimes: a.runtimes, primary: a.primary, t0: a.t0, duration: a.duration, ledger, t: a.t, uiT: a.t, playing: source === "demo" ? get().playing : false };
 }
 
 /** absolute timestamp of the playback clock, for ledger lookups */

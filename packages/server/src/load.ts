@@ -14,6 +14,9 @@ import { homedir } from "node:os";
 import { requestIdsOf } from "../../schema/src/requests.ts";
 import { assignProjects, defaultTempRoots, defaultToolRoots, type AssignOptions } from "./assign.ts";
 
+/** how long after its last write a session keeps its parser for tail reads */
+const LIVE_KEEP_MS = 30 * 60_000;
+
 /** the cache entry format; the parser sources and role rules are hashed into every key as well (producerHash) */
 const CACHE_VERSION = 3;
 
@@ -74,7 +77,7 @@ interface Unit {
   files: string[];
   parse(stats: ReadStats): { events: AgentTownEvent[]; totals: Totals };
   /** the same through a kept parser, reading only what was appended when it can */
-  tail(live: { claude?: ClaudeLive; codex?: CodexLive }, stats: ReadStats): { events: AgentTownEvent[]; totals: Totals; mode: "full" | "tail" };
+  tail(live: { claude?: ClaudeLive; codex?: CodexLive }, stats: ReadStats): { events: AgentTownEvent[]; totals: Totals; mode: "full" | "tail"; pending?: boolean };
 }
 
 export interface CacheEntry {
@@ -171,7 +174,7 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       tail(live, st) {
         live.claude ??= new ClaudeLive(m, roles);
         const r = live.claude.update(st);
-        return { events: r.events, totals: { claude: { [r.sessionId]: asRow(r.totals) }, codex: {} }, mode: r.mode };
+        return { events: r.events, totals: { claude: { [r.sessionId]: asRow(r.totals) }, codex: {} }, mode: r.mode, pending: r.pending };
       },
     });
   }
@@ -197,7 +200,7 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       tail(live, st) {
         live.codex ??= new CodexLive(roles);
         const r = live.codex.update(thread, st);
-        return { events: r.events, totals: codexTotals(r.fileTotals), mode: r.mode };
+        return { events: r.events, totals: codexTotals(r.fileTotals), mode: r.mode, pending: r.pending };
       },
     });
   }
@@ -243,11 +246,14 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       }
       entry = { v: CACHE_VERSION, key: u.key, events: r.events, totals: r.totals, badLines: st.badLines, unknownKinds: [...st.unknownKinds] };
       // a tail read happens every few seconds on a live session: its disk copy waits for a full parse
-      if (path && r.mode === "full") writeFileSync(path, JSON.stringify(entry));
+      // …and so does one whose last line has no newline yet (a full parse would read it; this did not)
+      if (path && r.mode === "full" && !r.pending) writeFileSync(path, JSON.stringify(entry));
       if (r.mode === "tail") tailed++;
       else parsed++;
     }
     o.memo?.set(memoKey, entry);
+    // a kept parser only for a session written lately: an old one is parsed again if it ever changes
+    if (o.live && Math.max(...u.files.map((f) => mtimes.get(f) ?? 0)) < Date.now() - LIVE_KEEP_MS) o.live.delete(u.id);
     stats.badLines += entry.badLines;
     for (const [k, n] of entry.unknownKinds) stats.unknownKinds.set(k, (stats.unknownKinds.get(k) ?? 0) + n);
     const last = Math.max(...u.files.map((f) => mtimes.get(f) ?? 0));

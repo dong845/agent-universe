@@ -130,7 +130,7 @@ interface RolloutState {
   lastTs: number;
 }
 
-interface SpawnCall { callId: string; ts: number; agentId: string; taskId: string | null; childIds: string[]; byChild?: RolloutHead }
+interface SpawnCall { callId: string; ts: number; agentId: string; taskId: string | null; childIds: string[]; byChild?: RolloutHead; path: string; line: number }
 
 /**
  * One top-level thread and every descendant rollout (subagents, guardians) as one session (D1), parsed
@@ -236,7 +236,7 @@ export class CodexThreadParser {
           const callId = p.call_id ?? p.id ?? `${h.path}:${n}`;
           const { tool, target, command, files } = callTarget(p, projectId);
           st.starts.set(callId, ts);
-          if (tool === "spawn_agent") this.spawnCalls.push({ callId, ts, agentId, taskId, childIds: [], ...(isRoot ? {} : { byChild: h }) });
+          if (tool === "spawn_agent") this.spawnCalls.push({ callId, ts, agentId, taskId, childIds: [], path: h.path, line: n, ...(isRoot ? {} : { byChild: h }) });
           push({
             ...base, taskId, id: hashId(FACTION, h.id, callId, "start"), ts, kind: "tool_start", tool, toolUseId: callId, target, ...(files ? { files } : {}),
             role: roles.isDispatch(tool) ? "commander" : roles.forTool(tool, command), raw,
@@ -277,6 +277,10 @@ export class CodexThreadParser {
     if (rootSt) fileTotals.set(this.root.path, rootSt.finalTotal ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
     const children = [...this.files.values()].filter((st) => !st.isRoot).sort((a, b) => a.h.firstTs - b.h.firstTs);
     // a call a child made: it carries that child's own first task (its task as of its start)
+    // spawn calls in time order (then file, line): an inferred link must not depend on how the files'
+    // lines were split into reads (review 2026-11-04)
+    const fileOrder = new Map([this.root.path, ...children.map((c) => c.h.path)].map((p, i) => [p, i]));
+    const byTime = [...this.spawnCalls].sort((a, b) => a.ts - b.ts || (fileOrder.get(a.path) ?? 0) - (fileOrder.get(b.path) ?? 0) || a.line - b.line);
     const callTask = (sc: SpawnCall) => (sc.byChild ? this.taskAt(sc.byChild.firstTs) : sc.taskId);
     for (const st of children) {
       const h = st.h;
@@ -286,7 +290,7 @@ export class CodexThreadParser {
       let sc = this.spawnCalls.find((s) => s.childIds.includes(h.id));
       let link: "exact" | "inferred" | "none" = sc ? "exact" : "none";
       if (!sc && h.agentType !== "guardian") {
-        sc = [...this.spawnCalls].reverse().find((s) => s.ts <= h.firstTs);
+        sc = [...byTime].reverse().find((s) => s.ts <= h.firstTs);
         if (sc) link = "inferred";
       }
       const parentAgentId = sc?.agentId ?? "main";
@@ -345,7 +349,7 @@ export class CodexLive {
     this.roles = roles;
   }
 
-  update(heads: RolloutHead[], stats: ReadStats): CodexThreadResult & { mode: "full" | "tail" } {
+  update(heads: RolloutHead[], stats: ReadStats): CodexThreadResult & { mode: "full" | "tail"; pending: boolean } {
     const root = heads[0];
     const children = heads.slice(1).sort((a, b) => a.firstTs - b.firstTs);
     let mode: "full" | "tail" = "tail";
@@ -355,13 +359,15 @@ export class CodexLive {
       this.tails.clear();
       mode = "full";
     }
+    let pending = false;
     for (const h of [root, ...children]) {
       const t = this.tails.get(h.path) ?? { offset: 0, lineNo: 0, head: "" };
       const r = readJsonlFrom(h.path, t.offset, t.lineNo, stats);
+      pending ||= r.pending;
       this.parser.feed(h, r.lines);
       this.tails.set(h.path, { offset: r.offset, lineNo: r.lineNo, head: r.offset ? headOf(h.path) : "" });
     }
-    return { ...this.parser.finish(), mode };
+    return { ...this.parser.finish(), mode, pending };
   }
 
   private canTail(heads: RolloutHead[]): boolean {

@@ -7,7 +7,7 @@ import type { Attention } from "../../schema/src/attention.ts";
 import { enterShare, leaveShare } from "./share/shareMode.ts";
 import { officialMarks } from "./galaxy/emblem.ts";
 import { useRecorder } from "./share/recorder.ts";
-import { latestEvery } from "./throttle.ts";
+import { latestApplier, latestEvery } from "./throttle.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
 
 // a newer world now costs one short frame (spec 2026-11-03 A2), so it can come often
@@ -48,7 +48,16 @@ if (payload.source === "share") store.setShare(true, null, true);
 // a recording. The 需要你 list has its own small message and is applied at once.
 if (fromServer) {
   // compute the newer world in one frame, hand it to the page in the next: one long frame was two short ones
-  const frame = () => new Promise((res) => requestAnimationFrame(res));
+  // the next frame, or a short wait where frames do not run (a hidden tab)
+  const frame = () => new Promise<void>((res) => {
+    const t = setTimeout(res, 100);
+    requestAnimationFrame(() => { clearTimeout(t); res(); });
+  });
+  const prepareAndApply = latestApplier<WorldPayload>(async (p, f) => {
+    const prepared = await useStore.getState().prepareInFrames(p, f);
+    await f();
+    useStore.getState().reload(p, prepared);
+  }, frame);
   const apply = (p: WorldPayload) => {
     // the first logs arrived while the demo world was shown: switch to the owner's own world
     if (useStore.getState().emptyLogs) {
@@ -57,10 +66,7 @@ if (fromServer) {
       useStore.getState().load(p);
       return;
     }
-    void useStore.getState().prepareInFrames(p, frame).then(async (prepared) => {
-      await frame();
-      useStore.getState().reload(p, prepared);
-    });
+    prepareAndApply(p);
   };
   const world = latestEvery<WorldPayload>(apply, WORLD_EVERY_MS, () => !!useRecorder.getState().session);
   subscribe({ world, attention: (a) => useStore.getState().setAttention(a) });

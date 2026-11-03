@@ -388,7 +388,7 @@ export class ClaudeLive {
     this.roles = roles;
   }
 
-  update(stats: ReadStats): ClaudeSessionResult & { mode: "full" | "tail" } {
+  update(stats: ReadStats): ClaudeSessionResult & { mode: "full" | "tail"; pending: boolean } {
     const files = sessionFiles(this.mainPath, stats);
     let mode: "full" | "tail" = "tail";
     if (!this.parser || this.parser.stale || !this.canTail(files)) {
@@ -396,14 +396,16 @@ export class ClaudeLive {
       this.tails.clear();
       mode = "full";
     }
+    let pending = false;
     for (const f of files) {
       const t = this.tails.get(f.path) ?? { offset: 0, lineNo: 0, head: "", meta: metaOf(f) };
       const r = readJsonlFrom(f.path, t.offset, t.lineNo, stats);
+      pending ||= r.pending;
       this.parser.feed(f, r.lines);
       this.tails.set(f.path, { offset: r.offset, lineNo: r.lineNo, head: r.offset ? headOf(f.path) : "", meta: metaOf(f) });
     }
     if (mode === "tail" && this.parser.stale) return this.update(stats);
-    return { ...this.parser.finish(files), mode };
+    return { ...this.parser.finish(files), mode, pending };
   }
 
   private canTail(files: AgentFile[]): boolean {
