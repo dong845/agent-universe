@@ -397,3 +397,4 @@ canvas { display: block; }
 .g-history-facts .agents .task { color: #c7d4ea; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-history-facts .agents .muted { font-size: 10.5px; }
 .live-on { color: #5ef2a0 !important; border-color: rgba(94, 242, 160, 0.5) !important; }
+.g-history .gist { color: var(--mute) !important; font-style: italic; }

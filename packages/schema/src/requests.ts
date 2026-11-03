@@ -63,6 +63,27 @@ function topDirOf(path: string, root: string): string | null {
 const isPath = (p: string) => p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p);
 
 /** one row per request (spec v3 4.1–4.3); every event of a task belongs to its request */
+const work = (r: RequestRow, k: string) => {
+  r.work ??= {};
+  r.work[k] = (r.work[k] ?? 0) + 1;
+};
+const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+const list = (names: string[], total: number, unit: string) =>
+  `${total} ${unit}：${names.slice(0, 2).join("、")}${total > 2 ? " 等" : ""}`;
+
+/**
+ * What an untitled request did, in one sentence from its own events (spec 2026-11-03 B3) — facts only:
+ * the files it edited, else its first command, else what it looked up or read, else how many calls.
+ */
+function gistOf(a: { edited: Map<string, number>; command?: string; web?: string; reads: number; calls: number }): string | undefined {
+  if (a.edited.size) return `改了 ${list([...a.edited.keys()].map(base), a.edited.size, "个文件")}`;
+  if (a.command) return `跑命令：${a.command}`;
+  if (a.web) return `联网：${a.web}`;
+  if (a.reads) return `读了 ${a.reads} 个文件`;
+  if (a.calls) return `调用了 ${a.calls} 次工具`;
+  return undefined;
+}
+
 export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, string>, cfg: WorldConfig): RequestRow[] {
   interface Acc {
     row: RequestRow;
@@ -71,6 +92,12 @@ export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, s
     dirs: Map<string, number>;
     image: boolean;
     edits: number;
+    /** for the sentence of an untitled request: files edited (in order), the first command, reads, web */
+    edited: Map<string, number>;
+    command?: string;
+    reads: number;
+    web?: string;
+    calls: number;
   }
   const acc = new Map<string, Acc>();
   const sorted = [...events].sort((a, b) => a.ts - b.ts);
@@ -86,6 +113,9 @@ export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, s
         dirs: new Map(),
         image: false,
         edits: 0,
+        edited: new Map(),
+        reads: 0,
+        calls: 0,
       };
       acc.set(id, a);
     }
@@ -110,9 +140,19 @@ export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, s
         break;
       case "agent_spawn":
         r.spawns++;
+        work(r, "spawn");
+        break;
+      case "compaction":
+        work(r, "compaction");
         break;
       case "tool_start": {
         r.calls++;
+        if (e.role) work(r, e.role);
+        a.calls++;
+        if (e.role === "engineer" && e.target && a.command === undefined) a.command = e.target;
+        if (e.role === "messenger" && e.target && a.web === undefined) a.web = e.target;
+        if (e.files?.length && e.files.every((f) => f.access === "read")) a.reads += e.files.length;
+        for (const f of e.files ?? []) if (f.access === "edit") a.edited.set(f.path, (a.edited.get(f.path) ?? 0) + 1);
         for (const s of skillsOfEvent(e)) if (!r.skills.includes(s)) r.skills.push(s);
         if (e.tool && IMAGE_TOOL.test(e.tool)) {
           a.image = true;
@@ -135,6 +175,10 @@ export function buildRequests(events: AgentTownEvent[], requestOf: Map<string, s
   const out: RequestRow[] = [];
   for (const a of acc.values()) {
     const r = a.row;
+    if (!r.title) {
+      const g = gistOf(a);
+      if (g) r.gist = g;
+    }
     if (r.ok !== false) r.ok = r.taskIds.every((t) => a.ended.has(t)) ? true : null;
     if (a.edits > 0 || a.image) {
       r.class = "produced";

@@ -46,6 +46,8 @@ const when = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()
 
 export interface StepFacts {
   title: string;
+  /** the title is the sentence made from the request's events (it had none of its own) */
+  gist: boolean;
   rows: [string, string][];
   /** tool calls by kind of work, most first */
   work: { name: string; n: number }[];
@@ -81,11 +83,27 @@ export function stepFacts(r: RequestRow, events: AgentTownEvent[] | null): StepF
     }
   }
   return {
-    title: r.title ?? "（无标题）",
+    title: r.title ?? r.gist ?? "（无标题）",
+    gist: !r.title && !!r.gist,
     rows,
     work: [...work].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || (a.name < b.name ? -1 : 1)),
     files: [...files].map(([path, edits]) => ({ path, edits })).sort((a, b) => b.edits - a.edits || (a.path < b.path ? -1 : 1)),
   };
+}
+
+/**
+ * A town's counts as of a moment (spec 2026-11-03 B1): calls per kind of work and Q&A requests, over
+ * the requests that had ended by then. The town row only knows today's totals.
+ */
+export function countsAt(w: World25, town: string, ts: number): { work: Record<string, number>; chats: number } {
+  const work: Record<string, number> = {};
+  let chats = 0;
+  for (const r of w.requests.values()) {
+    if (r.endTs > ts || `${r.faction}|${r.projectId}` !== town) continue;
+    if (r.class === "chat") chats++;
+    for (const [k, n] of Object.entries(r.work ?? {})) work[k] = (work[k] ?? 0) + n;
+  }
+  return { work, chats };
 }
 
 export interface StepAgent {

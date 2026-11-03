@@ -88,6 +88,8 @@ export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
     topDir: townNames ? r.topDir : null,
     turns: r.turns,
     taskIds: r.taskIds.map(ids.id),
+    // counts per kind of work: numbers under fixed role names (the history's counts as of a step)
+    ...(r.work ? { work: { ...r.work } } : {}),
   }));
 
   const buildingRows: BuildingRow[] = p.buildingRows.map((b) => ({

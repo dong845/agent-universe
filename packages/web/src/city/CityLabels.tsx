@@ -1,16 +1,19 @@
 // Labels in a city: the public buildings' plain names with counts, the hall and notice board, the
 // street signs, and over each robot what it is doing now. One DOM overlay placed from inside the
 // canvas; robots win overlaps, then the busier buildings.
-import { useHistory } from "./history.ts";
+import { countsAt, useHistory } from "./history.ts";
+import { useStore } from "../store.ts";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
 import { declutter, type LabelBox } from "../ui/format.ts";
 import type { Planet } from "../galaxy/galaxyData.ts";
-import { WORK_NAMES, type TownLayout } from "../v3/townLayout.ts";
+import { LAYOUT_DEFAULTS, WORK_NAMES, type TownLayout } from "../v3/townLayout.ts";
 import { robotInfo } from "./Robot.tsx";
 
 interface CL {
+  /** a public building's kind of work, for its count at a history step */
+  work?: string;
   id: string;
   cls: string;
   title: string;
@@ -25,7 +28,7 @@ export function cityLabelsOf(p: Planet, layout: TownLayout): CL[] {
     const i = b.spot.info;
     // the kit pieces stand about 1.2 footprints tall (work towers with their tops ~1.5)
     const top = (b.foot / p.unit) * (i.kind === "public" ? 1.55 : 1.2);
-    if (i.kind === "public") out.push({ id: `c-pub|${b.spot.cell}`, cls: "g-tag", title: WORK_NAMES[i.work] ?? i.work, sub: i.count.toLocaleString(), at: new THREE.Vector3(b.spot.x, top + 0.3, b.spot.z), priority: 1000 + i.count });
+    if (i.kind === "public") out.push({ id: `c-pub|${b.spot.cell}`, cls: "g-tag", title: WORK_NAMES[i.work] ?? i.work, sub: i.count.toLocaleString(), work: i.work, at: new THREE.Vector3(b.spot.x, top + 0.3, b.spot.z), priority: 1000 + i.count });
     if (i.kind === "hall") out.push({ id: "c-hall", cls: "g-tag", title: "任务大厅", at: new THREE.Vector3(b.spot.x, top + 1.3, b.spot.z), priority: 1e6 });
     if (i.kind === "notice") out.push({ id: "c-notice", cls: "g-tag", title: "问答", sub: String(i.chats), at: new THREE.Vector3(b.spot.x, top + 0.2, b.spot.z), priority: 500 });
   }
@@ -81,13 +84,25 @@ export function CityProjector({ labels }: { labels: CL[] }) {
 export function CityLabels({ labels }: { labels: CL[] }) {
   // at a history step the counts on the public buildings, the Q&A board and the streets would be
   // today's totals (the record keeps them only as totals): show the names alone
-  const history = useHistory((s) => !!s.town);
+  const history = useHistory((s) => s.town);
+  const w25 = useStore((s) => s.w25);
+  const at = useStore((s) => s.historyAt);
+  const counts = useMemo(() => (history && w25 && at !== null ? countsAt(w25, history, at) : null), [history, w25, at]);
+  const subOf = (l: CL) => {
+    if (!history) return l.sub;
+    // at a history step: the counts as of then; the street counts are today's houses, so none
+    if (l.id.startsWith("c-pub|") && counts && l.work) return (counts.work[l.work] ?? 0).toLocaleString();
+    if (l.id === "c-notice" && counts) return String(counts.chats);
+    if (l.id.startsWith("c-street|")) return undefined;
+    return l.sub;
+  };
   return (
     <div className="labels">
-      {labels.map((l) => (
+      {/* at a history step a public building not yet built then has no label either */}
+      {labels.filter((l) => !(history && counts && l.work && (counts.work[l.work] ?? 0) < LAYOUT_DEFAULTS.minWork)).map((l) => (
         <div key={l.id} ref={(el) => { if (el) els.set(l.id, el); else els.delete(l.id); }} className={l.cls} data-label={l.id} style={{ visibility: "hidden" }}>
           <b>{l.title}</b>
-          {l.sub && !(history && /^c-(pub|notice|street)\|?/.test(l.id)) ? <span>{l.sub}</span> : null}
+          {subOf(l) ? <span>{subOf(l)}</span> : null}
         </div>
       ))}
       {Array.from({ length: BUBBLES }, (_, i) => (

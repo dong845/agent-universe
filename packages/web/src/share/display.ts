@@ -7,7 +7,7 @@ import type { World25 } from "../v3/world25Data.ts";
 /** names: code names per town (null = keep project names); titles: keep request titles */
 export function maskWorld(w: World25, names: Record<string, string> | null, titles: boolean): World25 {
   const towns = names ? new Map([...w.towns].map(([k, t]) => [k, { ...t, name: names[k] ?? "?", guildOf: [], skillNote: undefined }])) : w.towns;
-  const requests = new Map([...w.requests].map(([k, r]) => [k, { ...r, title: titles ? r.title : maskedTitle(r), asked: titles ? r.asked : undefined, skills: names ? [] : r.skills, cwd: undefined }]));
+  const requests = new Map([...w.requests].map(([k, r]) => [k, { ...r, title: titles ? r.title : maskedTitle(r), asked: titles ? r.asked : undefined, gist: titles ? r.gist : undefined, skills: names ? [] : r.skills, cwd: undefined }]));
   const layouts = names ? new Map([...w.layouts].map(([k, l]) => [k, { ...l, streets: l.streets.map((s, i) => ({ ...s, name: `第 ${i + 1}` })) }])) : w.layouts;
   return { ...w, towns, requests, layouts };
 }

@@ -2,11 +2,12 @@
 // moment that request finished — only the buildings that stood then — and explains the step from what
 // the logs record. Not a playback: the city stands still at each step.
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { fetchRequest } from "../data.ts";
-import type { Planet } from "../galaxy/galaxyData.ts";
+import { PRODUCT_COLOR, type Block, type Planet } from "../galaxy/galaxyData.ts";
+import { KitBuildings } from "./CityKit.tsx";
 import { useStore } from "../store.ts";
 import { historySteps, stepAgents, stepDay, stepFacts, useHistory, type HistoryStep } from "./history.ts";
 import { Robot } from "./Robot.tsx";
@@ -57,7 +58,7 @@ export function HistoryPanel() {
       <button onClick={() => goToStep(steps, s.index)} data-testid="history-step">
         <span className="n">{s.index}</span>
         <span className="d">{stepDay(s.request.endTs)}</span>
-        <span className="t">{s.request.title ?? "（无标题）"}</span>
+        <span className={`t${s.request.title ? "" : " gist"}`}>{s.request.title ?? s.request.gist ?? "（无标题）"}</span>
       </button>
     </li>
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the steps' content (stepsSig), not their identity
@@ -108,9 +109,9 @@ export function HistoryPanel() {
         <button onClick={() => goToStep(steps, cur.index + 1)} disabled={cur.index >= steps.length} data-testid="history-next">下一步 ▶</button>
       </div>
       <section className="g-history-facts" data-testid="history-facts">
-        <h4>{facts.title}</h4>
+        <h4 className={facts.gist ? "gist" : ""} title={facts.gist ? "这个请求没有标题：这句话是从它自己的记录里拼出来的" : undefined}>{facts.title}</h4>
         {facts.rows.map(([k, v]) => <div key={k} className="row"><span>{k}</span><b>{v}</b></div>)}
-        {!cur.drawn ? <p className="muted">{r.class === "chat" ? "问答不建楼：记在城里的问答牌上。" : "城里没有单独画出这一步的楼（一座城最多画 20 栋房子、6 顶帐篷，挑的是最大的）。"}</p> : null}
+        {!cur.drawn ? <p className="muted">{r.class === "chat" ? "问答不建楼：记在城里的问答牌上。" : r.class === "produced" ? "城里平时不画这一步的房子（一座城最多画 20 栋，挑最大的）：现在临时画在它那条街旁，带光圈的就是。" : "城里没有单独画出这一步（调查最多画 6 顶帐篷，挑最大的）。"}</p> : null}
         {facts.work.length ? (<><h5>做了什么</h5><div className="chips">{facts.work.map((x) => <span key={x.name}>{x.name} <b>{x.n}</b></span>)}</div></>) : null}
         {agents.length ? (
           <>
@@ -142,7 +143,19 @@ export function HistoryFocus({ p }: { p: Planet }) {
   const step = useHistory((s) => (s.town === p.key ? s.step : null));
   const steps = useSteps();
   const rid = step ? steps[step - 1]?.request.requestId : undefined;
-  const block = rid ? p.blocks.find((b) => (b.spot.info.kind === "house" || b.spot.info.kind === "tent") && b.spot.info.requestId === rid) : undefined;
+  const drawn = rid ? p.blocks.find((b) => (b.spot.info.kind === "house" || b.spot.info.kind === "tent") && b.spot.info.requestId === rid) : undefined;
+  const req = step ? steps[step - 1]?.request : undefined;
+  const layout = useStore((s) => s.w25?.layouts.get(p.key));
+  // the step's own house when the city does not draw it (20-house cap): by its street, for this step only
+  const ghost = useMemo<Block | undefined>(() => {
+    if (drawn || !req || req.class !== "produced" || !layout) return undefined;
+    const house = p.blocks.find((b) => b.type === "house");
+    const street = layout.streets.find((s) => s.name === (req.topDir === null ? "其他" : req.topDir === "." ? "根目录" : req.topDir)) ?? layout.streets.find((s) => s.name === "其他") ?? layout.streets[0];
+    const hall = p.blocks.find((b) => b.type === "hall");
+    const at = street ? { x: street.x * 0.82, z: street.z * 0.82 } : hall ? { x: hall.spot.x + 2, z: hall.spot.z + 2 } : { x: 2, z: 2 };
+    return { spot: { ...(house?.spot ?? {}), x: at.x, z: at.z, size: 1.2, info: { kind: "house", requestId: req.requestId } } as Block["spot"], type: "house", dir: house?.dir ?? [0, 1, 0], foot: house?.foot ?? p.unit, height: house?.height ?? p.unit, turn: 0, color: PRODUCT_COLOR[req.productKind ?? "code"] ?? PRODUCT_COLOR.code, live: false };
+  }, [drawn, req, layout, p]);
+  const block = drawn ?? ghost;
   const ring = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3 } | null;
@@ -165,7 +178,12 @@ export function HistoryFocus({ p }: { p: Planet }) {
     if (delta.length() < 0.002) glide.current = null;
   });
   if (!block) return null;
-  return <mesh ref={ring} geometry={RING} material={RING_MAT} position={[block.spot.x, 0.06, block.spot.z]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} />;
+  return (
+    <>
+      {ghost ? <Suspense fallback={null}><KitBuildings p={p} vis={[ghost]} /></Suspense> : null}
+      <mesh ref={ring} geometry={RING} material={RING_MAT} position={[block.spot.x, 0.06, block.spot.z]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} />
+    </>
+  );
 }
 
 /**
