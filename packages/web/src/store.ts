@@ -8,6 +8,7 @@ import { buildWorld, districtKey, type District, type World } from "./orchestrat
 import type { Selection } from "./selection.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { maskWorld } from "./share/display.ts";
+import type { OfficialMarks } from "./galaxy/emblem.ts";
 import { dismissKey, loadClosed, saveClosed } from "./ui/dismiss.ts";
 import manifest from "../../../art/manifest.json" with { type: "json" };
 import type { Manifest } from "./v3/art.ts";
@@ -109,6 +110,9 @@ interface Store {
   setFollowing(f: boolean): void;
   /** a history step's moment: the world is drawn as it stood then (null = the clock) */
   historyAt: number | null;
+  /** the official marks downloaded on this machine (spec 2026-11-03 C2) */
+  logos: OfficialMarks;
+  setLogos(l: OfficialMarks): void;
   setHistoryAt(ts: number | null): void;
   setTime(t: number): void;
   advance(dtMs: number): void;
@@ -237,6 +241,10 @@ export const useStore = create<Store>((set, get) => ({
   realW25: null,
   shareTitles: false,
   historyAt: null,
+  logos: {},
+  setLogos(l) {
+    set({ logos: l });
+  },
   following: false,
   setFollowing(f) {
     const { t, duration } = get();

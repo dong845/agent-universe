@@ -4,6 +4,7 @@ import { App } from "./App.tsx";
 import { loadWorld, ServerDown, subscribe, type Progress } from "./data.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { enterShare, leaveShare } from "./share/shareMode.ts";
+import { officialMarks } from "./galaxy/emblem.ts";
 import { useRecorder } from "./share/recorder.ts";
 import { latestEvery } from "./throttle.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
@@ -30,6 +31,8 @@ try {
 }
 const store = useStore.getState();
 store.load(payload);
+// the official marks, if the owner downloaded them on this machine (spec 2026-11-03 C2)
+if (payload.source === "real") void fetch("/api/logos").then((r) => (r.ok ? r.json() : {})).then((l) => useStore.getState().setLogos(officialMarks(l))).catch(() => {});
 // a shared page: always in share mode (names were masked by the exporter; our own emblems; no diary)
 if (payload.source === "share") store.setShare(true, null, true);
 // real data: newer worlds and the "需要你" list arrive as the logs change
