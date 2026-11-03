@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 
 export function hashId(...parts: string[]): string {
   return createHash("sha1").update(parts.join("\u0000")).digest("hex").slice(0, 16);
@@ -63,6 +63,55 @@ export function* readJsonl(path: string, stats: ReadStats): Generator<Line> {
       const l = emit(Buffer.concat(carry));
       if (l) yield l;
     }
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Complete lines of a file from a byte offset (spec 2026-11-03 A1): a growing log is read from where the
+ * last read stopped. A last line without its newline is left for the next read. `line` numbers continue
+ * from `lineNo` (blank lines count, as in readJsonl).
+ */
+export function readJsonlFrom(path: string, offset: number, lineNo: number, stats: ReadStats): { lines: Line[]; offset: number; lineNo: number; size: number } {
+  const fd = openSync(path, "r");
+  try {
+    const size = fstatSync(fd).size;
+    const lines: Line[] = [];
+    if (size <= offset) return { lines, offset, lineNo, size };
+    const buf = Buffer.alloc(size - offset);
+    let got = 0;
+    while (got < buf.length) {
+      const n = readSync(fd, buf, got, buf.length - got, offset + got);
+      if (n === 0) break;
+      got += n;
+    }
+    let start = 0;
+    let n = lineNo;
+    for (let i = buf.indexOf(10, 0); i !== -1 && i < got; i = buf.indexOf(10, i + 1)) {
+      n++;
+      const s = buf.toString("utf8", start, i);
+      start = i + 1;
+      if (!s.trim()) continue;
+      try {
+        lines.push({ n, rec: JSON.parse(s) });
+      } catch {
+        stats.badLines++;
+      }
+    }
+    return { lines, offset: offset + start, lineNo: n, size };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** the first bytes of a file, to tell a file that grew from one that was replaced */
+export function headOf(path: string, bytes = 256): string {
+  const fd = openSync(path, "r");
+  try {
+    const b = Buffer.alloc(bytes);
+    const n = readSync(fd, b, 0, bytes, 0);
+    return b.subarray(0, n).toString("base64");
   } finally {
     closeSync(fd);
   }

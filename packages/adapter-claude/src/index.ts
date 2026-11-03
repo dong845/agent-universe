@@ -4,7 +4,7 @@ import { basename, dirname, join } from "node:path";
 import type { AgentTownEvent, Tokens, ToolFile } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
 import { titleOf } from "../../schema/src/title.ts";
-import { clip, countUnknown, hashId, readJsonl, toMs, type ReadStats } from "../../schema/src/util.ts";
+import { clip, countUnknown, hashId, headOf, readJsonl, readJsonlFrom, toMs, type Line, type ReadStats } from "../../schema/src/util.ts";
 
 const FACTION = "claude-code";
 
@@ -126,91 +126,132 @@ export interface ClaudeSessionResult {
   totals: Tokens;
 }
 
-export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: ReadStats): ClaudeSessionResult {
-  const sessionId = basename(mainPath, ".jsonl");
-  const files = sessionFiles(mainPath, stats);
-  const events: AgentTownEvent[] = [];
-  let projectId = dirname(mainPath);
-  let projectFromCwd = false;
+interface FileState {
+  file: AgentFile;
+  taskId: string | null;
+  toolStarts: Map<string, number>;
+  firstTs?: number;
+  lastTs?: number;
+  mode?: string;
+  cwd?: string;
+}
 
+/** where an event came from, for one total order that does not depend on how the files were fed */
+interface Origin { path: string; line: number; k: number }
+
+/**
+ * One Claude session parsed line by line (spec 2026-11-03 A1). A full parse feeds every file whole; a
+ * live session is fed only the lines that were appended since. `finish()` builds the result on top of
+ * the state without changing it, so feeding can go on afterwards. The result is the same however the
+ * lines were split, as long as each round feeds the main file first (parents before children).
+ */
+export class ClaudeSessionParser {
+  readonly sessionId: string;
+  private events: AgentTownEvent[] = [];
+  private origin = new WeakMap<AgentTownEvent, Origin>();
+  private projectId: string;
+  private projectFromCwd = false;
   // tool_use id → task, across files, so subagents land in the task that spawned them.
-  const taskOfToolUse = new Map<string, string | null>();
-  const tsOfToolUse = new Map<string, number>();
-  const agentOfToolUse = new Map<string, string>();
-  const workflowRunToolUse = new Map<string, string>();
-
+  private taskOfToolUse = new Map<string, string | null>();
+  private tsOfToolUse = new Map<string, number>();
+  private agentOfToolUse = new Map<string, string>();
+  private workflowRunToolUse = new Map<string, string>();
   // Session-wide: a later agent file can open with a copy of an earlier agent's history (three
   // worktree agents here shared 49 message ids). The first file that holds a record owns it.
-  const calls = new Map<string, AgentTownEvent>();
-  const seen = new Set<string>();
-  const push = (ev: AgentTownEvent) => {
-    if (seen.has(ev.id)) return;
-    seen.add(ev.id);
-    events.push(ev);
-  };
+  private calls = new Map<string, AgentTownEvent>();
+  private seen = new Set<string>();
+  private lastHumanTitle: string | undefined;
+  private files = new Map<string, FileState>();
+  // plain fields: the server runs this file through node's type stripping (no parameter properties)
+  private roles: RoleMatcher;
+  private stats: ReadStats;
 
-  let lastHumanTitle: string | undefined;
-  // Main file first: it defines tasks. Subagent files only attach to them.
-  for (const f of files) {
+  constructor(mainPath: string, roles: RoleMatcher, stats: ReadStats) {
+    this.roles = roles;
+    this.stats = stats;
+    this.sessionId = basename(mainPath, ".jsonl");
+    this.projectId = dirname(mainPath);
+  }
+
+  /** the subagent's task as the state stands now (a workflow's run id arrives with its tool result) */
+  private spawnTaskOf(f: AgentFile): string | null {
+    const spawnId = f.groupId ? this.workflowRunToolUse.get(f.groupId) : f.spawnToolUseId;
+    return (spawnId && this.taskOfToolUse.get(spawnId)) ?? null;
+  }
+
+  /**
+   * A subagent that was first fed before its spawn could be resolved, and can be now: a full parse
+   * would have given it a task, so the caller parses again from the start.
+   */
+  get stale(): boolean {
+    for (const st of this.files.values()) if (st.file.agentId !== "main" && st.taskId === null && this.spawnTaskOf(st.file) !== null) return true;
+    return false;
+  }
+
+  feed(f: AgentFile, lines: Iterable<Line>): void {
+    const { roles, stats, sessionId } = this;
     const isMain = f.agentId === "main";
-    const base = { faction: FACTION, sessionId, agentId: f.agentId } as const;
-    let taskId: string | null = null;
-    if (!isMain) {
-      const spawnId = f.groupId ? workflowRunToolUse.get(f.groupId) : f.spawnToolUseId;
-      taskId = (spawnId && taskOfToolUse.get(spawnId)) ?? null;
+    let st = this.files.get(f.path);
+    if (!st) {
+      st = { file: f, taskId: isMain ? null : this.spawnTaskOf(f), toolStarts: new Map() };
+      this.files.set(f.path, st);
     }
-    const toolStarts = new Map<string, number>();
-    let firstTs: number | undefined;
-    let lastTs: number | undefined;
-    let mode: string | undefined;
-    let cwd: string | undefined;
-
-    for (const { n, rec } of readJsonl(f.path, stats)) {
+    const base = { faction: FACTION, sessionId, agentId: f.agentId } as const;
+    for (const { n, rec } of lines) {
       const raw = { file: f.path, line: n };
-      if (rec.type === "permission-mode" && typeof rec.permissionMode === "string") mode = rec.permissionMode;
-      if (typeof rec.cwd === "string") cwd = rec.cwd;
-      if (!projectFromCwd && typeof rec.cwd === "string") {
-        projectId = rec.cwd.replace(/\/+$/, "");
-        projectFromCwd = true;
+      let k = 0;
+      const push = (ev: AgentTownEvent) => {
+        if (this.seen.has(ev.id)) return;
+        this.seen.add(ev.id);
+        this.events.push(ev);
+        this.origin.set(ev, { path: f.path, line: n, k: k++ });
+      };
+      const projectId = () => this.projectId;
+      if (rec.type === "permission-mode" && typeof rec.permissionMode === "string") st.mode = rec.permissionMode;
+      if (typeof rec.cwd === "string") st.cwd = rec.cwd;
+      if (!this.projectFromCwd && typeof rec.cwd === "string") {
+        this.projectId = rec.cwd.replace(/\/+$/, "");
+        this.projectFromCwd = true;
       }
-      const ts = rec.timestamp !== undefined ? toMs(rec.timestamp) : lastTs;
+      const ts = rec.timestamp !== undefined ? toMs(rec.timestamp) : st.lastTs;
       if (ts !== undefined) {
-        firstTs ??= ts;
-        lastTs = ts;
+        st.firstTs ??= ts;
+        st.lastTs = ts;
       }
       const type = rec.type as string;
+      const taskId = st.taskId;
 
       if (type === "assistant") {
         const msg = rec.message ?? {};
         if (rec.isApiErrorMessage) {
-          push({ ...base, projectId, taskId, id: hashId(FACTION, raw.file, String(n)), ts: ts!, kind: "error", raw });
+          push({ ...base, projectId: projectId(), taskId, id: hashId(FACTION, raw.file, String(n)), ts: ts!, kind: "error", raw });
           continue;
         }
         const mid = msg.id ?? rec.uuid;
         if (msg.usage && msg.model !== "<synthetic>") {
           const t = usageTokens(msg.usage);
-          const prev = calls.get(mid);
+          const prev = this.calls.get(mid);
           if (!prev) {
             const ev: AgentTownEvent = {
-              ...base, projectId, taskId, id: hashId(FACTION, mid), ts: ts!, kind: "model_call",
+              ...base, projectId: projectId(), taskId, id: hashId(FACTION, mid), ts: ts!, kind: "model_call",
               role: isMain ? "commander" : roles.forAgent(f.agentType), model: msg.model, tokens: t,
               contextUsed: t.input + t.cacheRead + t.cacheWrite, provisional: true, raw,
             };
-            calls.set(mid, ev);
+            this.calls.set(mid, ev);
             push(ev);
           } else if (t.output > prev.tokens!.output) {
             prev.tokens = t; // later lines of one message only grow output (log-formats Q4)
           }
         }
         for (const b of msg.content ?? []) {
-          if (b?.type !== "tool_use" || seen.has(hashId(FACTION, b.id, "start"))) continue;
+          if (b?.type !== "tool_use" || this.seen.has(hashId(FACTION, b.id, "start"))) continue;
           const { target, command } = toolTarget(b.name, b.input);
-          taskOfToolUse.set(b.id, taskId);
-          tsOfToolUse.set(b.id, ts!);
-          agentOfToolUse.set(b.id, f.agentId);
-          toolStarts.set(b.id, ts!);
+          this.taskOfToolUse.set(b.id, taskId);
+          this.tsOfToolUse.set(b.id, ts!);
+          this.agentOfToolUse.set(b.id, f.agentId);
+          st.toolStarts.set(b.id, ts!);
           push({
-            ...base, projectId, taskId, id: hashId(FACTION, b.id, "start"), ts: ts!, kind: "tool_start",
+            ...base, projectId: projectId(), taskId, id: hashId(FACTION, b.id, "start"), ts: ts!, kind: "tool_start",
             tool: b.name, toolUseId: b.id, target, ...(toolFiles(b.name, b.input) ? { files: toolFiles(b.name, b.input) } : {}),
             role: roles.isDispatch(b.name) ? "commander" : roles.forTool(b.name, command), raw,
           });
@@ -221,33 +262,33 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
       if (type === "user") {
         const content = rec.message?.content;
         if (isMain && opensTask(rec)) {
-          if (taskId) push({ ...base, projectId, taskId, id: hashId(FACTION, taskId, "end"), ts: ts!, kind: "task_end", raw });
-          taskId = hashId(FACTION, sessionId, rec.uuid);
+          if (st.taskId) push({ ...base, projectId: projectId(), taskId: st.taskId, id: hashId(FACTION, st.taskId, "end"), ts: ts!, kind: "task_end", raw });
+          st.taskId = hashId(FACTION, sessionId, rec.uuid);
           const title = titleOf(textOf(content));
-          if (title) lastHumanTitle = title;
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "human", title, cwd, permissionMode: mode, raw });
+          if (title) this.lastHumanTitle = title;
+          push({ ...base, projectId: projectId(), taskId: st.taskId, id: st.taskId, ts: ts!, kind: "task_start", trigger: "human", title, cwd: st.cwd, permissionMode: st.mode, raw });
           continue;
         }
-        if (isMain && !taskId && !isToolResult(content) && textOf(content)) {
-          taskId = hashId(FACTION, sessionId, rec.uuid);
+        if (isMain && !st.taskId && !isToolResult(content) && textOf(content)) {
+          st.taskId = hashId(FACTION, sessionId, rec.uuid);
           // a turn opened by something other than a prompt keeps working on the last human request
           const triggerBy = rec.isCompactSummary ? "compact" : rec.origin?.kind === "peer" ? "peer" : rec.isMeta ? "meta" : "other";
-          push({ ...base, projectId, taskId, id: taskId, ts: ts!, kind: "task_start", trigger: "system", continues: lastHumanTitle, triggerBy, cwd, permissionMode: mode, raw });
+          push({ ...base, projectId: projectId(), taskId: st.taskId, id: st.taskId, ts: ts!, kind: "task_start", trigger: "system", continues: this.lastHumanTitle, triggerBy, cwd: st.cwd, permissionMode: st.mode, raw });
         }
         if (rec.isCompactSummary) continue;
         const decision = rec.permissionDecision;
         if (decision && String(decision.source ?? "").startsWith("user")) {
-          push({ ...base, projectId, taskId, id: hashId(FACTION, raw.file, String(n), "await"), ts: ts!, kind: "awaiting_user", raw });
+          push({ ...base, projectId: projectId(), taskId: st.taskId, id: hashId(FACTION, raw.file, String(n), "await"), ts: ts!, kind: "awaiting_user", raw });
         }
         if (!Array.isArray(content)) continue;
         for (const b of content) {
           if (b?.type !== "tool_result") continue;
-          const started = toolStarts.get(b.tool_use_id);
+          const started = st.toolStarts.get(b.tool_use_id);
           const denied = rec.toolDenialKind || (decision && decision.decision && decision.decision !== "accept");
           const r = rec.toolUseResult;
-          if (r && typeof r === "object" && typeof r.runId === "string") workflowRunToolUse.set(r.runId, b.tool_use_id);
+          if (r && typeof r === "object" && typeof r.runId === "string") this.workflowRunToolUse.set(r.runId, b.tool_use_id);
           push({
-            ...base, projectId, taskId, id: hashId(FACTION, b.tool_use_id, "end"), ts: ts!, kind: "tool_end",
+            ...base, projectId: projectId(), taskId: st.taskId, id: hashId(FACTION, b.tool_use_id, "end"), ts: ts!, kind: "tool_end",
             toolUseId: b.tool_use_id, status: denied ? "denied" : b.is_error ? "error" : "ok",
             durationMs: started !== undefined && ts !== undefined ? ts - started : undefined, raw,
           });
@@ -259,12 +300,12 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
         if (rec.subtype === "compact_boundary") {
           const m = rec.compactMetadata ?? {};
           push({
-            ...base, projectId, taskId, id: hashId(FACTION, rec.uuid), ts: ts!, kind: "compaction",
+            ...base, projectId: projectId(), taskId, id: hashId(FACTION, rec.uuid), ts: ts!, kind: "compaction",
             compaction: { preTokens: m.preTokens, postTokens: m.postTokens, trigger: m.trigger }, raw,
           });
-        } else if (rec.subtype === "turn_duration" && isMain && taskId) {
-          push({ ...base, projectId, taskId, id: hashId(FACTION, taskId, "end"), ts: ts!, kind: "task_end", durationMs: rec.durationMs, raw });
-          taskId = null;
+        } else if (rec.subtype === "turn_duration" && isMain && st.taskId) {
+          push({ ...base, projectId: projectId(), taskId: st.taskId, id: hashId(FACTION, st.taskId, "end"), ts: ts!, kind: "task_end", durationMs: rec.durationMs, raw });
+          st.taskId = null;
         } else if (!SKIP_SYSTEM.has(rec.subtype)) {
           countUnknown(stats, `claude:system/${rec.subtype}`);
         }
@@ -272,34 +313,111 @@ export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: 
       }
       if (!SKIP.has(type)) countUnknown(stats, `claude:${type}`);
     }
+  }
 
-
-    if (!isMain && firstTs !== undefined) {
-      const spawnId = f.groupId ? workflowRunToolUse.get(f.groupId) : f.spawnToolUseId;
-      const linked = spawnId !== undefined && tsOfToolUse.has(spawnId);
+  /** the session as it stands: the state is not changed, so feeding can continue afterwards */
+  finish(order: AgentFile[]): ClaudeSessionResult {
+    const { sessionId, roles } = this;
+    const out = [...this.events];
+    const origin = new Map<AgentTownEvent, Origin>();
+    for (const ev of out) origin.set(ev, this.origin.get(ev)!);
+    for (const st of this.files.values()) {
+      const f = st.file;
+      if (f.agentId === "main" || st.firstTs === undefined) continue;
+      const spawnId = f.groupId ? this.workflowRunToolUse.get(f.groupId) : f.spawnToolUseId;
+      const linked = spawnId !== undefined && this.tsOfToolUse.has(spawnId);
       const spawn: AgentTownEvent = {
-        faction: FACTION, sessionId, projectId, taskId, agentId: f.agentId, kind: "agent_spawn",
-        id: hashId(FACTION, sessionId, f.agentId, "spawn"), ts: linked ? tsOfToolUse.get(spawnId!)! : firstTs,
-        parentAgentId: linked ? agentOfToolUse.get(spawnId!) : undefined, spawnToolUseId: spawnId,
+        faction: FACTION, sessionId, projectId: this.projectId, taskId: st.taskId, agentId: f.agentId, kind: "agent_spawn",
+        id: hashId(FACTION, sessionId, f.agentId, "spawn"), ts: linked ? this.tsOfToolUse.get(spawnId!)! : st.firstTs,
+        parentAgentId: linked ? this.agentOfToolUse.get(spawnId!) : undefined, spawnToolUseId: spawnId,
         spawnLink: linked ? "exact" : "none", groupId: f.groupId, agentType: f.agentType ?? (f.groupId ? "workflow" : undefined),
         agentTask: f.agentTask, role: roles.forAgent(f.agentType), raw: { file: f.path, line: 1 },
       };
-      push(spawn);
-      push({
-        faction: FACTION, sessionId, projectId, taskId, agentId: f.agentId, kind: "agent_return",
-        id: hashId(FACTION, sessionId, f.agentId, "return"), ts: lastTs!, raw: { file: f.path, line: 0 },
-      });
+      const ret: AgentTownEvent = {
+        faction: FACTION, sessionId, projectId: this.projectId, taskId: st.taskId, agentId: f.agentId, kind: "agent_return",
+        id: hashId(FACTION, sessionId, f.agentId, "return"), ts: st.lastTs!, raw: { file: f.path, line: 0 },
+      };
+      for (const [ev, k] of [[spawn, 0], [ret, 1]] as const) {
+        if (this.seen.has(ev.id)) continue;
+        out.push(ev);
+        origin.set(ev, { path: f.path, line: Number.MAX_SAFE_INTEGER, k });
+      }
+      // A task still open at end of file is a live session, or one that stopped without a
+      // turn_duration record; it stays open and the collector closes it when the next task starts.
     }
-    // A task still open at end of file is a live session, or one that stopped without a
-    // turn_duration record; it stays open and the collector closes it when the next task starts.
+    const totals: Tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+    for (const ev of this.calls.values()) {
+      ev.provisional = false; // every line read so far has been seen: the last one is the value
+      for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) totals[key] += ev.tokens![key];
+    }
+    for (const ev of out) ev.projectId = this.projectId;
+    // one total order — time, then the session's file order, line, place in the line — so the result
+    // does not depend on how the files' lines were interleaved when fed
+    const fileIdx = new Map(order.map((f, i) => [f.path, i]));
+    out.sort((a, b) => {
+      const oa = origin.get(a)!, ob = origin.get(b)!;
+      return a.ts - b.ts || (fileIdx.get(oa.path) ?? 0) - (fileIdx.get(ob.path) ?? 0) || oa.line - ob.line || oa.k - ob.k;
+    });
+    return { sessionId, events: out, totals };
+  }
+}
+
+export function parseClaudeSession(mainPath: string, roles: RoleMatcher, stats: ReadStats): ClaudeSessionResult {
+  const files = sessionFiles(mainPath, stats);
+  const p = new ClaudeSessionParser(mainPath, roles, stats);
+  // Main file first: it defines tasks. Subagent files only attach to them.
+  for (const f of files) p.feed(f, readJsonl(f.path, stats));
+  return p.finish(files);
+}
+
+interface Tail { offset: number; lineNo: number; head: string; meta: string }
+const metaOf = (f: AgentFile) => JSON.stringify([f.agentType, f.agentTask, f.spawnToolUseId, f.spawnDepth, f.groupId]);
+
+/**
+ * A live Claude session read as it grows (spec 2026-11-03 A1): each update feeds only the complete lines
+ * appended since the last one. A file that shrank or was replaced, a subagent whose meta file changed,
+ * or a subagent fed before its spawn could be resolved makes it parse again from the start.
+ */
+export class ClaudeLive {
+  private parser: ClaudeSessionParser | null = null;
+  private tails = new Map<string, Tail>();
+  private mainPath: string;
+  private roles: RoleMatcher;
+  constructor(mainPath: string, roles: RoleMatcher) {
+    this.mainPath = mainPath;
+    this.roles = roles;
   }
 
-  const totals: Tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  for (const ev of calls.values()) {
-    ev.provisional = false; // every file has been read: the last line seen is final
-    for (const k of ["input", "output", "cacheRead", "cacheWrite"] as const) totals[k] += ev.tokens![k];
+  update(stats: ReadStats): ClaudeSessionResult & { mode: "full" | "tail" } {
+    const files = sessionFiles(this.mainPath, stats);
+    let mode: "full" | "tail" = "tail";
+    if (!this.parser || this.parser.stale || !this.canTail(files)) {
+      this.parser = new ClaudeSessionParser(this.mainPath, this.roles, stats);
+      this.tails.clear();
+      mode = "full";
+    }
+    for (const f of files) {
+      const t = this.tails.get(f.path) ?? { offset: 0, lineNo: 0, head: "", meta: metaOf(f) };
+      const r = readJsonlFrom(f.path, t.offset, t.lineNo, stats);
+      this.parser.feed(f, r.lines);
+      this.tails.set(f.path, { offset: r.offset, lineNo: r.lineNo, head: r.offset ? headOf(f.path) : "", meta: metaOf(f) });
+    }
+    if (mode === "tail" && this.parser.stale) return this.update(stats);
+    return { ...this.parser.finish(files), mode };
   }
-  for (const ev of events) ev.projectId = projectId;
-  events.sort((a, b) => a.ts - b.ts);
-  return { sessionId, events, totals };
+
+  private canTail(files: AgentFile[]): boolean {
+    const now = new Map(files.map((f) => [f.path, f]));
+    for (const [path, t] of this.tails) {
+      const f = now.get(path);
+      if (!f || metaOf(f) !== t.meta) return false;
+      try {
+        if (statSync(path).size < t.offset) return false;
+        if (t.offset && headOf(path) !== t.head) return false;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
 }

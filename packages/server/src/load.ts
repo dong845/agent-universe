@@ -5,8 +5,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseClaudeSession, sessionFiles } from "../../adapter-claude/src/index.ts";
-import { groupThreads, parseCodexThread, rolloutHead, type RolloutHead } from "../../adapter-codex/src/index.ts";
+import { ClaudeLive, parseClaudeSession, sessionFiles } from "../../adapter-claude/src/index.ts";
+import { CodexLive, groupThreads, parseCodexThread, rolloutHead, type RolloutHead } from "../../adapter-codex/src/index.ts";
 import type { AgentTownEvent, Tokens } from "../../schema/src/event.ts";
 import { loadRoles } from "../../schema/src/roles.ts";
 import { countUnknown, newStats, type ReadStats } from "../../schema/src/util.ts";
@@ -33,6 +33,11 @@ export interface LoadOptions {
    * the units of the latest load.
    */
   memo?: Map<string, CacheEntry>;
+  /**
+   * a parser per live unit, kept between loads: a unit whose files only grew is read from where its
+   * parser stopped (spec 2026-11-03 A1). Keyed by the unit's identity (Claude main file, Codex root).
+   */
+  live?: Map<string, { claude?: ClaudeLive; codex?: CodexLive }>;
 }
 
 export interface Totals {
@@ -58,12 +63,18 @@ export interface Loaded {
   units: { claude: number; codexRollouts: number };
   parsed: number;
   cached: number;
+  /** units read only from where their kept parser stopped (spec 2026-11-03 A1) */
+  tailed: number;
 }
 
 interface Unit {
   key: string;
+  /** stable across changes: the Claude main file, the Codex root rollout */
+  id: string;
   files: string[];
   parse(stats: ReadStats): { events: AgentTownEvent[]; totals: Totals };
+  /** the same through a kept parser, reading only what was appended when it can */
+  tail(live: { claude?: ClaudeLive; codex?: CodexLive }, stats: ReadStats): { events: AgentTownEvent[]; totals: Totals; mode: "full" | "tail" };
 }
 
 export interface CacheEntry {
@@ -151,10 +162,16 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
     const files = sessionFiles(m).map((f) => f.path); // a damaged meta file is counted when the unit is parsed
     units.push({
       key: `claude:${sig(files)}`,
+      id: `claude:${m}`,
       files,
       parse(st) {
         const r = parseClaudeSession(m, roles, st);
         return { events: r.events, totals: { claude: { [r.sessionId]: asRow(r.totals) }, codex: {} } };
+      },
+      tail(live, st) {
+        live.claude ??= new ClaudeLive(m, roles);
+        const r = live.claude.update(st);
+        return { events: r.events, totals: { claude: { [r.sessionId]: asRow(r.totals) }, codex: {} }, mode: r.mode };
       },
     });
   }
@@ -164,14 +181,23 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
     .filter((h): h is RolloutHead => !!h);
   for (const thread of groupThreads(heads)) {
     const files = thread.map((h) => h.path);
+    const codexTotals = (fileTotals: Map<string, Tokens>) => {
+      const codex: Record<string, number[]> = {};
+      for (const [file, t] of fileTotals) codex[basename(file)] = asRow(t);
+      return { claude: {}, codex };
+    };
     units.push({
       key: `codex:${sig([...files].sort())}`,
+      id: `codex:${thread[0].path}`,
       files,
       parse(st) {
         const r = parseCodexThread(thread, roles, st);
-        const codex: Record<string, number[]> = {};
-        for (const [file, t] of r.fileTotals) codex[basename(file)] = asRow(t);
-        return { events: r.events, totals: { claude: {}, codex } };
+        return { events: r.events, totals: codexTotals(r.fileTotals) };
+      },
+      tail(live, st) {
+        live.codex ??= new CodexLive(roles);
+        const r = live.codex.update(thread, st);
+        return { events: r.events, totals: codexTotals(r.fileTotals), mode: r.mode };
       },
     });
   }
@@ -181,6 +207,7 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   const totals: Totals = { claude: {}, codex: {} };
   const modified: Loaded["modified"] = { claude: {}, codex: {} };
   let parsed = 0;
+  let tailed = 0;
   let cached = 0;
   const seen = new Set<string>();
   for (const [i, u] of units.entries()) {
@@ -200,9 +227,13 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
       cached++;
     } else {
       const st = newStats();
-      let r: ReturnType<Unit["parse"]>;
+      let r: ReturnType<Unit["tail"]>;
       try {
-        r = u.parse(st);
+        if (o.live) {
+          let lv = o.live.get(u.id);
+          if (!lv) o.live.set(u.id, (lv = {}));
+          r = u.tail(lv, st);
+        } else r = { ...u.parse(st), mode: "full" };
       } catch (e) {
         // a session deleted or unreadable mid-load: skip it, count it, keep the rest
         countUnknown(stats, `unreadable unit: ${e instanceof Error ? e.message.slice(0, 80) : String(e)}`);
@@ -211,8 +242,10 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
         continue;
       }
       entry = { v: CACHE_VERSION, key: u.key, events: r.events, totals: r.totals, badLines: st.badLines, unknownKinds: [...st.unknownKinds] };
-      if (path) writeFileSync(path, JSON.stringify(entry));
-      parsed++;
+      // a tail read happens every few seconds on a live session: its disk copy waits for a full parse
+      if (path && r.mode === "full") writeFileSync(path, JSON.stringify(entry));
+      if (r.mode === "tail") tailed++;
+      else parsed++;
     }
     o.memo?.set(memoKey, entry);
     stats.badLines += entry.badLines;
@@ -228,6 +261,10 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   }
 
   if (o.memo) for (const k of [...o.memo.keys()]) if (!seen.has(k)) o.memo.delete(k);
+  if (o.live) {
+    const ids = new Set(units.map((u) => u.id));
+    for (const k of [...o.live.keys()]) if (!ids.has(k)) o.live.delete(k);
+  }
 
   // A continued session opens with copies of the previous session's records (same API message ids,
   // tool ids and uuids). The session that started first owns them; the copies are dropped (D9).
@@ -253,5 +290,5 @@ function* loadSteps(o: LoadOptions): Generator<void, Loaded> {
   // which town each request belongs to; cached events keep the raw cwd, so this is redone every load
   const requestOf = requestIdsOf(events);
   assignProjects(events, o.assign ?? { home: homedir(), tempRoots: defaultTempRoots(), toolRoots: defaultToolRoots(homedir()) }, requestOf);
-  return { events, requestOf, mtimes, totals, modified, stats, copied, perUnit, units: { claude: claudeUnits, codexRollouts: heads.length }, parsed, cached };
+  return { events, requestOf, mtimes, totals, modified, stats, copied, perUnit, units: { claude: claudeUnits, codexRollouts: heads.length }, parsed, cached, tailed };
 }

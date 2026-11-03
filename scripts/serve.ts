@@ -31,6 +31,8 @@ let lastPrint = 0;
 let t0 = Date.now();
 // parsed units kept between reloads, so a watched change re-reads only what changed
 const memo = new Map();
+// a parser per live session: a session that only grew is read from where it stopped (spec 2026-11-03 A1)
+const live = new Map();
 const srv = createServer({
   home: homedir(),
   // new log lines reach the page within seconds (spec 2026-11-01 A1)
@@ -43,6 +45,7 @@ const srv = createServer({
       codexRoot,
       cacheDir,
       memo,
+      live,
       onProgress: (done, total) => {
         onProgress(done, total);
         if (Date.now() - lastPrint > 2000 || done === total) {
@@ -51,7 +54,7 @@ const srv = createServer({
         }
       },
     }).then((r) => {
-      console.log(`已就绪：${r.events.length} 条事件，用时 ${((Date.now() - t0) / 1000).toFixed(1)} 秒（缓存 ${r.cached}，重新解析 ${r.parsed}）`);
+      console.log(`已就绪：${r.events.length} 条事件，用时 ${((Date.now() - t0) / 1000).toFixed(1)} 秒（缓存 ${r.cached}，重新解析 ${r.parsed}，续读 ${r.tailed}）`);
       return r;
     });
   },
