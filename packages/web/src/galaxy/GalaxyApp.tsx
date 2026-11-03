@@ -24,6 +24,7 @@ import { Settings } from "../ui/Settings.tsx";
 import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
 import { ExportShare } from "../share/ExportDialog.tsx";
 import { ShareReplays } from "../share/ShareReplays.tsx";
+import { Tour } from "../ui/Tour.tsx";
 import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
 import { historySteps, useHistory } from "../city/history.ts";
 
@@ -350,6 +351,7 @@ function CityLegend() {
 
 export function GalaxyApp() {
   const source = useStore((s) => s.source);
+  const emptyLogs = useStore((s) => s.emptyLogs);
   const w = useStore((s) => s.w25);
   const city = useStore((s) => s.city);
   const entering = useEnter((s) => s.entering);
@@ -429,7 +431,8 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : emptyLogs ? `没有找到日志：这是演示世界。Agent Universe 读取 ${emptyLogs.claude}（Claude Code）和 ${emptyLogs.codex}（Codex），有了日志会自动换成你的世界` : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <Tour />
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />

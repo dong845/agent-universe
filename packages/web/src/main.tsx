@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, subscribe, type Progress } from "./data.ts";
+import { demoPayload } from "../../mock/src/world.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { enterShare, leaveShare } from "./share/shareMode.ts";
 import { officialMarks } from "./galaxy/emblem.ts";
@@ -26,22 +27,36 @@ let payload;
 try {
   payload = await loadWorld(q.get("demo") === "1", showLoading);
 } catch (e) {
-  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务未启动：在 agent-town 目录运行 node --run start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
+  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务没有启动：在项目目录运行 npm start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
   throw e;
 }
 const store = useStore.getState();
+// the local server found no logs at all: show the demo world, and say where it looked (spec 2026-11-03 C4)
+const fromServer = payload.source === "real";
+if (fromServer && !payload.requests.length) {
+  const st = await fetch("/api/status").then((r) => r.json()).catch(() => ({}));
+  store.setEmptyLogs(st.roots ?? { claude: "~/.claude/projects", codex: "~/.codex/sessions" });
+  payload = demoPayload();
+}
 store.load(payload);
 // the official marks, if the owner downloaded them on this machine (spec 2026-11-03 C2)
-if (payload.source === "real") void fetch("/api/logos").then((r) => (r.ok ? r.json() : {})).then((l) => useStore.getState().setLogos(officialMarks(l))).catch(() => {});
+if (fromServer) void fetch("/api/logos").then((r) => (r.ok ? r.json() : {})).then((l) => useStore.getState().setLogos(officialMarks(l))).catch(() => {});
 // a shared page: always in share mode (names were masked by the exporter; our own emblems; no diary)
 if (payload.source === "share") store.setShare(true, null, true);
 // real data: newer worlds and the "需要你" list arrive as the logs change
 // A newer world rebuilds the page's world (~0.2 s on a big record): at most one every 30 s, never during
 // a recording. The 需要你 list has its own small message and is applied at once.
-if (payload.source === "real") {
+if (fromServer) {
   // compute the newer world in one frame, hand it to the page in the next: one long frame was two short ones
   const frame = () => new Promise((res) => requestAnimationFrame(res));
   const apply = (p: WorldPayload) => {
+    // the first logs arrived while the demo world was shown: switch to the owner's own world
+    if (useStore.getState().emptyLogs) {
+      if (!p.requests.length) return;
+      useStore.getState().setEmptyLogs(null);
+      useStore.getState().load(p);
+      return;
+    }
     void useStore.getState().prepareInFrames(p, frame).then(async (prepared) => {
       await frame();
       useStore.getState().reload(p, prepared);

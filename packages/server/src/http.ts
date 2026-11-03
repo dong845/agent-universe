@@ -22,6 +22,8 @@ import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
   phase: "loading" | "ready" | "error";
+  /** where the logs are read from, so an empty world can say where it looked */
+  roots?: { claude: string; codex: string };
   done: number;
   total: number;
   error?: string;
@@ -51,6 +53,8 @@ export interface ServerOptions {
   /** where downloaded official marks live (default ~/.agent-town/logos); `logoFetch` replaces fetch in tests */
   logosDir?: string;
   logoFetch?: typeof fetch;
+  /** the log folders, reported in /api/status */
+  roots?: { claude: string; codex: string };
 }
 
 /** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
@@ -68,7 +72,7 @@ export function portInUseMessage(port: number): string {
 
 export function createServer(o: ServerOptions) {
   const now = o.now ?? Date.now;
-  const state: ServerState = { phase: "loading", done: 0, total: 0 };
+  const state: ServerState = { phase: "loading", done: 0, total: 0, ...(o.roots ? { roots: o.roots } : {}) };
   let payload: WorldPayload | null = null;
   let byTask = new Map<string, AgentTownEvent[]>();
   let byRequest = new Map<string, AgentTownEvent[]>();

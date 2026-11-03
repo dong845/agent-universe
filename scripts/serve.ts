@@ -35,6 +35,7 @@ const memo = new Map();
 const live = new Map();
 const srv = createServer({
   home: homedir(),
+  roots: { claude: claudeRoot, codex: codexRoot },
   // new log lines reach the page within seconds (spec 2026-11-01 A1)
   watch: (onChange) => watchRoots([claudeRoot, codexRoot], onChange),
   staticDir: existsSync(join(dist, "index.html")) ? dist : null,

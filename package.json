@@ -10,12 +10,15 @@
     "build": "cd packages/web && ../../node_modules/.bin/tsc --noEmit -p . && ./node_modules/.bin/vite build",
     "e2e": "cd packages/web && ./node_modules/.bin/playwright test",
     "serve": "node scripts/serve.ts",
-    "start": "node --run build && node scripts/serve.ts",
+    "start": "node scripts/start.mjs",
     "art": "python3 scripts/art/run.py",
     "test:art": "python3 -m pytest -q tests/art"
   },
   "devDependencies": {
     "typescript": "5.9.3",
     "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

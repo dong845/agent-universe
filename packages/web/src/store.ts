@@ -112,6 +112,9 @@ interface Store {
   historyAt: number | null;
   /** the official marks downloaded on this machine (spec 2026-11-03 C2) */
   logos: OfficialMarks;
+  /** the server found no logs: the demo world is shown, and where the logs would be (spec 2026-11-03 C4) */
+  emptyLogs: { claude: string; codex: string } | null;
+  setEmptyLogs(r: { claude: string; codex: string } | null): void;
   setLogos(l: OfficialMarks): void;
   setHistoryAt(ts: number | null): void;
   setTime(t: number): void;
@@ -242,6 +245,10 @@ export const useStore = create<Store>((set, get) => ({
   shareTitles: false,
   historyAt: null,
   logos: {},
+  emptyLogs: null,
+  setEmptyLogs(r) {
+    set({ emptyLogs: r });
+  },
   setLogos(l) {
     set({ logos: l });
   },
