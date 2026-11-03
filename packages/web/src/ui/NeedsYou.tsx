@@ -1,6 +1,7 @@
 // "需要你": the live sessions waiting on the owner (spec 2026-11-01 A4), newest-most-urgent first. A row
 // flies to its town and opens the request; "复制恢复命令" copies the command that reopens the session.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { visibleAttention } from "./dismiss.ts";
 import { create } from "zustand";
 import type { Attention, AttentionState } from "../../../schema/src/attention.ts";
 import { resumeCommand } from "../../../schema/src/resume.ts";
@@ -42,7 +43,9 @@ export async function copyResume(faction: Attention["faction"], sessionId: strin
 const ago = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} 秒前` : ms < 3_600_000 ? `${Math.round(ms / 60_000)} 分钟前` : `${Math.round(ms / 3_600_000)} 小时前`);
 
 export function NeedsYou() {
-  const list = useStore((s) => s.attention);
+  const all = useStore((s) => s.attention);
+  const closed = useStore((s) => s.closedAttention);
+  const list = useMemo(() => visibleAttention(all, closed), [all, closed]);
   const w = useStore((s) => s.w25);
   const diaryOpen = useRightPanel();
   const [, tick] = useState(0);
@@ -74,6 +77,7 @@ export function NeedsYou() {
               <span className="g-need-ago">{ago(now - a.since)}</span>
             </button>
             <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>复制恢复命令</button>
+            <button className="g-need-close" aria-label="关闭这条" title="关闭这条：这个会话有新动静时会再出现" data-testid="needs-close" onClick={() => useStore.getState().closeAttention(a)}>×</button>
           </div>
         );
       })}

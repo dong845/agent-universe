@@ -25,6 +25,15 @@ test("the 需要你 list: shows a session, flies to its town on click, copies th
   await expect.poll(() => page.evaluate(() => (window as any).__agentTown.state().selected?.requestId)).toBe(rid);
   await page.getByRole("button", { name: "复制恢复命令" }).first().click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("demo-s");
+  // × closes it; the same entry again stays closed; the session moving on brings it back (owner 2026-11-03)
+  await page.getByTestId("needs-close").click();
+  await expect(list).toHaveCount(0);
+  const again = [{ session: `${faction}|demo-s`, faction, sessionId: "demo-s", projectId: rest.join("|"), requestId: rid, state: "maybe-waiting", since: 0, tool: "Bash", exact: false }];
+  const since: number = await page.evaluate(() => Number(Object.values((window as any).__agentTownClosed())[0].split("|")[1]));
+  await page.evaluate((x) => (window as any).__agentTown.setAttention(x), [{ ...again[0], since }]);
+  await expect(list).toHaveCount(0);
+  await page.evaluate((x) => (window as any).__agentTown.setAttention(x), [{ ...again[0], since: since + 5000 }]);
+  await expect(list).toBeVisible();
   await page.evaluate(() => (window as any).__agentTown.setAttention([]));
   await expect(list).toHaveCount(0);
   expect(errors).toEqual([]);

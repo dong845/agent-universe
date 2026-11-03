@@ -77,6 +77,7 @@ declare global {
     __agentTown: unknown;
   }
 }
+(window as unknown as { __agentTownClosed: () => Record<string, string> }).__agentTownClosed = () => useStore.getState().closedAttention;
 window.__agentTown = {
   /** every standing house and tent of a town (or all towns) on the side facing the camera, with its screen point */
   spots: (town?: string) => ((window as unknown as { __agentTownSpots?: (t?: string) => unknown[] }).__agentTownSpots?.(town) ?? []),

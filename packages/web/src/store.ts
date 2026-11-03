@@ -8,6 +8,7 @@ import { buildWorld, districtKey, type District, type World } from "./orchestrat
 import type { Selection } from "./selection.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { maskWorld } from "./share/display.ts";
+import { dismissKey, loadClosed, saveClosed } from "./ui/dismiss.ts";
 import manifest from "../../../art/manifest.json" with { type: "json" };
 import type { Manifest } from "./v3/art.ts";
 import type { Spot } from "./v3/townLayout.ts";
@@ -87,6 +88,9 @@ interface Store {
   /** sessions that need the owner now, from the server's attention stream */
   attention: Attention[];
   setAttention(a: Attention[]): void;
+  /** 需要你 entries the owner closed: session → the state and moment closed (owner 2026-11-03) */
+  closedAttention: Record<string, string>;
+  closeAttention(a: Attention): void;
   /** share mode (spec 2026-11-01 B1/B2): code names, masked titles, neutral emblems, no diary */
   share: boolean;
   /** town key → code name while sharing */
@@ -203,7 +207,17 @@ export const useStore = create<Store>((set, get) => ({
   },
   attention: [],
   setAttention(a) {
-    set({ attention: a });
+    // forget closings of sessions that left the list: they cannot come back as they were
+    const live = new Set(a.map((x) => x.session));
+    const closed = Object.fromEntries(Object.entries(get().closedAttention).filter(([k]) => live.has(k)));
+    if (Object.keys(closed).length !== Object.keys(get().closedAttention).length) saveClosed(closed);
+    set({ attention: a, closedAttention: closed });
+  },
+  closedAttention: loadClosed(),
+  closeAttention(a) {
+    const closed = { ...get().closedAttention, [a.session]: dismissKey(a) };
+    saveClosed(closed);
+    set({ closedAttention: closed });
   },
   share: false,
   shareNames: null,

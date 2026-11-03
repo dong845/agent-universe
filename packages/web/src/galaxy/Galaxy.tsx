@@ -14,6 +14,7 @@ import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, typ
 import { useGLTF } from "@react-three/drei";
 import { EMBLEM_NODE, EMBLEMS_URL, neutralEmblemGeometry } from "./emblem.ts";
 import { isViewer } from "../share/embedded.ts";
+import { visibleAttention } from "../ui/dismiss.ts";
 import { useEnter } from "../city/cityReplay.ts";
 import { ATMO, BELT, PLANET, RING, SHELL, SKY, STAR, STARS } from "./shaders.ts";
 
@@ -625,7 +626,7 @@ const NEED_MAT: Record<string, THREE.MeshBasicMaterial> = {
   calm: new THREE.MeshBasicMaterial({ color: new THREE.Color("#7fd0ff").multiplyScalar(1.8), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
 };
 function NeedRing({ p }: { p: Planet }) {
-  const state = useStore((s) => s.attention.find((a) => `${a.faction}|${a.projectId}` === p.key)?.state);
+  const state = useStore((s) => visibleAttention(s.attention, s.closedAttention).find((a) => `${a.faction}|${a.projectId}` === p.key)?.state);
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
     const m = ref.current;

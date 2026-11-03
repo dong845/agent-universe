@@ -390,3 +390,5 @@ canvas { display: block; }
 .g-history-facts .files li { display: flex; justify-content: space-between; gap: 6px; }
 .g-history-facts code { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c7d4ea; }
 .g-history-btn { font: inherit; font-size: 11.5px; padding: 2px 8px; border-radius: 7px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); cursor: pointer; }
+.g-need-close { font: inherit; font-size: 14px; line-height: 1; width: 24px; color: var(--mute); background: none; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.g-need-close:hover { color: var(--ink); border-color: var(--line); }
