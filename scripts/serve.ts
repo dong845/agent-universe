@@ -74,6 +74,6 @@ srv.server.listen(port, "127.0.0.1", () => {
   } catch (e) {
     console.error(`写端口文件失败：${(e as Error).message}`);
   }
-  console.log(`Agent Town: http://127.0.0.1:${port}/${srv.state().phase === "loading" ? "（正在读取日志）" : ""}`);
+  console.log(`Agent Universe · 智能体宇宙: http://127.0.0.1:${port}/${srv.state().phase === "loading" ? "（正在读取日志）" : ""}`);
   if (!existsSync(join(dist, "index.html"))) console.log("还没有网页构建：先运行 node --run build；开发时用 node --run dev 打开 http://127.0.0.1:5180/");
 });

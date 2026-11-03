@@ -23,7 +23,7 @@ export function ExportShare() {
       const r = await fetch("/api/export/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ townNames: names, titles, replays: picked }) });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `${r.status}`);
       const blob = await r.blob();
-      const name = /filename="([^"]+)"/.exec(r.headers.get("content-disposition") ?? "")?.[1] ?? "agent-town-share.html";
+      const name = /filename="([^"]+)"/.exec(r.headers.get("content-disposition") ?? "")?.[1] ?? "agent-universe-share.html";
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = name;

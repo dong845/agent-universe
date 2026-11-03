@@ -59,7 +59,7 @@ const TYPES: Record<string, string> = {
 };
 
 export function portInUseMessage(port: number): string {
-  return `端口 ${port} 已被占用：可能已经有一个 Agent Town 在运行`;
+  return `端口 ${port} 已被占用：可能已经有一个 Agent Universe 在运行`;
 }
 
 export function createServer(o: ServerOptions) {
@@ -367,7 +367,7 @@ export function createServer(o: ServerOptions) {
         const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES);
         const d = new Date();
         const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-town-share-${day}.html"`, "cache-control": "no-store" });
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-universe-share-${day}.html"`, "cache-control": "no-store" });
         res.end(html);
       } catch (e) {
         if (e instanceof ShareTooBig) return json(res, 413, { error: e.message, bytes: e.bytes, parts: e.parts });

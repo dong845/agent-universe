@@ -20,7 +20,7 @@ describe("notifier", () => {
     const h = harness();
     h.n([a("maybe-waiting")]);
     h.n([a("maybe-waiting")]);
-    expect(h.sent).toEqual(["Agent Town|示例小镇 · 可能在等你授权"]);
+    expect(h.sent).toEqual(["Agent Universe|示例小镇 · 可能在等你授权"]);
     h.n([a("waiting")]);
     expect(h.sent).toHaveLength(2);
     h.n([]);
@@ -33,7 +33,7 @@ describe("notifier", () => {
     expect(h.sent).toEqual([]);
     const h2 = harness({ notifyTurnDone: true });
     h2.n([a("turn-done")]);
-    expect(h2.sent).toEqual(["Agent Town|示例小镇 · 本轮完成，等你回复"]);
+    expect(h2.sent).toEqual(["Agent Universe|示例小镇 · 本轮完成，等你回复"]);
   });
   it("nothing when notifications are off", () => {
     const h = harness({ notify: false });

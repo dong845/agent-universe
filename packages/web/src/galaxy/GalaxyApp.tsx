@@ -427,7 +427,7 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Town 分享 · 只读" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />

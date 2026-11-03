@@ -18,7 +18,7 @@ export function createNotifier(send: (title: string, body: string) => void, sett
       if (shown.get(a.session) === a.state) continue;
       if (!s.notify) continue;
       if (a.state === "turn-done" && !s.notifyTurnDone) continue;
-      send("Agent Town", `${townName(a.projectId, a.faction)} · ${TEXT[a.state]}`);
+      send("Agent Universe", `${townName(a.projectId, a.faction)} · ${TEXT[a.state]}`);
     }
     shown = next;
   };

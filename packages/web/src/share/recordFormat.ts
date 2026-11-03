@@ -12,5 +12,5 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 export function fileName(town: string, d: Date, ext: string): string {
   const safe = town.replace(/[^\p{L}\p{N}._·-]+/gu, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  return `agent-town-${safe}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.${ext}`;
+  return `agent-universe-${safe}-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.${ext}`;
 }

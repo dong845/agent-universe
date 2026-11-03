@@ -13,7 +13,7 @@ describe("recording format", () => {
     expect(() => pickMime(() => false)).toThrow(/不能录/);
   });
   it("names the file after the town's display name and the day", () => {
-    expect(fileName("Kepler-07c", new Date(2026, 10, 1, 21, 5), "mp4")).toBe("agent-town-Kepler-07c-2026-11-01.mp4");
-    expect(fileName("a/b: c", new Date(2026, 0, 2), "gif")).toBe("agent-town-a-b-c-2026-01-02.gif");
+    expect(fileName("Kepler-07c", new Date(2026, 10, 1, 21, 5), "mp4")).toBe("agent-universe-Kepler-07c-2026-11-01.mp4");
+    expect(fileName("a/b: c", new Date(2026, 0, 2), "gif")).toBe("agent-universe-a-b-c-2026-01-02.gif");
   });
 });

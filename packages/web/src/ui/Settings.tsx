@@ -31,8 +31,8 @@ export function Settings() {
     try {
       const r = await post("/api/hooks", { agent, on: !s.hooks[agent] });
       setNote(r.on
-        ? (r.added?.length ? `已在 ${r.file} 加入 ${r.added.join("、")} 两个 hook${r.backup ? `；原文件备份在 ${r.backup}` : ""}` : `${r.file} 里已经有 Agent Town 的 hook`)
-        : `已从 ${r.file} 移除 ${r.removed} 条 Agent Town 的 hook，其余内容没动`);
+        ? (r.added?.length ? `已在 ${r.file} 加入 ${r.added.join("、")} 两个 hook${r.backup ? `；原文件备份在 ${r.backup}` : ""}` : `${r.file} 里已经有 Agent Universe 的 hook`)
+        : `已从 ${r.file} 移除 ${r.removed} 条 Agent Universe 的 hook，其余内容没动`);
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }
