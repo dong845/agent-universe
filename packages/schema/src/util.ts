@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 
 export function hashId(...parts: string[]): string {
   return createHash("sha1").update(parts.join("\u0000")).digest("hex").slice(0, 16);
@@ -63,6 +63,64 @@ export function* readJsonl(path: string, stats: ReadStats): Generator<Line> {
       const l = emit(Buffer.concat(carry));
       if (l) yield l;
     }
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Complete lines of a file from a byte offset (spec 2026-11-03 A1): a growing log is read from where the
+ * last read stopped. A last line without its newline is left for the next read. `line` numbers continue
+ * from `lineNo` (blank lines count, as in readJsonl).
+ */
+export function readJsonlFrom(path: string, offset: number, lineNo: number, stats: ReadStats, chunk = 1 << 22): { lines: Line[]; offset: number; lineNo: number; size: number; pending: boolean } {
+  const fd = openSync(path, "r");
+  try {
+    const size = fstatSync(fd).size;
+    const lines: Line[] = [];
+    let n = lineNo;
+    let at = offset;
+    // read in chunks (a cold first read of a huge log is not one allocation); a line split across two
+    // chunks is carried over, as bytes, so a multi-byte character is never cut
+    let carry: Buffer = Buffer.alloc(0);
+    let consumed = offset;
+    const buf = Buffer.alloc(Math.max(1, chunk));
+    while (at < size) {
+      const got = readSync(fd, buf, 0, Math.min(buf.length, size - at), at);
+      if (got === 0) break;
+      // where `data` starts in the file: the carried bytes, then this chunk
+      const dataAt = at - carry.length;
+      at += got;
+      const data = carry.length ? Buffer.concat([carry, buf.subarray(0, got)]) : buf.subarray(0, got);
+      let start = 0;
+      for (let i = data.indexOf(10, 0); i !== -1; i = data.indexOf(10, i + 1)) {
+        n++;
+        const s = data.toString("utf8", start, i);
+        start = i + 1;
+        if (!s.trim()) continue;
+        try {
+          lines.push({ n, rec: JSON.parse(s) });
+        } catch {
+          stats.badLines++;
+        }
+      }
+      if (start > 0) consumed = dataAt + start;
+      carry = Buffer.from(data.subarray(start));
+    }
+    // bytes after the last newline wait for theirs: the result lags the file until then
+    return { lines, offset: consumed, lineNo: n, size, pending: size > consumed };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** the first bytes of a file, to tell a file that grew from one that was replaced */
+export function headOf(path: string, bytes = 256): string {
+  const fd = openSync(path, "r");
+  try {
+    const b = Buffer.alloc(bytes);
+    const n = readSync(fd, b, 0, bytes, 0);
+    return b.subarray(0, n).toString("base64");
   } finally {
     closeSync(fd);
   }

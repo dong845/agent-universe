@@ -2,13 +2,16 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { loadWorld, ServerDown, subscribe, type Progress } from "./data.ts";
+import { demoPayload } from "../../mock/src/world.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { enterShare, leaveShare } from "./share/shareMode.ts";
+import { officialMarks } from "./galaxy/emblem.ts";
 import { useRecorder } from "./share/recorder.ts";
-import { latestEvery } from "./throttle.ts";
+import { latestApplier, latestEvery } from "./throttle.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
 
-const WORLD_EVERY_MS = 30_000;
+// a newer world now costs one short frame (spec 2026-11-03 A2), so it can come often
+const WORLD_EVERY_MS = 5_000;
 import { fromHash, requestOfTask, toHash, type Selection } from "./selection.ts";
 import { Loading } from "./ui/Loading.tsx";
 import { orbit } from "./galaxy/Galaxy.tsx";
@@ -24,18 +27,48 @@ let payload;
 try {
   payload = await loadWorld(q.get("demo") === "1", showLoading);
 } catch (e) {
-  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务未启动：在 agent-town 目录运行 node --run start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
+  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务没有启动：在项目目录运行 npm start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
   throw e;
 }
 const store = useStore.getState();
+// the local server found no logs at all: show the demo world, and say where it looked (spec 2026-11-03 C4)
+const fromServer = payload.source === "real";
+if (fromServer && !payload.requests.length) {
+  const st = await fetch("/api/status").then((r) => r.json()).catch(() => ({}));
+  store.setEmptyLogs(st.roots ?? { claude: "~/.claude/projects", codex: "~/.codex/sessions" });
+  payload = demoPayload();
+}
 store.load(payload);
+// the official marks, if the owner downloaded them on this machine (spec 2026-11-03 C2)
+if (fromServer) void fetch("/api/logos").then((r) => (r.ok ? r.json() : {})).then((l) => useStore.getState().setLogos(officialMarks(l))).catch(() => {});
 // a shared page: always in share mode (names were masked by the exporter; our own emblems; no diary)
 if (payload.source === "share") store.setShare(true, null, true);
 // real data: newer worlds and the "需要你" list arrive as the logs change
 // A newer world rebuilds the page's world (~0.2 s on a big record): at most one every 30 s, never during
 // a recording. The 需要你 list has its own small message and is applied at once.
-if (payload.source === "real") {
-  const world = latestEvery<WorldPayload>((p) => useStore.getState().reload(p), WORLD_EVERY_MS, () => !!useRecorder.getState().session);
+if (fromServer) {
+  // compute the newer world in one frame, hand it to the page in the next: one long frame was two short ones
+  // the next frame, or a short wait where frames do not run (a hidden tab)
+  const frame = () => new Promise<void>((res) => {
+    const t = setTimeout(res, 100);
+    requestAnimationFrame(() => { clearTimeout(t); res(); });
+  });
+  const prepareAndApply = latestApplier<WorldPayload>(async (p, f) => {
+    const prepared = await useStore.getState().prepareInFrames(p, f);
+    await f();
+    useStore.getState().reload(p, prepared);
+  }, frame);
+  const apply = (p: WorldPayload) => {
+    // the first logs arrived while the demo world was shown: switch to the owner's own world
+    if (useStore.getState().emptyLogs) {
+      if (!p.requests.length) return;
+      useStore.getState().setEmptyLogs(null);
+      useStore.getState().load(p);
+      return;
+    }
+    prepareAndApply(p);
+  };
+  const world = latestEvery<WorldPayload>(apply, WORLD_EVERY_MS, () => !!useRecorder.getState().session);
   subscribe({ world, attention: (a) => useStore.getState().setAttention(a) });
 }
 
@@ -97,6 +130,26 @@ window.__agentTown = {
   orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
+  /** test hook: fetch the newest world and apply it now (real data) */
+  reloadNow: async () => {
+    // the same path the stream takes: download, parse and apply in separate frames
+    const r = await fetch("/api/world");
+    if (!r.ok) return;
+    const text = await r.text();
+    await new Promise((res) => requestAnimationFrame(res));
+    let t = performance.now();
+    const p = JSON.parse(text);
+    const parseMs = performance.now() - t;
+    await new Promise((res) => requestAnimationFrame(res));
+    t = performance.now();
+    const prepared = await useStore.getState().prepareInFrames(p, () => new Promise((res) => requestAnimationFrame(res)));
+    const prepareMs = performance.now() - t;
+    await new Promise((res) => requestAnimationFrame(res));
+    t = performance.now();
+    useStore.getState().reload(p, prepared);
+    // timings for the frame-cost check (spec 2026-11-03 A2)
+    return { parseMs: Math.round(parseMs), prepareMs: Math.round(prepareMs), applyMs: Math.round(performance.now() - t) };
+  },
   /** share mode on/off (demo: stand-in code names; real data: the server's code names) */
   setShare: (on: boolean, show = { townNames: false, titles: false }) => (on ? enterShare(show) : leaveShare()),
   /** share mode on? */

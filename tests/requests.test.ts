@@ -153,3 +153,35 @@ describe("request rows carry the session folder for the resume command (attentio
     expect(buildRequests(evs, requestIdsOf(evs), DEFAULT_WORLD_CONFIG)[0].cwd).toBe("/synthetic/folder");
   });
 });
+
+describe("per-request work and a sentence for untitled requests (spec 2026-11-03 B1/B3)", () => {
+  const base = { faction: "codex" as const, projectId: "/synthetic/p", sessionId: "s", agentId: "main" };
+  let n = 0;
+  const ev = (taskId: string, kind: AgentTownEvent["kind"], extra: Partial<AgentTownEvent> = {}): AgentTownEvent => ({ ...base, id: `w${n++}`, ts: n, taskId, kind, ...extra });
+  const evs: AgentTownEvent[] = [
+    ev("t1", "task_start", { trigger: "human" }), // no title: Codex often has none
+    ev("t1", "tool_start", { role: "smith", tool: "apply_patch", files: [{ path: "/synthetic/p/src/a.ts", access: "edit" }, { path: "/synthetic/p/src/b.ts", access: "edit" }] }),
+    ev("t1", "tool_start", { role: "smith", tool: "apply_patch", files: [{ path: "/synthetic/p/docs/c.md", access: "edit" }] }),
+    ev("t1", "tool_start", { role: "engineer", tool: "exec_command", target: "pytest -q" }),
+    ev("t1", "agent_spawn", { agentId: "child" }),
+    ev("t1", "compaction"),
+    ev("t1", "task_end"),
+    ev("t2", "task_start", { trigger: "human" }),
+    ev("t2", "tool_start", { role: "engineer", tool: "exec_command", target: "git status" }),
+    ev("t2", "task_end"),
+    ev("t3", "task_start", { trigger: "human", title: "有标题的请求" }),
+    ev("t3", "tool_start", { role: "scout", tool: "Read", files: [{ path: "/synthetic/p/x.ts", access: "read" }] }),
+    ev("t3", "task_end"),
+  ];
+  const rows = buildRequests(evs, requestIdsOf(evs), DEFAULT_WORLD_CONFIG);
+  const byId = new Map(rows.map((r) => [r.requestId, r]));
+  it("counts each request's calls per kind of work, like a town's", () => {
+    expect(byId.get("t1")!.work).toEqual({ smith: 2, engineer: 1, spawn: 1, compaction: 1 });
+    expect(byId.get("t2")!.work).toEqual({ engineer: 1 });
+  });
+  it("an untitled request gets a sentence of what it did, from its own events", () => {
+    expect(byId.get("t1")!.gist).toBe("改了 3 个文件：a.ts、b.ts 等");
+    expect(byId.get("t2")!.gist).toBe("跑命令：git status");
+    expect(byId.get("t3")!.gist).toBeUndefined(); // it has a title
+  });
+});

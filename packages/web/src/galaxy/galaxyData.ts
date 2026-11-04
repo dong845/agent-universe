@@ -186,6 +186,13 @@ export function routesOf(requests: Iterable<RequestRow>, max = 40): Route[] {
   return out;
 }
 
+/**
+ * The planets and stars of the last galaxy built, kept while nothing they are made from changes (spec
+ * 2026-11-03 A2): the same objects come back, so the scene keeps their meshes and materials.
+ */
+const planetCache = new Map<string, { sig: string; layout: object; planet: Planet }>();
+const systemCache = new Map<string, StarSystem>();
+
 export function buildGalaxy(w: World25): Galaxy {
   const systems: StarSystem[] = [];
   const planets = new Map<string, Planet>();
@@ -205,6 +212,13 @@ export function buildGalaxy(w: World25): Galaxy {
       const r = planetRadius(t.counts.produced);
       orbit += i === 0 ? r : prev + r + 2.6;
       prev = r;
+      const layout = w.layouts.get(t.key)!;
+      const sig = JSON.stringify([t, r, orbit, i, shellRadius]);
+      const hit = planetCache.get(t.key);
+      if (hit && hit.sig === sig && hit.layout === layout) {
+        list.push(hit.planet);
+        return;
+      }
       const { blocks, belts } = blocksOf(w, t, r);
       const seed = hash(t.key) * 100;
       list.push({
@@ -216,8 +230,12 @@ export function buildGalaxy(w: World25): Galaxy {
         ring: t.kind !== "capital" && t.kind !== "outpost" && t.counts.produced >= 40,
         blocks, belts, live: blocks.some((b) => b.live), seed, unit: (CAP * r) / w.layouts.get(t.key)!.radius,
       });
+      planetCache.set(t.key, { sig, layout, planet: list[list.length - 1] });
     });
-    const sys: StarSystem = { faction, x: 0, z: 0, radius, shellRadius, color: FACTION_COLOR[faction], panels: produced, planets: list, hidden: all.length - towns.length };
+    const prevSys = systemCache.get(faction);
+    const same = prevSys && prevSys.radius === radius && prevSys.hidden === all.length - towns.length && prevSys.planets.length === list.length && prevSys.planets.every((q, j) => q === list[j]) && prevSys.panels.length === produced.length && prevSys.panels.every((v, j) => v === produced[j]);
+    const sys: StarSystem = same ? prevSys : { faction, x: 0, z: 0, radius, shellRadius, color: FACTION_COLOR[faction], panels: produced, planets: list, hidden: all.length - towns.length };
+    systemCache.set(faction, sys);
     for (const p of list) planets.set(p.key, p);
     sides.push(sys);
   }

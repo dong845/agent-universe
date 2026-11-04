@@ -13,7 +13,7 @@ import { declutter, type LabelBox } from "../ui/format.ts";
 import { SpotCard } from "../v3/Cards25.tsx";
 import { WORK_NAMES } from "../v3/townLayout.ts";
 import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
-import { MARKS, NEUTRAL_MARKS } from "./emblem.ts";
+import { NEUTRAL_MARKS } from "./emblem.ts";
 import { CityScene } from "../city/City.tsx";
 import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx";
 import { cityTowns, REPLAY_SPEEDS, useEnter, useReplay } from "../city/cityReplay.ts";
@@ -24,6 +24,7 @@ import { Settings } from "../ui/Settings.tsx";
 import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
 import { ExportShare } from "../share/ExportDialog.tsx";
 import { ShareReplays } from "../share/ShareReplays.tsx";
+import { Tour } from "../ui/Tour.tsx";
 import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
 import { historySteps, useHistory } from "../city/history.ts";
 
@@ -155,10 +156,12 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
 
 export function Badge({ f }: { f: "claude-code" | "codex" }) {
   const share = useStore((s) => s.share);
-  const m = (share ? NEUTRAL_MARKS : MARKS)[f];
+  const official = useStore((s) => s.logos[f]);
+  const neutral = share || !official;
+  const m = neutral ? NEUTRAL_MARKS[f] : official.mark;
   return (
     <svg className="g-badge" viewBox={m.viewBox} aria-hidden="true" style={{ color: FACTION_COLOR[f] }}>
-      {m.paths.map((d, i) => <path key={i} d={d} fill="currentColor" fillRule={share ? "evenodd" : undefined} />)}
+      {m.paths.map((d, i) => <path key={i} d={d} fill="currentColor" fillRule={neutral ? "evenodd" : undefined} />)}
     </svg>
   );
 }
@@ -348,6 +351,7 @@ function CityLegend() {
 
 export function GalaxyApp() {
   const source = useStore((s) => s.source);
+  const emptyLogs = useStore((s) => s.emptyLogs);
   const w = useStore((s) => s.w25);
   const city = useStore((s) => s.city);
   const entering = useEnter((s) => s.entering);
@@ -427,7 +431,8 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Town 分享 · 只读" : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : emptyLogs ? `没有找到日志：这是演示世界。Agent Universe 读取 ${emptyLogs.claude}（Claude Code）和 ${emptyLogs.codex}（Codex），有了日志会自动换成你的世界` : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <Tour />
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />

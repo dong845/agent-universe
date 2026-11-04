@@ -80,6 +80,12 @@ export function fetchTask(taskId: string): Promise<AgentTownEvent[]> {
  * (fetched here, one at a time), an `attention` event carries the "需要你" list. EventSource reconnects
  * by itself after the server restarts. Returns a stop function.
  */
+/** the next animation frame (or a short timeout where frames do not run, e.g. a hidden tab) */
+const nextFrame = () => new Promise<void>((res) => {
+  const t = setTimeout(res, 50);
+  requestAnimationFrame(() => { clearTimeout(t); res(); });
+});
+
 export function subscribe(on: { world(p: WorldPayload): void; attention(a: Attention[]): void }): () => void {
   const es = new EventSource("/api/stream");
   let busy = false;
@@ -92,7 +98,14 @@ export function subscribe(on: { world(p: WorldPayload): void; attention(a: Atten
     busy = true;
     try {
       const r = await fetch("/api/world");
-      if (r.ok) on.world((await r.json()) as WorldPayload);
+      if (r.ok) {
+        // download, parse and apply in separate frames: together they made one long frame (spec 2026-11-03 A2)
+        const text = await r.text();
+        await nextFrame();
+        const p = JSON.parse(text) as WorldPayload;
+        await nextFrame();
+        on.world(p);
+      }
     } catch {
       // the server is restarting: the stream reconnects and announces the next world
     } finally {

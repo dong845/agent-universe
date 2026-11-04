@@ -1,29 +1,60 @@
-// The faction marks (D21): Claude's spark and OpenAI's blossom, from their own SVGs (art/logos/, from
-// Wikimedia Commons). Labels draw the SVG paths; the 3D scene draws the solid emblems Blender builds
-// from the same files (scripts/models/emblems.py → public/models/emblems.glb). The marks belong to
-// Anthropic and OpenAI and only label each side in this local tool.
+// The faction marks. The official ones (Claude's spark, OpenAI's blossom — D21) are not in the
+// repository (spec 2026-11-03 C2): the owner can download them from Wikimedia Commons into their own
+// folder, and the page then draws them on this machine only — labels from the SVG paths, the solid 3D
+// mark extruded from the same SVG in the browser. Without them, and in anything exported, the neutral
+// marks below. The official marks belong to Anthropic and OpenAI.
 import * as THREE from "three";
+import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
 import type { Faction } from "../../../schema/src/event.ts";
-import claudeSvg from "../../../../art/logos/claude.svg?raw";
-import openaiSvg from "../../../../art/logos/openai.svg?raw";
-
-export const EMBLEMS_URL = "/models/emblems.glb";
 
 export interface Mark {
   viewBox: string;
   paths: string[];
 }
 
-function parse(svg: string, name: string): Mark {
+/** a downloaded SVG's viewBox and paths (labels draw them) */
+export function parseMark(svg: string): Mark | null {
   const viewBox = /viewBox="([^"]+)"/.exec(svg)?.[1];
   const paths = [...svg.matchAll(/\sd="([^"]+)"/g)].map((m) => m[1]);
-  if (!viewBox || !paths.length) throw new Error(`${name}: no viewBox or no path`);
-  return { viewBox, paths };
+  return viewBox && paths.length ? { viewBox, paths } : null;
 }
 
-export const MARKS: Record<Faction, Mark> = { "claude-code": parse(claudeSvg, "claude.svg"), codex: parse(openaiSvg, "openai.svg") };
-/** the glTF node holding each faction's solid emblem */
-export const EMBLEM_NODE: Record<Faction, string> = { "claude-code": "E_claude-code", codex: "E_codex" };
+const solid = new Map<string, THREE.BufferGeometry>();
+/**
+ * The solid mark from its SVG, as the Blender script made it (D21): extruded 9 % of its size, bevelled
+ * 1.2 %, centred, its larger side 1, in the XY plane facing +Z.
+ */
+export function officialGeometry(svg: string): THREE.BufferGeometry {
+  let g = solid.get(svg);
+  if (g) return g;
+  const data = new SVGLoader().parse(svg);
+  const shapes = data.paths.flatMap((p) => SVGLoader.createShapes(p));
+  const flat = new THREE.ShapeGeometry(shapes);
+  flat.computeBoundingBox();
+  const bb = flat.boundingBox!;
+  const size = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y) || 1;
+  flat.dispose();
+  g = new THREE.ExtrudeGeometry(shapes, { depth: size * 0.09, bevelEnabled: true, bevelThickness: size * 0.012, bevelSize: size * 0.012, bevelSegments: 2, curveSegments: 10 });
+  g.center();
+  // SVG y points down
+  g.scale(1 / size, -1 / size, 1 / size);
+  g.computeVertexNormals();
+  solid.set(svg, g);
+  return g;
+}
+
+/** the official marks this machine has downloaded (none until the owner switches them on) */
+export type OfficialMarks = Partial<Record<Faction, { mark: Mark; svg: string }>>;
+export function officialMarks(files: { claude?: string; openai?: string }): OfficialMarks {
+  const out: OfficialMarks = {};
+  const add = (f: Faction, svg?: string) => {
+    const mark = svg ? parseMark(svg) : null;
+    if (svg && mark) out[f] = { mark, svg };
+  };
+  add("claude-code", files.claude);
+  add("codex", files.openai);
+  return out;
+}
 
 // ---- our own neutral emblems (D18), for anything that leaves this machine (spec 2026-11-01 B2) --------
 // Claude Code a sunburst of rays, Codex three interlocked rings: simple shapes, not the logos. One

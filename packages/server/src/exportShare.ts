@@ -52,7 +52,7 @@ export function buildShareHtml(dist: string, payload: WorldPayload, maxBytes = S
   html = html.replace(scripts[0][0], () => "");
   for (const m of styles) html = html.replace(m[0], () => "");
   // function replacers: a replacement string would read "$&", "$'" … in the minified app as patterns
-  html = html.replace(/<title>[^<]*<\/title>/, () => "<title>Agent Town · 分享</title>");
+  html = html.replace(/<title>[^<]*<\/title>/, () => "<title>Agent Universe · 智能体宇宙 · 分享</title>");
   html = html.replace("</head>", () => `<style>${embedCss(css)}</style>\n</head>`);
   html = html.replace(
     '<div id="root"></div>',

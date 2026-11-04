@@ -54,26 +54,50 @@ describe("a shared world (no events)", () => {
   });
 });
 
-describe("live data catches up instead of jumping (owner 2026-11-03: agents teleported)", () => {
-  it("a newer world arriving while the clock follows now plays the missed stretch quickly, then stops at the new end", () => {
-    const p1 = { ...demoPayload(), source: "real" as const };
+describe("live: the clock follows the newest record (spec 2026-11-03 A3)", () => {
+  const real = () => ({ ...demoPayload(), source: "real" as const });
+  const later = (p: ReturnType<typeof real>, ms: number) => {
+    const last = p.events[p.events.length - 1];
+    return { ...p, events: [...p.events, { ...last, id: `later-${ms}`, ts: last.ts + ms }] };
+  };
+  it("real data opens following now, at the newest record", () => {
+    useStore.getState().load(real());
+    const s = useStore.getState();
+    expect(s.following).toBe(true);
+    expect(s.t).toBe(s.duration);
+  });
+  it("newer records are walked through at real speed, never jumped to", () => {
+    const p1 = real();
     useStore.getState().load(p1);
-    useStore.getState().setSpeed(1);
-    const s1 = useStore.getState();
-    const end1 = s1.t0 + s1.duration;
-    expect(s1.t).toBe(s1.duration); // real data opens at now
-    const last = p1.events[p1.events.length - 1];
-    const later = { ...last, id: "later-event", ts: last.ts + 60_000 };
-    const p2 = { ...p1, events: [...p1.events, later] };
-    useStore.getState().reload(p2);
-    const s2 = useStore.getState();
-    expect(s2.t0 + s2.t).toBe(end1); // still where the agents were
-    expect(s2.playing).toBe(true);
-    expect(s2.speed).toBeGreaterThan(1);
-    for (let i = 0; i < 200 && useStore.getState().playing; i++) useStore.getState().advance(100);
-    const s3 = useStore.getState();
-    expect(s3.t).toBe(s3.duration);
-    expect(s3.playing).toBe(false);
-    expect(s3.speed).toBe(1); // the owner's speed comes back
+    const end1 = useStore.getState().t0 + useStore.getState().t;
+    useStore.getState().reload(later(p1, 4_000));
+    expect(useStore.getState().t0 + useStore.getState().t).toBe(end1); // where the agents were
+    useStore.getState().advance(1_000);
+    expect(useStore.getState().t0 + useStore.getState().t).toBe(end1 + 1_000); // 1× while close behind
+    for (let i = 0; i < 10; i++) useStore.getState().advance(1_000);
+    const s = useStore.getState();
+    expect(s.t).toBe(s.duration); // caught up: waits at the newest record
+    expect(s.following).toBe(true);
+  });
+  it("far behind, it hurries until it is close behind again, then goes at real speed", () => {
+    const p1 = real();
+    useStore.getState().load(p1);
+    useStore.getState().reload(later(p1, 60_000));
+    for (let i = 0; i < 8; i++) useStore.getState().advance(1_000);
+    const s = useStore.getState();
+    expect(s.duration - s.t).toBeLessThanOrEqual(15_000);
+    const before = s.t;
+    useStore.getState().advance(1_000);
+    expect(useStore.getState().t - before).toBeCloseTo(1_000, 0);
+  });
+  it("scrubbing leaves live; 实时 comes back to it", () => {
+    useStore.getState().load(real());
+    useStore.getState().setTime(0);
+    expect(useStore.getState().following).toBe(false);
+    useStore.getState().reload(later(real(), 5_000));
+    expect(useStore.getState().t).toBe(0); // a scrubbed clock stays where the owner put it
+    useStore.getState().setFollowing(true);
+    for (let i = 0; i < 30; i++) useStore.getState().advance(1_000);
+    expect(useStore.getState().t).toBe(useStore.getState().duration);
   });
 });

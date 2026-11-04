@@ -37,7 +37,7 @@ test("record a replay: project names kept, titles hidden by default, labels in t
   const stop = page.getByTestId("rec-banner").getByRole("button", { name: "停止" });
   if (await stop.isVisible()) await stop.click().catch(() => {});
   const d = await download;
-  expect(d.suggestedFilename()).toMatch(/^agent-town-.+-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/);
+  expect(d.suggestedFilename()).toMatch(/^agent-universe-.+-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/);
   expect(d.suggestedFilename()).toContain(name);
   const path = await d.path();
   const { statSync } = await import("node:fs");

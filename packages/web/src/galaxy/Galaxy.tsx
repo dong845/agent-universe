@@ -11,9 +11,7 @@ import { pieceOf, StudioEnvironment } from "../city/CityKit.tsx";
 import * as THREE from "three";
 import { absTime, useStore } from "../store.ts";
 import { FACTION_COLOR as FACTION_HEX, panelsAt, planetPos, CAP, type Block, type Galaxy, type Planet, type StarSystem } from "./galaxyData.ts";
-import { useGLTF } from "@react-three/drei";
-import { EMBLEM_NODE, EMBLEMS_URL, neutralEmblemGeometry } from "./emblem.ts";
-import { isViewer } from "../share/embedded.ts";
+import { neutralEmblemGeometry, officialGeometry } from "./emblem.ts";
 import { visibleAttention } from "../ui/dismiss.ts";
 import { useEnter } from "../city/cityReplay.ts";
 import { ATMO, BELT, PLANET, RING, SHELL, SKY, STAR, STARS } from "./shaders.ts";
@@ -45,17 +43,7 @@ const glowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.4, 2
 const beamMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.6, 1.6), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
 export const MATS = { hull: hullMat, glow: glowMat, beam: beamMat };
 /** the solid faction emblems Blender builds from the marks' SVGs, one geometry per faction */
-function useEmblemGeometry(faction: StarSystem["faction"]): THREE.BufferGeometry {
-  const gltf = useGLTF(EMBLEMS_URL);
-  return useMemo(() => {
-    const o = gltf.scene.getObjectByName(EMBLEM_NODE[faction]) as THREE.Mesh | undefined;
-    if (!o?.isMesh) throw new Error(`${EMBLEMS_URL} has no mesh "${EMBLEM_NODE[faction]}"`);
-    // the node may sit off the origin in the file; its geometry is already centred
-    return o.geometry;
-  }, [gltf, faction]);
-}
-// a shared page never carries the official marks (they are drawn only on this machine)
-if (!isViewer()) useGLTF.preload(EMBLEMS_URL);
+
 const emblemMat = (hex: string, k: number, opacity: number) => new THREE.MeshBasicMaterial({ color: col(hex, k), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, fog: false });
 
 type EmblemProps = { faction: StarSystem["faction"]; use: "badge" | "corona"; scale: number; position?: [number, number, number]; speed?: number };
@@ -82,12 +70,9 @@ const neutralGeo = (f: StarSystem["faction"], use: "badge" | "corona") => {
  */
 export function Emblem(props: EmblemProps) {
   const share = useStore((s) => s.share);
-  if (share) return <EmblemShape {...props} geometry={neutralGeo(props.faction, props.use)} kind="neutral" />;
-  return <Suspense fallback={null}><OfficialEmblem {...props} /></Suspense>;
-}
-
-function OfficialEmblem(props: EmblemProps) {
-  return <EmblemShape {...props} geometry={useEmblemGeometry(props.faction)} kind="official" />;
+  const official = useStore((s) => s.logos[props.faction]);
+  if (share || !official) return <EmblemShape {...props} geometry={neutralGeo(props.faction, props.use)} kind="neutral" />;
+  return <EmblemShape {...props} geometry={officialGeometry(official.svg)} kind="official" />;
 }
 
 function EmblemShape({ faction, use, scale, position = [0, 0, 0], speed = 0.05, geometry, kind }: EmblemProps & { geometry: THREE.BufferGeometry; kind: string }) {

@@ -396,3 +396,13 @@ canvas { display: block; }
 .g-history-facts .agents li { display: grid; gap: 1px; padding: 4px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); }
 .g-history-facts .agents .task { color: #c7d4ea; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-history-facts .agents .muted { font-size: 10.5px; }
+.live-on { color: #5ef2a0 !important; border-color: rgba(94, 242, 160, 0.5) !important; }
+.g-history .gist { color: var(--mute) !important; font-style: italic; }
+/* first-visit tour (spec 2026-11-03 C4): beside the scene, never over it */
+.g-tour { position: absolute; left: 14px; top: 150px; z-index: 25; width: 300px; display: grid; gap: 6px; padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: var(--ink); background: rgba(10, 16, 30, 0.92); border: 1px solid rgba(255, 196, 92, 0.45); border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); }
+.g-tour small { color: var(--mute); }
+.g-tour b { font-size: 14px; }
+.g-tour p { margin: 0; color: #c7d4ea; }
+.g-tour div { display: flex; justify-content: flex-end; gap: 6px; }
+.g-tour button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 7px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); cursor: pointer; }
+.g-tour button.primary { background: rgba(255, 196, 92, 0.18); border-color: rgba(255, 196, 92, 0.5); }

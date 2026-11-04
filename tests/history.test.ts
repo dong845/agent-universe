@@ -103,3 +103,21 @@ describe("stepAgents (owner 2026-11-03: show the step's agents)", () => {
     expect(stepAgents(null)).toEqual([]);
   });
 });
+
+describe("countsAt (spec 2026-11-03 B1)", () => {
+  it("a town's work and Q&A as of a moment: only requests ended by then", async () => {
+    const { countsAt } = await import("../packages/web/src/city/history.ts");
+    const p = demoPayload();
+    useStore.getState().load(p);
+    const w = useStore.getState().w25!;
+    const town = p.towns[0].key;
+    const mine = p.requests.filter((r) => `${r.faction}|${r.projectId}` === town).sort((a, b) => a.endTs - b.endTs);
+    const mid = mine[Math.floor(mine.length / 2)].endTs;
+    const c = countsAt(w, town, mid);
+    const expected: Record<string, number> = {};
+    for (const r of mine) if (r.endTs <= mid) for (const [k, n] of Object.entries(r.work ?? {})) expected[k] = (expected[k] ?? 0) + n;
+    expect(c.work).toEqual(expected);
+    expect(c.chats).toBe(mine.filter((r) => r.endTs <= mid && r.class === "chat").length);
+    expect(countsAt(w, town, 0)).toEqual({ work: {}, chats: 0 });
+  });
+});

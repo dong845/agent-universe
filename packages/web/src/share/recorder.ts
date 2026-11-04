@@ -158,7 +158,7 @@ export function RecordCompositor() {
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
-    ctx.fillText("Agent Town", canvas.width - canvas.height * 0.02, canvas.height * 0.98);
+    ctx.fillText("Agent Universe", canvas.width - canvas.height * 0.02, canvas.height * 0.98);
     ctx.restore();
     useRecorder.setState({ lastLabels: n });
     s.frame++;

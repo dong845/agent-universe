@@ -52,4 +52,8 @@ export interface RequestRow {
   taskIds: string[];
   /** the folder the session ran in, for the resume command; this machine only, never exported */
   cwd?: string;
+  /** tool calls per kind of work (role, plus `spawn` and `compaction`), as a town counts them */
+  work?: Record<string, number>;
+  /** an untitled request: one sentence of what it did, from its own events; this machine only, never exported */
+  gist?: string;
 }

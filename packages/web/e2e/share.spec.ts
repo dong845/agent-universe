@@ -19,7 +19,8 @@ test("share mode hides every town name, title and folder, swaps the emblems, and
   const names = [...new Set(payload.towns.map((t) => t.name))];
   const before = await pageText(page);
   expect(names.filter((n) => before.includes(n)).length).toBeGreaterThan(0);
-  expect(await page.evaluate(() => (window as any).__galaxyEmblems())).toContain("official");
+  // the official marks are not in the repository (spec 2026-11-03 C2): a page without a download draws the neutral ones
+  expect(await page.evaluate(() => (window as any).__galaxyEmblems())).toEqual(["neutral"]);
 
   await page.evaluate(() => (window as any).__agentTown.setShare(true));
   await page.waitForTimeout(1500);
@@ -42,6 +43,6 @@ test("share mode hides every town name, title and folder, swaps the emblems, and
   await page.waitForTimeout(1500);
   const after = await pageText(page);
   expect(names.filter((n) => after.includes(n)).length).toBeGreaterThan(0);
-  expect(await page.evaluate(() => (window as any).__galaxyEmblems())).toContain("official");
+  expect(await page.evaluate(() => (window as any).__galaxyEmblems())).toEqual(["neutral"]);
   expect(errors).toEqual([]);
 });

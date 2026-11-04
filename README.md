@@ -1,25 +1,53 @@
-# Agent Town
+# Agent Universe · 智能体宇宙
 
-Local 3D view of Claude Code and Codex sessions: every agent a faction, every task a building site,
-tokens the material the workers carry. macOS only for the first version.
+Your Claude Code and Codex work, drawn as a universe that grows with it. Everything is read from the
+logs on your own computer and shown only there.
 
-Status: phase 0 — log formats verified, minimal parser, 3D prototype on simulated data. Findings: [docs/log-formats.md](docs/log-formats.md).
+- **Two stars**: Claude Code and Codex. Each finished product lights one panel of the star's Dyson shell.
+- **Planets are projects** (and skill guilds), bigger the more they produced. Click one to fly there and
+  land in its **city**: buildings for products and kinds of work, robots for the agents working now —
+  the main agent and its subagents.
+- **需要你**: sessions waiting on you — maybe waiting for an approval, stopped on an error, a turn
+  finished — with macOS notifications and a one-click resume command. Optional hooks make approval
+  waits exact.
+- **历史**: a town's requests as steps; pick one and the city stands as it was when that request
+  finished, explained from what the logs record.
+- **Share**: record a replay as MP4/GIF, or export the world as one offline HTML page. Project names
+  are kept, request titles hidden, paths and session ids never included.
+
+## Start
+
+Needs **Node 22.18 or newer** (from nodejs.org) and macOS (Linux should work; not tested).
 
 ```
-node scripts/parse.ts                      # parse ~/.claude/projects and ~/.codex/sessions, print counts
-node scripts/parse.ts --events out.jsonl   # also write the unified events
+git clone <this repository> agent-universe
+cd agent-universe
+npm start
 ```
 
-Decisions that revise the plan: [docs/decisions.md](docs/decisions.md). Needs Node 22.18+ (runs TypeScript directly).
+The first run installs the dependencies (with the pnpm that Node's corepack ships) and builds the
+page; then the server starts at http://127.0.0.1:5182/ and the browser opens. With no logs yet you see
+a demo world, and a note saying where Agent Universe reads from: `~/.claude/projects` (Claude Code)
+and `~/.codex/sessions` (Codex). Options: `npm start -- --port 5190 --no-open`.
 
-## 3D prototype (simulated data)
+The server listens on 127.0.0.1 only and sends nothing anywhere. Its own files live in
+`~/.agent-town/` (cache, settings, the share secret, downloaded marks).
+
+## The official marks
+
+Claude's and OpenAI's marks are not part of this repository; they belong to Anthropic and OpenAI. In
+the settings (⚙), "官方标志（仅本机显示）" downloads them from Wikimedia Commons into
+`~/.agent-town/logos/` and shows them on your machine only. Without them, and in every export, the
+page uses its own neutral marks.
+
+## For development
 
 ```
-corepack pnpm install
-corepack pnpm dev                     # http://127.0.0.1:5180  (?t=<ms>&paused=1 opens a fixed moment)
-corepack pnpm test                    # unit tests: mock, ledger, rework, timeline (+ real fixtures if present)
-corepack pnpm --filter @agent-town/web e2e   # browser tests in the installed Chrome
+node --run dev        # Vite dev server on 5180 (proxies /api to 5182)
+node --run serve      # the local server alone
+node --run test       # unit tests (vitest)
+node --run e2e        # browser tests in the installed Chrome (needs the dev server and a build)
 ```
 
-The demo world (13 projects, two weeks of history, two live tasks) is invented. The page says so, and it is labelled 演示数据 (demo data).
-Opens on the whole world; `?focus=primary` opens flown into the live Claude town.
+Design and decisions: [docs/decisions.md](docs/decisions.md); log formats:
+[docs/log-formats.md](docs/log-formats.md); specs and plans under `docs/superpowers/`.

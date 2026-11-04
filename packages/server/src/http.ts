@@ -15,12 +15,15 @@ import { readOverrides } from "./townsFs.ts";
 import { readSettings, writeSettings, type Settings } from "./settings.ts";
 import { hooksInstalled, installHooks, uninstallHooks, type HookAgent } from "./hooks.ts";
 import { makeShareIds, shareSecret } from "./shareKeys.ts";
+import { downloadLogos, readLogos, removeLogos } from "./logos.ts";
 import { codeNames, sharePayload } from "../../schema/src/share.ts";
 import { buildShareHtml, SHARE_MAX_BYTES, ShareTooBig } from "./exportShare.ts";
 import type { Faction } from "../../schema/src/event.ts";
 
 export interface ServerState {
   phase: "loading" | "ready" | "error";
+  /** where the logs are read from, so an empty world can say where it looked */
+  roots?: { claude: string; codex: string };
   done: number;
   total: number;
   error?: string;
@@ -47,6 +50,11 @@ export interface ServerOptions {
   shareSecretFile?: string;
   /** the share page's hard size limit (default 40 MB) */
   shareMaxBytes?: number;
+  /** where downloaded official marks live (default ~/.agent-town/logos); `logoFetch` replaces fetch in tests */
+  logosDir?: string;
+  logoFetch?: typeof fetch;
+  /** the log folders, reported in /api/status */
+  roots?: { claude: string; codex: string };
 }
 
 /** how often attention is recomputed without new events (time alone makes a call "maybe waiting") */
@@ -59,12 +67,12 @@ const TYPES: Record<string, string> = {
 };
 
 export function portInUseMessage(port: number): string {
-  return `端口 ${port} 已被占用：可能已经有一个 Agent Town 在运行`;
+  return `端口 ${port} 已被占用：可能已经有一个 Agent Universe 在运行`;
 }
 
 export function createServer(o: ServerOptions) {
   const now = o.now ?? Date.now;
-  const state: ServerState = { phase: "loading", done: 0, total: 0 };
+  const state: ServerState = { phase: "loading", done: 0, total: 0, ...(o.roots ? { roots: o.roots } : {}) };
   let payload: WorldPayload | null = null;
   let byTask = new Map<string, AgentTownEvent[]>();
   let byRequest = new Map<string, AgentTownEvent[]>();
@@ -92,6 +100,7 @@ export function createServer(o: ServerOptions) {
   };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
   const settingsFile = o.settingsFile ?? join(homedir(), ".agent-town", "settings.json");
+  const logosDir = o.logosDir ?? join(homedir(), ".agent-town", "logos");
   const secretFile = o.shareSecretFile ?? join(homedir(), ".agent-town", "share-secret");
   const shareIds = () => makeShareIds(shareSecret(secretFile));
   const hookFiles = o.hookFiles ?? { claude: join(homedir(), ".claude", "settings.json"), codex: join(homedir(), ".codex", "hooks.json") };
@@ -235,6 +244,8 @@ export function createServer(o: ServerOptions) {
     if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
     if (path === "/api/hooks" && req.method === "POST") return switchHooks(req, res);
     if (path === "/api/export/share" && req.method === "POST") return exportShare(req, res);
+    if (path === "/api/logos" && req.method === "GET") return json(res, 200, readLogos(logosDir));
+    if (path === "/api/logos" && req.method === "POST") return switchLogos(req, res);
     if (path === "/api/share/names") {
       if (!payload) return json(res, 503, state);
       return json(res, 200, codeNames(payload.towns.map((t) => t.key), shareIds().name));
@@ -367,12 +378,34 @@ export function createServer(o: ServerOptions) {
         const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES);
         const d = new Date();
         const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-town-share-${day}.html"`, "cache-control": "no-store" });
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-universe-share-${day}.html"`, "cache-control": "no-store" });
         res.end(html);
       } catch (e) {
         if (e instanceof ShareTooBig) return json(res, 413, { error: e.message, bytes: e.bytes, parts: e.parts });
         json(res, 500, { error: e instanceof Error ? e.message : String(e) });
       }
+    });
+  };
+
+  /** POST /api/logos {on}: download the official marks from Wikimedia Commons into the owner's folder, or remove them */
+  const switchLogos = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 1024) body += c; });
+    req.on("end", () => {
+      let b: { on?: unknown };
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      if (typeof b.on !== "boolean") return json(res, 400, { error: "on must be a boolean" });
+      if (!b.on) {
+        removeLogos(logosDir);
+        return json(res, 200, { on: false });
+      }
+      downloadLogos(logosDir, o.logoFetch)
+        .then((r) => json(res, 200, { on: true, ...r, dir: logosDir }))
+        .catch((e: unknown) => json(res, 502, { error: `下载失败：${e instanceof Error ? e.message : String(e)}` }));
     });
   };
 

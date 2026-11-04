@@ -31,8 +31,11 @@ let lastPrint = 0;
 let t0 = Date.now();
 // parsed units kept between reloads, so a watched change re-reads only what changed
 const memo = new Map();
+// a parser per live session: a session that only grew is read from where it stopped (spec 2026-11-03 A1)
+const live = new Map();
 const srv = createServer({
   home: homedir(),
+  roots: { claude: claudeRoot, codex: codexRoot },
   // new log lines reach the page within seconds (spec 2026-11-01 A1)
   watch: (onChange) => watchRoots([claudeRoot, codexRoot], onChange),
   staticDir: existsSync(join(dist, "index.html")) ? dist : null,
@@ -43,6 +46,7 @@ const srv = createServer({
       codexRoot,
       cacheDir,
       memo,
+      live,
       onProgress: (done, total) => {
         onProgress(done, total);
         if (Date.now() - lastPrint > 2000 || done === total) {
@@ -51,7 +55,7 @@ const srv = createServer({
         }
       },
     }).then((r) => {
-      console.log(`已就绪：${r.events.length} 条事件，用时 ${((Date.now() - t0) / 1000).toFixed(1)} 秒（缓存 ${r.cached}，重新解析 ${r.parsed}）`);
+      console.log(`已就绪：${r.events.length} 条事件，用时 ${((Date.now() - t0) / 1000).toFixed(1)} 秒（缓存 ${r.cached}，重新解析 ${r.parsed}，续读 ${r.tailed}）`);
       return r;
     });
   },
@@ -71,6 +75,6 @@ srv.server.listen(port, "127.0.0.1", () => {
   } catch (e) {
     console.error(`写端口文件失败：${(e as Error).message}`);
   }
-  console.log(`Agent Town: http://127.0.0.1:${port}/${srv.state().phase === "loading" ? "（正在读取日志）" : ""}`);
+  console.log(`Agent Universe · 智能体宇宙: http://127.0.0.1:${port}/${srv.state().phase === "loading" ? "（正在读取日志）" : ""}`);
   if (!existsSync(join(dist, "index.html"))) console.log("还没有网页构建：先运行 node --run build；开发时用 node --run dev 打开 http://127.0.0.1:5180/");
 });

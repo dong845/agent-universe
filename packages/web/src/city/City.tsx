@@ -15,7 +15,8 @@ import type { TownLayout } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
 import { cityPlaces } from "./cityData.ts";
 import { HistoryFocus, StandingAgents } from "./HistoryPanel.tsx";
-import { useHistory } from "./history.ts";
+import { countsAt, useHistory } from "./history.ts";
+import { LAYOUT_DEFAULTS } from "../v3/townLayout.ts";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, robotInfo } from "./Robot.tsx";
 import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
@@ -162,7 +163,13 @@ function beltRibbons(belts: { a: THREE.Vector3; b: THREE.Vector3; color: string;
 }
 
 function Buildings({ p, w }: { p: Planet; w: World25 }) {
-  const sig = useStore((s) => { const ts = absTime(s.uiT); return p.blocks.map((b) => (standing(b, ts) ? 1 : 0)).join(""); });
+  const historyOn = useHistory((s) => s.town === p.key);
+  const sig = useStore((s) => {
+    const ts = absTime(s.uiT);
+    // at a history step a public building stands only if its work had reached the build threshold then
+    const work = historyOn && s.w25 && s.historyAt !== null ? countsAt(s.w25, p.key, s.historyAt).work : null;
+    return p.blocks.map((b) => (standing(b, ts) && !(work && b.spot.info.kind === "public" && (work[b.spot.info.work] ?? 0) < LAYOUT_DEFAULTS.minWork) ? 1 : 0)).join("");
+  });
   const vis = useMemo(() => p.blocks.filter((_, i) => sig[i] === "1"), [p, sig]);
   const groups = useMemo(() => {
     const out = new Map<string, Part[]>();

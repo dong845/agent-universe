@@ -74,7 +74,7 @@ describe("local server", () => {
   });
 
   it("names the port when it is taken", () => {
-    expect(portInUseMessage(5182)).toBe("端口 5182 已被占用：可能已经有一个 Agent Town 在运行");
+    expect(portInUseMessage(5182)).toBe("端口 5182 已被占用：可能已经有一个 Agent Universe 在运行");
   });
 });
 
@@ -237,7 +237,7 @@ describe("share page export route", () => {
   it("exports one HTML file: project names shown, request titles hidden by default (owner 2026-11-01)", async () => {
     const r = await fetch(`${b}/api/export/share`, { method: "POST", body: JSON.stringify({ replays: [] }) });
     expect(r.status).toBe(200);
-    expect(r.headers.get("content-disposition")).toMatch(/attachment; filename="agent-town-share-\d{4}-\d{2}-\d{2}\.html"/);
+    expect(r.headers.get("content-disposition")).toMatch(/attachment; filename="agent-universe-share-\d{4}-\d{2}-\d{2}\.html"/);
     const html = await r.text();
     expect(html).toContain('id="agent-town-share"');
     expect(html).not.toContain("第一个任务");

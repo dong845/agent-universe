@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store.ts";
 import { useRightPanel } from "./rightPanel.ts";
+import { officialMarks } from "../galaxy/emblem.ts";
 
 interface ServerSettings { notify: boolean; notifyTurnDone: boolean; hooks: { claude: boolean; codex: boolean }; hookFiles?: { claude: string; codex: string } }
 
@@ -18,6 +19,21 @@ export function Settings() {
   const [s, setS] = useState<ServerSettings | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const side = useRightPanel() ? " beside-diary" : "";
+  const logosOn = useStore((st) => Object.keys(st.logos).length > 0);
+  const [busy, setBusy] = useState(false);
+  const logos = async () => {
+    setBusy(true);
+    try {
+      await post("/api/logos", { on: !logosOn });
+      const l = await (await fetch("/api/logos")).json();
+      useStore.getState().setLogos(officialMarks(l));
+      setNote(logosOn ? "已删除本机的官方标志，改用中性标志" : "已下载官方标志到本机");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const refresh = () => fetch("/api/settings").then((r) => r.json()).then(setS).catch(() => setNote("读不到设置：本地服务没有响应"));
   useEffect(() => {
     if (open) void refresh();
@@ -31,8 +47,8 @@ export function Settings() {
     try {
       const r = await post("/api/hooks", { agent, on: !s.hooks[agent] });
       setNote(r.on
-        ? (r.added?.length ? `已在 ${r.file} 加入 ${r.added.join("、")} 两个 hook${r.backup ? `；原文件备份在 ${r.backup}` : ""}` : `${r.file} 里已经有 Agent Town 的 hook`)
-        : `已从 ${r.file} 移除 ${r.removed} 条 Agent Town 的 hook，其余内容没动`);
+        ? (r.added?.length ? `已在 ${r.file} 加入 ${r.added.join("、")} 两个 hook${r.backup ? `；原文件备份在 ${r.backup}` : ""}` : `${r.file} 里已经有 Agent Universe 的 hook`)
+        : `已从 ${r.file} 移除 ${r.removed} 条 Agent Universe 的 hook，其余内容没动`);
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }
@@ -49,6 +65,8 @@ export function Settings() {
           <p className="muted">默认靠日志猜“可能在等你授权”（超过 20 秒没结果的调用）。打开下面的开关可以精确知道：会在该工具自己的 hook 文件里加两条记录，先备份原文件，关掉即移除。</p>
           <label><input type="checkbox" checked={s.hooks.claude} onChange={() => void hooks("claude")} /> 精确授权提醒（安装 hook）· Claude Code<small>{s.hookFiles?.claude}</small></label>
           <label><input type="checkbox" checked={s.hooks.codex} onChange={() => void hooks("codex")} /> 精确授权提醒（安装 hook）· Codex<small>{s.hookFiles?.codex}</small></label>
+          <hr />
+          <label><input type="checkbox" checked={logosOn} disabled={busy} onChange={() => void logos()} data-testid="logos" /> 官方标志（仅本机显示）<small>从 Wikimedia Commons 下载 Claude 和 OpenAI 的标志，存在你自己的电脑里；关掉则用中性标志。导出的视频和分享页始终用中性标志。</small></label>
           {note ? <p className="g-settings-note">{note}</p> : null}
         </div>
       ) : null}

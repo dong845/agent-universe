@@ -96,3 +96,23 @@ describe("loadEvents", () => {
     expect(readdirSync(c.root)).not.toContain("cache");
   });
 });
+
+describe("live units read only what was appended (spec 2026-11-03 A1)", () => {
+  it("a grown session is tailed, and the result equals a fresh load", () => {
+    const c = corpus();
+    const memo = new Map();
+    const live = new Map();
+    loadEvents({ ...c, memo, live });
+    appendFileSync(c.paths.c1, JSON.stringify({ type: "user", sessionId: "c1", cwd: "/synth/one", timestamp: new Date(T0 + 99_000).toISOString(), uuid: "late", origin: { kind: "human" }, message: { role: "user", content: "a later task" } }) + "\n");
+    const first = loadEvents({ ...c, memo, live });
+    // the first change after a cold start parses the unit once; from then on it is tailed
+    appendFileSync(c.paths.c1, JSON.stringify({ type: "system", sessionId: "c1", timestamp: new Date(T0 + 100_000).toISOString(), uuid: "late-end", subtype: "turn_duration", durationMs: 1000 }) + "\n");
+    const b = loadEvents({ ...c, memo, live });
+    expect(first.parsed + first.tailed).toBe(1);
+    expect(b.tailed).toBe(1);
+    expect(b.parsed).toBe(0);
+    const fresh = loadEvents({ ...c, cacheDir: null });
+    expect(b.events).toEqual(fresh.events);
+    expect(b.totals).toEqual(fresh.totals);
+  });
+});
