@@ -20,6 +20,8 @@ import { codeNames, sharePayload } from "../../schema/src/share.ts";
 import { buildShareHtml, SHARE_MAX_BYTES, ShareTooBig } from "./exportShare.ts";
 import type { Faction } from "../../schema/src/event.ts";
 import { langOf, say } from "./text.ts";
+import { randomBytes } from "node:crypto";
+import { createAsks } from "./ask.ts";
 
 export interface ServerState {
   phase: "loading" | "ready" | "error";
@@ -84,6 +86,14 @@ export function createServer(o: ServerOptions) {
   let hooks: HookSignal[] = [];
   let attention: Attention[] = [];
   const streams = new Set<http.ServerResponse>();
+  /** answering from the page (spec 2026-11-05 D26 B): held hooks, and the token only this server's page can read */
+  const askToken = randomBytes(16).toString("hex");
+  const asks = createAsks({ onChange: () => send("asks", asks.pending()) });
+  /** the newest event of a session, for letting go of held hooks the record shows answered */
+  const lastTsOf = (session: string): number => {
+    for (let i = all.length - 1; i >= 0; i--) if (`${all[i].faction}|${all[i].sessionId}` === session) return all[i].ts;
+    return -Infinity;
+  };
   const attentionListeners = new Set<(a: Attention[]) => void>();
   const send = (event: string, data: unknown) => {
     const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -97,6 +107,7 @@ export function createServer(o: ServerOptions) {
     if (JSON.stringify(next) === JSON.stringify(attention)) return;
     attention = next;
     send("attention", attention);
+    asks.settle((p) => !attention.some((a) => a.session === p.session && a.state === "waiting") && lastTsOf(p.session) > p.since);
     for (const l of attentionListeners) l(attention);
   };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
@@ -211,7 +222,7 @@ export function createServer(o: ServerOptions) {
   const handle = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
-    if (path === "/api/status") return json(res, 200, state);
+    if (path === "/api/status") return json(res, 200, { ...state, token: askToken });
     if (path === "/api/world") return payload && state.phase === "ready" ? json(res, 200, payload) : json(res, 503, state);
     if (path.startsWith("/api/task/")) {
       let id: string;
@@ -237,13 +248,22 @@ export function createServer(o: ServerOptions) {
     if (path === "/api/stream") {
       res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
       res.write(`event: attention\ndata: ${JSON.stringify(attention)}\n\n`);
+      res.write(`event: asks\ndata: ${JSON.stringify(asks.pending())}\n\n`);
       streams.add(res);
       req.on("close", () => streams.delete(res));
       return;
     }
     if (path === "/api/attention") return json(res, 200, attention);
+    if (path === "/api/ask" && req.method === "POST") return receiveAsk(req, res, url.searchParams.get("src"));
+    if (path === "/api/asks") return json(res, 200, asks.pending());
+    if (path === "/api/presence" && req.method === "POST") {
+      asks.heartbeat();
+      res.writeHead(204, { "cache-control": "no-store" });
+      return res.end();
+    }
+    if ((path === "/api/ask/answer" || path === "/api/ask/release") && req.method === "POST") return answerAsk(req, res, path.endsWith("release"));
     // the hook switches show what the hook files really hold (the owner may have edited them by hand)
-    if (path === "/api/settings" && req.method === "GET") return json(res, 200, { ...readSettings(settingsFile), hooks: { claude: hooksInstalled(hookFiles.claude), codex: hooksInstalled(hookFiles.codex) }, hookFiles });
+    if (path === "/api/settings" && req.method === "GET") return json(res, 200, { ...readSettings(settingsFile), hooks: { claude: hooksInstalled(hookFiles.claude), codex: hooksInstalled(hookFiles.codex) }, askHooks: { claude: hooksInstalled(hookFiles.claude, "ask"), codex: hooksInstalled(hookFiles.codex, "ask") }, hookFiles });
     if (path === "/api/settings" && req.method === "POST") return saveSettings(req, res);
     if (path === "/api/hooks" && req.method === "POST") return switchHooks(req, res);
     if (path === "/api/export/share" && req.method === "POST") return exportShare(req, res);
@@ -337,7 +357,7 @@ export function createServer(o: ServerOptions) {
     let body = "";
     req.on("data", (c: Buffer) => { if (body.length < 4096) body += c; });
     req.on("end", () => {
-      let b: { agent?: unknown; on?: unknown };
+      let b: { agent?: unknown; on?: unknown; set?: unknown };
       try {
         b = JSON.parse(body);
       } catch {
@@ -345,10 +365,12 @@ export function createServer(o: ServerOptions) {
       }
       if ((b.agent !== "claude" && b.agent !== "codex") || typeof b.on !== "boolean") return json(res, 400, { error: "agent must be claude or codex, on a boolean" });
       const agent: HookAgent = b.agent;
+      // "ask": the hook that lets the page answer (spec 2026-11-05 D26 B2); otherwise the alert hooks
+      const set = b.set === "ask" ? "ask" : "alerts";
       try {
-        const r = b.on ? installHooks(hookFiles[agent], agent) : uninstallHooks(hookFiles[agent]);
+        const r = b.on ? installHooks(hookFiles[agent], agent, {}, set) : uninstallHooks(hookFiles[agent], {}, set);
         const cur = readSettings(settingsFile);
-        writeSettings(settingsFile, { ...cur, hooks: { ...cur.hooks, [agent]: b.on } });
+        if (set === "alerts") writeSettings(settingsFile, { ...cur, hooks: { ...cur.hooks, [agent]: b.on } });
         json(res, 200, { on: b.on, file: hookFiles[agent], ...r });
       } catch (e) {
         json(res, 409, { error: say(pageLang(), "hooks.notChanged", { file: hookFiles[agent], why: e instanceof Error ? e.message : String(e) }) });
@@ -410,6 +432,60 @@ export function createServer(o: ServerOptions) {
       downloadLogos(logosDir, o.logoFetch)
         .then((r) => json(res, 200, { on: true, ...r, dir: logosDir }))
         .catch((e: unknown) => json(res, 502, { error: say(pageLang(), "logos.failed", { why: e instanceof Error ? e.message : String(e) }) }));
+    });
+  };
+
+  /**
+   * POST /api/ask?src=claude|codex: a PermissionRequest hook waiting for an answer (spec 2026-11-05 D26 B2).
+   * Held while a page watches (else answered at once with nothing); the reply body is what the hook prints.
+   */
+  const receiveAsk = (req: http.IncomingMessage, res: http.ServerResponse, src: string | null) => {
+    let body = "";
+    let tooBig = false;
+    req.on("data", (c: Buffer) => {
+      body += c;
+      if (body.length > 262_144) tooBig = true;
+    });
+    req.on("end", () => {
+      if (tooBig) return json(res, 413, { error: "too large" });
+      if (src !== "claude" && src !== "codex") return json(res, 400, { error: "src must be claude or codex" });
+      let b: Record<string, unknown>;
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      // it is also the exact signal that the session waits for the owner
+      if (typeof b.session_id === "string") {
+        hooks.push({ session: `${src === "claude" ? "claude-code" : "codex"}|${b.session_id}`, event: "PermissionRequest", ts: now(), kind: "permission" });
+        recompute();
+      }
+      let done = false;
+      const id = asks.hold(src, b, (reply) => {
+        done = true;
+        res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+        res.end(reply);
+      });
+      // the agent gave up waiting (its timeout, or it was answered in the terminal and stopped the hook)
+      res.on("close", () => { if (!done && id) asks.drop(id); });
+    });
+  };
+
+  /** POST /api/ask/answer {id, answers | behavior} and /api/ask/release {id}: only from this server's page (token) */
+  const answerAsk = (req: http.IncomingMessage, res: http.ServerResponse, release: boolean) => {
+    if (req.headers["x-agent-universe-token"] !== askToken) return json(res, 403, { error: "not from this page" });
+    let body = "";
+    req.on("data", (c: Buffer) => { if (body.length < 65_536) body += c; });
+    req.on("end", () => {
+      let b: { id?: unknown; answers?: unknown; behavior?: unknown };
+      try {
+        b = JSON.parse(body);
+      } catch {
+        return json(res, 400, { error: "bad json" });
+      }
+      if (typeof b.id !== "string") return json(res, 400, { error: "no id" });
+      const ok = release ? asks.release(b.id) : asks.answer(b.id, { ...(b.answers && typeof b.answers === "object" ? { answers: b.answers as Record<string, string> } : {}), ...(b.behavior === "allow" || b.behavior === "deny" ? { behavior: b.behavior } : {}) });
+      json(res, ok ? 200 : 409, { ok });
     });
   };
 
