@@ -449,3 +449,8 @@ canvas { display: block; }
 .g-follow button:disabled { opacity: 0.45; cursor: default; }
 .g-follow-parent { margin-top: 8px; }
 .face2d { display: inline-block; flex: none; line-height: 0; }
+
+/* the tour's highlight on a panel (spec 2026-11-05 B1) */
+.tour-glow { outline: 2px solid rgba(255, 196, 92, 0.9) !important; outline-offset: 3px; box-shadow: 0 0 0 6px rgba(255, 196, 92, 0.18), 0 0 30px rgba(255, 196, 92, 0.35) !important; transition: outline-color 0.3s; }
+.g-tour { transition: left 0.35s ease, top 0.35s ease; }
+.g-settings-btn { font: inherit; font-size: 12px; padding: 4px 12px; border-radius: 7px; cursor: pointer; color: #e6eefc; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(130, 170, 240, 0.35); }

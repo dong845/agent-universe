@@ -23,6 +23,47 @@ test("the tour: shown on a first visit, skippable, not shown again", async ({ pa
   await expect(page.getByTestId("tour")).toHaveCount(0);
 });
 
+test("the guided tour: each step goes where it explains, and ends inviting a click (spec 2026-11-05 B1)", async ({ page }) => {
+  test.slow();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("http://127.0.0.1:5180/?demo=1");
+  await page.waitForFunction(() => !!(window as any).__galaxyKeys && !!(window as any).__agentTown);
+  const key: string = await page.evaluate(() => (window as any).__galaxyKeys[0]);
+  const tour = () => page.evaluate(() => (window as any).__agentTown.tour());
+  const st = () => page.evaluate(() => (window as any).__agentTown.state());
+  const next = () => page.getByTestId("tour-next").click();
+  await expect(page.getByTestId("tour")).toHaveAttribute("data-step", "welcome");
+  await expect(page.getByTestId("tour")).toContainText("演示世界");
+  await next();
+  await expect(page.getByTestId("tour")).toHaveAttribute("data-step", "stars");
+  await next();
+  await expect.poll(async () => (await st()).focus).toBe(key);
+  await next();
+  await expect.poll(async () => (await st()).city, { timeout: 30_000 }).toBe(key);
+  await next();
+  await expect(page.getByTestId("tour")).toHaveAttribute("data-step", "robot");
+  await expect.poll(async () => (await tour()).follow, { timeout: 30_000 }).not.toBeNull();
+  await expect(page.getByTestId("follow-card")).toBeVisible();
+  await next();
+  await expect(page.getByTestId("tour")).toHaveAttribute("data-step", "panels");
+  await expect(page.locator(".tour-glow")).toHaveCount(1);
+  expect((await tour()).follow).toBeNull();
+  await next();
+  await expect.poll(async () => (await st()).city).toBeNull();
+  await page.getByTestId("tour-done").click();
+  await expect(page.getByTestId("tour")).toHaveCount(0);
+  expect((await tour()).invite).toBe(true);
+  // entering any city answers the invitation
+  await page.evaluate((k) => (window as any).__agentTown.enterCity(k), key);
+  await expect.poll(async () => (await tour()).invite).toBe(false);
+  // the settings' replay starts it over
+  await page.evaluate(() => (window as any).__agentTown.enterCity(null));
+  await page.evaluate(() => (window as any).__agentTown.startTour());
+  await expect(page.getByTestId("tour")).toHaveAttribute("data-step", "welcome");
+  expect(errors).toEqual([]);
+});
+
 test("no logs found: the demo world, saying where the logs would be", async ({ page }) => {
   test.slow();
   const tmp = mkdtempSync(join(tmpdir(), "at-empty-"));

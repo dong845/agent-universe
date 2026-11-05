@@ -48,6 +48,11 @@ export interface RobotInfo {
 export const robotInfo = new Map<string, RobotInfo>();
 /** each robot's root and kind, for the size probe */
 const robotRoots = new Map<string, { root: THREE.Object3D; kind: "main" | "sub" }>();
+/** a main agent's robot now on screen (live first, then a history step's), for the tour */
+export function mainRobot(): string | undefined {
+  const mains = [...robotRoots].filter(([id, r]) => r.kind === "main" && robotInfo.get(id)?.visible).map(([id]) => id);
+  return mains.find((id) => id.startsWith("live|")) ?? mains[0];
+}
 
 export function Robot({ id, actor, time, faction, end, label }: { id: string; actor: Actor; time: () => number; faction: Faction; end: number; label?: string }) {
   const sub = actor.kind === "subagent";

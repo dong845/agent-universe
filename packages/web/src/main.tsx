@@ -18,6 +18,8 @@ import { orbit } from "./galaxy/Galaxy.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { absTime, useStore, type HoverTarget } from "./store.ts";
 import "./styles.css";
+import { replayTour } from "./ui/Tour.tsx";
+import { useTour } from "./ui/tourStore.ts";
 
 const q = new URLSearchParams(location.search);
 const root = createRoot(document.getElementById("root")!);
@@ -132,6 +134,9 @@ window.__agentTown = {
   enterCity: (k: string | null) => useStore.getState().setCity(k),
   /** test hook: what a click on a robot does (spec 2026-11-05 C1); robot ids as in __robotSizes */
   clickRobot: (id: string | null) => useStore.getState().setFollowAgent(id),
+  /** test hook: the tour from its first step, as the settings button does */
+  startTour: () => replayTour(),
+  tour: () => ({ step: useTour.getState().step, id: useTour.getState().steps[useTour.getState().step]?.id ?? null, invite: useTour.getState().invite, follow: useStore.getState().followAgent }),
   /** test hook: fetch the newest world and apply it now (real data) */
   reloadNow: async () => {
     // the same path the stream takes: download, parse and apply in separate frames

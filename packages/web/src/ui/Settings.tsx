@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useStore } from "../store.ts";
 import { useRightPanel } from "./rightPanel.ts";
 import { officialMarks } from "../galaxy/emblem.ts";
+import { t } from "../i18n/index.ts";
+import { replayTour } from "./Tour.tsx";
 
 interface ServerSettings { notify: boolean; notifyTurnDone: boolean; hooks: { claude: boolean; codex: boolean }; hookFiles?: { claude: string; codex: string } }
 
@@ -67,6 +69,8 @@ export function Settings() {
           <label><input type="checkbox" checked={s.hooks.codex} onChange={() => void hooks("codex")} /> 精确授权提醒（安装 hook）· Codex<small>{s.hookFiles?.codex}</small></label>
           <hr />
           <label><input type="checkbox" checked={logosOn} disabled={busy} onChange={() => void logos()} data-testid="logos" /> 官方标志（仅本机显示）<small>从 Wikimedia Commons 下载 Claude 和 OpenAI 的标志，存在你自己的电脑里；关掉则用中性标志。导出的视频和分享页始终用中性标志。</small></label>
+          <hr />
+          <button className="g-settings-btn" onClick={() => { setOpen(false); replayTour(); }} data-testid="tour-replay">{t("tour.replay")}</button>
           {note ? <p className="g-settings-note">{note}</p> : null}
         </div>
       ) : null}
