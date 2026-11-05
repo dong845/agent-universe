@@ -1,0 +1,35 @@
+{
+  "comment": "The agent character (spec 2026-11-05 A). Read by scripts/models/robot.py (the 3D model) and packages/web/src/character (the 2D face and the rules), so the two never drift. Sizes are model units (the robot is about one unit tall); face shapes are in the face screen's units (its width = 1).",
+  "colors": {
+    "shell": "#eef0f5",
+    "screen": "#0b0f18",
+    "ink": "#1b1e26",
+    "blush": "#ff8a9a",
+    "red": "#ff4d4d",
+    "claude-code": "#ff9a5c",
+    "codex": "#6cc3ff"
+  },
+  "head": { "w": 0.62, "h": 0.46, "d": 0.5, "bevel": 0.19, "z": 0.68 },
+  "screen": { "w": 0.5, "h": 0.33, "bevel": 0.12 },
+  "faces": {
+    "normal": { "eyes": { "shape": "round", "w": 0.2, "h": 0.36, "dx": 0.22, "dy": 0.08 }, "mouth": { "shape": "smile", "w": 0.16 } },
+    "focus": { "eyes": { "shape": "flat", "w": 0.24, "h": 0.1, "dx": 0.22, "dy": 0.06 }, "mouth": { "shape": "flat", "w": 0.1 } },
+    "think": { "eyes": { "shape": "round", "w": 0.17, "h": 0.3, "dx": 0.22, "dy": 0.16, "look": 0.06 }, "mouth": { "shape": "flat", "w": 0.08 } },
+    "wide": { "eyes": { "shape": "wide", "w": 0.26, "h": 0.44, "dx": 0.23, "dy": 0.08 }, "mouth": { "shape": "o", "w": 0.08 } },
+    "error": { "eyes": { "shape": "x", "w": 0.2, "h": 0.2, "dx": 0.22, "dy": 0.08 }, "mouth": { "shape": "flat", "w": 0.12 }, "red": true },
+    "happy": { "eyes": { "shape": "arc", "w": 0.22, "h": 0.12, "dx": 0.22, "dy": 0.06 }, "mouth": { "shape": "smile", "w": 0.2 } },
+    "sleepy": { "eyes": { "shape": "line", "w": 0.22, "h": 0.04, "dx": 0.22, "dy": 0.02 }, "mouth": { "shape": "flat", "w": 0.07 } }
+  },
+  "props": {
+    "scout": "magnifier",
+    "smith": "pencil",
+    "engineer": "hardhat",
+    "inspector": "glasses",
+    "messenger": "dish",
+    "scribe": "clipboard",
+    "painter": "beret",
+    "operator": "goggles",
+    "diplomat": "bowtie",
+    "sentry": "shield"
+  }
+}
