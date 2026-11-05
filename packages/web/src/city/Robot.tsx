@@ -56,7 +56,7 @@ export function mainRobot(): string | undefined {
   return mains.find((id) => id.startsWith("live|")) ?? mains[0];
 }
 
-export function Robot({ id, actor, time, faction, end, label }: { id: string; actor: Actor; time: () => number; faction: Faction; end: number; label?: string }) {
+export function Robot({ id, actor, time, faction, end, label, who }: { id: string; actor: Actor; time: () => number; faction: Faction; end: number; label?: string; who?: string }) {
   const sub = actor.kind === "subagent";
   const roleHex = sub ? WORK_COLOR[actor.baseRole] ?? FACTION_COLOR[faction] : FACTION_COLOR[faction];
   const mats = useMemo(() => ({
@@ -203,7 +203,7 @@ export function Robot({ id, actor, time, faction, end, label }: { id: string; ac
     think.current!.rotation.y = k * 3;
     const sc = sub ? SCALE.sub : SCALE.main;
     info.anchor.set(s.pos.x, (TOP + hover) * sc, s.pos.z);
-    info.text = label ?? `${sub ? tx("follow.sub") : tx("follow.main")} · ${done ? tx("robot.done") : activityOf(s.pose, s.building, sub)}`;
+    info.text = label ?? `${sub ? tx("follow.sub") : tx("follow.main")}${who ? ` · ${who}` : ""} · ${done ? tx("robot.done") : activityOf(s.pose, s.building, sub)}`;
     info.alert = s.pose === "raise_hand" || face === "error";
     info.face = face;
     info.prop = sh.prop ?? null;

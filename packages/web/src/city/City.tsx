@@ -20,6 +20,7 @@ import { LAYOUT_DEFAULTS } from "../v3/townLayout.ts";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, RobotProbe, robotInfo, type RobotInfo } from "./Robot.tsx";
 import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
+import { mainOf, uniqueAgents } from "../orchestrator/sessionAgents.ts";
 
 const noRay = () => null;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -232,11 +233,20 @@ function LiveAgents({ p, layout, w }: { p: Planet; layout: TownLayout; w: World2
     if (!reqs.length) return null;
     const tasks = new Set(reqs.flatMap((r) => r.taskIds).filter((t) => live.has(t)));
     const evs = events.filter((e): e is AgentTownEvent => !!e.taskId && tasks.has(e.taskId));
-    return evs.length ? buildTimeline(evs, cityPlaces(layout, reqs[0].requestId)) : null;
+    return evs.length ? { tl: buildTimeline(uniqueAgents(evs), cityPlaces(layout, reqs[0].requestId)), reqs } : null;
   }, [events, live, w, p.key, layout]);
-  if (!tl || history) return null;
-  const time = () => absTime(useStore.getState().t) - tl.t0;
-  return <>{tl.actors.map((a) => <Robot key={`live|${a.id}`} id={`live|${a.id}`} actor={a} time={time} faction={p.town.faction} end={tl.roofAt ?? Infinity} />)}</>;
+  // a replay in this city is the one shown (two main agents side by side read as one too many)
+  const replaying = useReplay((s) => s.r?.district === p.key);
+  if (!tl || history || replaying) return null;
+  const time = () => absTime(useStore.getState().t) - tl.tl.t0;
+  // two sessions at work here: each main agent says which request it is on
+  const mains = tl.tl.actors.filter((a) => a.kind === "commander");
+  const whoOf = (id: string) => {
+    if (mains.length < 2) return undefined;
+    const title = tl.reqs.find((r) => mainOf(r.sessionId) === id || r.sessionId === id)?.title;
+    return title ? (title.length > 14 ? `${title.slice(0, 14)}…` : title) : undefined;
+  };
+  return <>{tl.tl.actors.map((a) => <Robot key={`live|${a.id}`} id={`live|${a.id}`} actor={a} time={time} faction={p.town.faction} end={tl.tl.roofAt ?? Infinity} who={a.kind === "commander" ? whoOf(a.id) : undefined} />)}</>;
 }
 
 /** a replayed request, on the replay's own clock */
