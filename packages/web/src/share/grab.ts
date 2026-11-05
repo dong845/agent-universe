@@ -4,8 +4,13 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 let pending: ((c: HTMLCanvasElement) => void)[] = [];
 
-export function grabFrame(): Promise<HTMLCanvasElement> {
-  return new Promise((resolve) => pending.push(resolve));
+/** the next finished frame; null if none comes within `timeoutMs` (no 3D view mounted) */
+export function grabFrame(timeoutMs = 1500): Promise<HTMLCanvasElement | null> {
+  return new Promise((resolve) => {
+    const take = (c: HTMLCanvasElement) => { clearTimeout(timer); resolve(c); };
+    const timer = setTimeout(() => { pending = pending.filter((f) => f !== take); resolve(null); }, timeoutMs);
+    pending.push(take);
+  });
 }
 
 export function FrameGrab() {

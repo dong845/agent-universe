@@ -3,6 +3,8 @@
 import type { AgentTownEvent, Role } from "../../../schema/src/event.ts";
 
 export interface AgentFacts {
+  /** the agent has events by `t`; when not, the rest is empty and says nothing about it */
+  seen: boolean;
   kind: "main" | "sub";
   agentType?: string;
   /** the task it was given (a subagent's prompt line); share mode shows it only with titles on */
@@ -43,12 +45,13 @@ export function agentFacts(events: readonly AgentTownEvent[], agentId: string, t
     else if (e.kind === "tool_start") open.set(e.toolUseId ?? e.id, e);
     else if (e.kind === "tool_end" && e.toolUseId) open.delete(e.toolUseId);
   }
-  if (!seen) return { kind: "sub", doing: null, sinceMs: 0, tokens: 0, children };
+  if (!seen) return { seen: false, kind: "sub", doing: null, sinceMs: 0, tokens: 0, children };
   let now: AgentTownEvent | undefined;
   for (const e of open.values()) if (!now || e.ts >= now.ts) now = e;
   const doing = now ? { role: now.role ?? "engineer", ...(now.tool ? { tool: now.tool } : {}), ...(now.target && !opts.share ? { target: now.target } : {}) } : null;
   const task = spawn?.agentTask && (!opts.share || opts.titles) ? spawn.agentTask : undefined;
   return {
+    seen: true,
     kind: spawn ? "sub" : "main",
     ...(spawn?.agentType ? { agentType: spawn.agentType } : {}),
     ...(task ? { task } : {}),

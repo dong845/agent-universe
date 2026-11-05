@@ -48,7 +48,7 @@ describe("agentFacts", () => {
     expect(agentFacts(events, "sub", 5, { share: true, titles: true }).task).toBe("find the SECRET thing");
   });
   it("an agent it has never seen: nothing, no throw", () => {
-    expect(agentFacts(events, "ghost", 9, open)).toEqual({ kind: "sub", doing: null, sinceMs: 0, tokens: 0, children: [] });
+    expect(agentFacts(events, "ghost", 9, open)).toEqual({ seen: false, kind: "sub", doing: null, sinceMs: 0, tokens: 0, children: [] });
   });
 });
 

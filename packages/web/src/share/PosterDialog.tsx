@@ -13,6 +13,8 @@ import { enterShare, leaveShare } from "./shareMode.ts";
 import { demoCodeNames } from "./display.ts";
 
 const PERIODS: Period[] = ["week", "month", "year", "all"];
+/** the newest background grab: an older one finishing late must not end the newer one's share mode */
+let grabRun = 0;
 const nextFrames = (n: number) => new Promise<void>((r) => { const step = (k: number) => (k ? requestAnimationFrame(() => step(k - 1)) : r()); step(n); });
 const loadImage = (src: string) => new Promise<HTMLImageElement>((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("image")); i.src = src; });
 
@@ -32,12 +34,18 @@ export function PosterButton() {
   useEffect(() => {
     if (!open) return setBg(null);
     let gone = false;
+    const run = ++grabRun;
     void (async () => {
+      // share mode only if this run turned it on, and always turned off again (D25 review)
       const was = useStore.getState().share;
-      if (!was) await enterShare({ townNames: names, titles: false });
-      await nextFrames(3);
-      const c = await grabFrame();
-      if (!was) leaveShare();
+      let c: HTMLCanvasElement | null = null;
+      try {
+        if (!was) await enterShare({ townNames: names, titles: false });
+        await nextFrames(3);
+        c = await grabFrame();
+      } finally {
+        if (!was && run === grabRun) leaveShare();
+      }
       if (!gone) setBg(c);
     })();
     return () => { gone = true; };

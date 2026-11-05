@@ -8,6 +8,7 @@ import { absTime, useStore } from "../store.ts";
 import { agentFacts, agentIdOf } from "./agentFacts.ts";
 import { duration, useHistory, workName } from "./history.ts";
 import { robotInfo } from "./Robot.tsx";
+import { useReplay } from "./cityReplay.ts";
 import { WORK_COLOR } from "../galaxy/galaxyData.ts";
 
 /** the robot that shows an agent, in the same group (live, history step or replay) as `like` */
@@ -36,12 +37,14 @@ export function FollowCard({ faction }: { faction: "claude-code" | "codex" }) {
   const hist = id?.startsWith("hist|");
   // live: the requests in progress only (a main agent's session can span hundreds of requests)
   const liveEvents = useMemo(() => events.filter((e) => e.taskId && live.has(e.taskId)), [events, live]);
-  const evs = hist ? historyEvents ?? [] : liveEvents;
-  // a history step stands at its end; a replay shows its whole request; live is now
-  const now = hist ? (st.historyAt ?? Infinity) : id?.startsWith("rp|") ? Infinity : absTime(st.t);
+  const replay = useReplay((s) => (id?.startsWith("rp|") ? s.r : null));
+  const evs = hist ? historyEvents ?? [] : replay ? replay.events : liveEvents;
+  // a history step stands at its end; a replay at its own clock; live is now
+  const now = hist ? (st.historyAt ?? Infinity) : replay ? replay.tl.t0 + replay.t : absTime(st.t);
   const agentId = id ? agentIdOf(id) : null;
   const facts = useMemo(() => (agentId ? agentFacts(evs, agentId, now, { share, titles }) : null), [evs, agentId, now, share, titles]);
-  if (!id || !facts) return null;
+  // an agent with nothing on record here (the share page carries no events): no card rather than a wrong one
+  if (!id || !facts || !facts.seen) return null;
   const info = robotInfo.get(id);
   const accent = facts.doing ? WORK_COLOR[facts.doing.role] : undefined;
   const follow = (a: string) => {

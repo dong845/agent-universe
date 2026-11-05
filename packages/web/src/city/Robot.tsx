@@ -16,6 +16,7 @@ import { Emblem } from "../galaxy/Galaxy.tsx";
 import { FACTION_COLOR, WORK_COLOR } from "../galaxy/galaxyData.ts";
 import { activityOf } from "./cityData.ts";
 import { ROBOT_URL } from "./kit.tsx";
+import { visibleRaycast } from "./hit.ts";
 import { useStore } from "../store.ts";
 import { t as tx } from "../i18n/index.ts";
 
@@ -102,6 +103,11 @@ export function Robot({ id, actor, time, faction, end, label }: { id: string; ac
     return { body: get("Body"), head: get("Head"), armL: get("ArmL"), armR: get("ArmR"), footL: get("FootL"), footR: get("FootR"), faces, props, blink };
   }, [model]);
   const root = useRef<THREE.Group>(null);
+  const hit = useRef<THREE.Mesh>(null);
+  // the click target hits only while the robot is shown (three's raycaster ignores `visible`)
+  useEffect(() => {
+    if (hit.current) hit.current.raycast = visibleRaycast(() => root.current, hit.current);
+  }, []);
   const cube = useRef<THREE.Mesh>(null);
   const think = useRef<THREE.Group>(null);
   const prev = useRef<{ x: number; z: number; yaw: number } | null>(null);
@@ -212,7 +218,7 @@ export function Robot({ id, actor, time, faction, end, label }: { id: string; ac
       </group>
       {!sub ? <Emblem faction={faction} use="badge" scale={0.1} position={[0, 1.42, 0]} speed={1} /> : null}
       <mesh
-        geometry={GEO.hit} material={HIT} position={[0, 0.62, 0]}
+        ref={hit} geometry={GEO.hit} material={HIT} position={[0, 0.62, 0]}
         onClick={(e) => { if (e.delta > 5) return; e.stopPropagation(); useStore.getState().setFollowAgent(id); }}
         onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
         onPointerOut={() => { document.body.style.cursor = ""; }}
