@@ -8,6 +8,7 @@ import { resumeCommand } from "../../../schema/src/resume.ts";
 import { Badge } from "../galaxy/GalaxyApp.tsx";
 import { useStore } from "../store.ts";
 import { useRightPanel } from "./rightPanel.ts";
+import { Face2D } from "../character/Face2D.tsx";
 
 export const STATE_TEXT: Record<AttentionState, string> = { "maybe-waiting": "可能在等你授权", waiting: "在等你授权", "turn-done": "本轮完成，等你回复", error: "出错停止" };
 
@@ -71,6 +72,7 @@ export function NeedsYou() {
         return (
           <div key={a.session} className={`g-need s-${a.state}`} data-testid="needs-row" data-town={key}>
             <button className="g-need-open" onClick={open} title="飞到这个小镇，打开这次请求">
+              <Face2D face={a.state === "error" ? "error" : a.state === "turn-done" ? "happy" : "wide"} faction={a.faction} size={30} className="g-need-face" />
               <Badge f={a.faction} />
               <b>{town?.name ?? a.projectId.split("/").filter(Boolean).pop() ?? a.projectId}</b>
               <span className="g-need-state">{STATE_TEXT[a.state]}{a.tool ? ` · ${a.tool}` : ""}</span>

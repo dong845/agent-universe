@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import { t, useLang } from "../i18n/index.ts";
 import { Search } from "../ui/Search.tsx";
+import { MiniWindow } from "../ui/MiniWindow.tsx";
 import { FollowCard } from "../city/FollowCard.tsx";
 import { TourHighlightCity, TourHighlightSpace } from "./TourHighlight.tsx";
 import * as THREE from "three";
@@ -487,6 +488,7 @@ export function GalaxyApp() {
       {source === "share" || historyOpen ? null : <TimelineBar />}
       <RecordDialog />
       <NeedsYou />
+      <MiniWindow />
       {source === "real" ? <Settings /> : null}
       {source === "real" && !cp ? <ExportShare /> : null}
       {source === "share" ? <ShareReplays /> : null}
