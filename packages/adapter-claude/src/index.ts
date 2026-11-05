@@ -1,7 +1,7 @@
 // Claude Code transcript → unified events. Formats: docs/log-formats.md; rules: docs/decisions.md.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { AgentTownEvent, Tokens, ToolFile } from "../../schema/src/event.ts";
+import type { AgentTownEvent, AskQuestion, Tokens, ToolFile } from "../../schema/src/event.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
 import { titleOf } from "../../schema/src/title.ts";
 import { clip, countUnknown, hashId, headOf, readJsonl, readJsonlFrom, toMs, type Line, type ReadStats } from "../../schema/src/util.ts";
@@ -83,6 +83,20 @@ function toolFiles(name: string, input: Record<string, any> | undefined): ToolFi
   if (READ_TOOLS.has(name)) return [{ path: p, access: "read" }];
   if (EDIT_TOOLS.has(name)) return [{ path: p, access: "edit" }];
   return undefined;
+}
+
+/** the questions of an AskUserQuestion call, kept as logged (labels and descriptions as strings) */
+function askOf(name: string, input: Record<string, any> | undefined): AskQuestion[] | undefined {
+  if (name !== "AskUserQuestion" || !Array.isArray(input?.questions)) return undefined;
+  const qs = input.questions
+    .filter((q: any) => q && typeof q.question === "string" && Array.isArray(q.options))
+    .map((q: any): AskQuestion => ({
+      question: q.question,
+      ...(typeof q.header === "string" ? { header: q.header } : {}),
+      multiSelect: q.multiSelect === true,
+      options: q.options.filter((o: any) => o && typeof o.label === "string").map((o: any) => ({ label: o.label, ...(typeof o.description === "string" ? { description: o.description } : {}) })),
+    }));
+  return qs.length ? qs : undefined;
 }
 
 function toolTarget(name: string, input: Record<string, any> | undefined): { target?: string; command?: string } {
@@ -252,7 +266,7 @@ export class ClaudeSessionParser {
           st.toolStarts.set(b.id, ts!);
           push({
             ...base, projectId: projectId(), taskId, id: hashId(FACTION, b.id, "start"), ts: ts!, kind: "tool_start",
-            tool: b.name, toolUseId: b.id, target, ...(toolFiles(b.name, b.input) ? { files: toolFiles(b.name, b.input) } : {}),
+            tool: b.name, toolUseId: b.id, target, ...(toolFiles(b.name, b.input) ? { files: toolFiles(b.name, b.input) } : {}), ...(askOf(b.name, b.input) ? { ask: askOf(b.name, b.input) } : {}),
             role: roles.isDispatch(b.name) ? "commander" : roles.forTool(b.name, command), raw,
           });
         }
