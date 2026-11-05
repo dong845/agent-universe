@@ -513,3 +513,20 @@ canvas { display: block; }
 .g-decide-actions button.primary { background: rgba(255, 196, 92, 0.22); border-color: rgba(255, 196, 92, 0.6); }
 .g-decide-actions button:disabled { opacity: 0.45; cursor: default; }
 .g-need-decide { background: rgba(255, 196, 92, 0.2) !important; border-color: rgba(255, 196, 92, 0.6) !important; }
+
+/* the city panel's tabs and the overview (spec 2026-11-05 D26 C) */
+.g-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.g-tabs button { font: inherit; font-size: 12px; padding: 4px 12px; border-radius: 7px; cursor: pointer; color: var(--mute); background: none; border: 1px solid transparent; }
+.g-tabs button.on { color: #ffd58a; border-color: rgba(255, 196, 92, 0.45); background: rgba(255, 196, 92, 0.1); }
+.g-tabs button:disabled { opacity: 0.4; cursor: default; }
+.g-overview-body { overflow: auto; display: grid; gap: 4px; align-content: start; }
+.g-overview-body h5 { margin: 10px 0 2px; font-size: 11.5px; color: #9fb0cc; font-weight: 600; }
+.g-overview-body .row { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.g-overview-body .row span { color: var(--mute); }
+.g-overview-body .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.g-overview-body .chips span { padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); }
+.g-overview-body .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.g-bar { display: grid; grid-template-columns: 96px 1fr auto; gap: 8px; align-items: center; }
+.g-bar span { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-bar i { display: block; height: 8px; border-radius: 4px; min-width: 4px; }
+.g-bar b { font-weight: 500; color: var(--mute); }

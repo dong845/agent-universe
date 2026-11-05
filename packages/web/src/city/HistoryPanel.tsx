@@ -16,6 +16,7 @@ import { t, useLang } from "../i18n/index.ts";
 import { formatGist } from "../i18n/gist.ts";
 import type { Actor } from "../orchestrator/timeline.ts";
 import { uniqueAgents } from "../orchestrator/sessionAgents.ts";
+import { CityTabs, useCityPanel } from "./OverviewPanel.tsx";
 
 /** at most this many subagents stand in the city for one step (the rest are listed) */
 const MAX_SUBS = 12;
@@ -101,8 +102,9 @@ export function HistoryPanel() {
     <aside className="g-history" data-testid="history">
       <header>
         <b>{t("history.title", { n: steps.length })}</b>
-        <button onClick={closeHistory} title={t("history.now")} data-testid="history-close">{t("history.now")} ✕</button>
+        <button onClick={() => { closeHistory(); useCityPanel.getState().setOverview(true); }} title={t("history.now")} data-testid="history-close">{t("history.now")} ✕</button>
       </header>
+      {town ? <CityTabs town={town} on="history" /> : null}
       <p className="muted">{t("history.hint")}</p>
       <ol ref={list} className="g-history-list">
         {rows}
