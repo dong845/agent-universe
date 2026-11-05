@@ -357,6 +357,7 @@ export const zh = {
   "role.painter": "画师",
   "role.operator": "操作员",
   "role.sentry": "哨兵",
+  "mini.go": "去那里看看：进城并跟着它的主代理",
   "common.calls": "{n} 次调用",
   "gist.edit": "改了 {n} 个文件：{files}",
   "gist.more": " 等",

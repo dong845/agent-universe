@@ -485,3 +485,5 @@ canvas { display: block; }
 .g-poster-periods button { flex: 1; font: inherit; font-size: 12px; padding: 4px 0; border-radius: 7px; cursor: pointer; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
 .g-poster-periods button.on { background: rgba(255, 196, 92, 0.18); border-color: rgba(255, 196, 92, 0.55); }
 .g-poster-preview { width: 100%; aspect-ratio: 1080 / 1350; border-radius: 8px; background: #070b16; }
+.g-mini-row { cursor: pointer; }
+.g-mini-row:hover { background: rgba(120, 160, 240, 0.12); }

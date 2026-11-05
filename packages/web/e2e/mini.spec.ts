@@ -19,6 +19,10 @@ test("mini window: button iff the API exists; opens a window with the working se
     await expect.poll(() => page.evaluate(() => (window as any).documentPictureInPicture.window.document.body.innerText as string), { timeout: 10_000 }).toContain("在干活");
     const rows = await page.evaluate(() => (window as any).documentPictureInPicture.window.document.querySelectorAll("[data-testid=mini-row]").length);
     expect(rows).toBeGreaterThan(0);
+    // a working row takes you there: its city, following its main agent (D26 A4)
+    await page.evaluate(() => ((window as any).documentPictureInPicture.window.document.querySelector("[data-testid=mini-row]") as HTMLElement).click());
+    await expect.poll(() => page.evaluate(() => (window as any).__agentTown.state().city), { timeout: 30_000 }).not.toBeNull();
+    await expect.poll(() => page.evaluate(() => (window as any).__agentTown.tour().follow), { timeout: 30_000 }).not.toBeNull();
   }
   // the share page never offers it
   await page.evaluate(() => (window as any).__agentTown.setShare(true));

@@ -9,6 +9,7 @@ import { t, useLang } from "../i18n/index.ts";
 import { absTime, useStore } from "../store.ts";
 import { miniRows, type MiniRow } from "./miniRows.ts";
 import { copyResume, STATE_TEXT } from "./NeedsYou.tsx";
+import { goFollow } from "../city/followMain.ts";
 
 interface PipApi { requestWindow(o: { width: number; height: number }): Promise<Window>; window: Window | null }
 const pip = (): PipApi | undefined => (window as unknown as { documentPictureInPicture?: PipApi }).documentPictureInPicture;
@@ -49,7 +50,8 @@ function Rows() {
   const row = (r: MiniRow) => {
     const req = r.attention?.requestId ? w?.requests.get(r.attention.requestId) : undefined;
     return (
-      <div key={r.key} className={`g-mini-row${r.attention ? ` s-${r.state}` : ""}`} data-testid="mini-row">
+      <div key={r.key} className={`g-mini-row${r.attention ? ` s-${r.state}` : ""}`} data-testid="mini-row" role="button" tabIndex={0} title={t("mini.go")}
+        onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; window.focus(); goFollow(r.townKey, r.sessionId); }}>
         <Face2D face={r.face} faction={r.faction} size={34} />
         <div className="g-mini-text">
           <b>{r.town}</b>

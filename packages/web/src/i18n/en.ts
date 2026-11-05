@@ -359,6 +359,7 @@ export const en: Record<Key, string> = {
   "role.painter": "painter",
   "role.operator": "operator",
   "role.sentry": "sentry",
+  "mini.go": "Go there: enter the city and follow its main agent",
   "common.calls": "{n} calls",
   "gist.edit": "Edited {n} files: {files}",
   "gist.more": " …",
