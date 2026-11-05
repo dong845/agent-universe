@@ -15,7 +15,7 @@ What the look found (each seen on screen, 2026-11-05):
 - The tour is a text card in a corner: it never points at anything or moves the camera; step 4 talks
   about the city while space is on screen; after it nothing suggests clicking a planet; in the demo
   world it still says "这里是你用 Claude Code 和 Codex 做过的事".
-- In a city up to five panels are open at once (tour, legend, Dyson shell, 需要你, 历史) and cover it.
+- In a city up to four panels are open at once (tour, legend, 需要你, 历史) and cover most of it.
 - "等效花费 · 未配置价格" is shown to everyone and never has a value (HUD, hover card, diary).
 - The page is Chinese only; the README is English. No way to find a project by name.
 
@@ -82,7 +82,7 @@ are washed out).
   depends on the source: real logs / demo (demo: "这是一个演示世界……有了日志会自动换成你的").
   When the chosen city has no agent at that moment, step 5 uses the history step's standing agents.
 - **B2 A tidier city.** On entering a city the legend starts collapsed (the user's own open/closed choice
-  is remembered after that) and the Dyson-shell panel is hidden (it is about the stars). 需要你 keeps its
+  is remembered after that); the tour card sits beside what it highlights, not over the city's middle. 需要你 keeps its
   place; with 历史 also open the two never overlap (existing beside-diary rule).
 - **B3 Dead spots.** The no-logs notice moves out of the top bar into a card under it that can be closed
   (it never covers the HUD or another panel). The "等效花费" row is removed from the HUD, hover card and
