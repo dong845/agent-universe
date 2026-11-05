@@ -3,6 +3,7 @@ import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
 import { absTime, SPEEDS, useStore } from "../store.ts";
 import { openTasks } from "./counts.ts";
 import { clockLabel, replayClock } from "./format.ts";
+import { t as tx } from "../i18n/index.ts";
 
 
 export function Hud() {
@@ -24,10 +25,10 @@ export function Hud() {
   const openCount = shared ? 0 : openTasks(events, abs, unended);
   return (
     <div className="hud" data-testid="hud">
-      <div><span>全局 token</span><b data-testid="hud-total">{formatCount(all)}</b></div>
+      <div><span>{tx("hud.total")}</span><b data-testid="hud-total">{formatCount(all)}</b></div>
       <div><span>Claude Code</span><b>{formatCount(claude)}</b></div>
       <div><span>Codex</span><b>{formatCount(codex)}</b></div>
-      <div><span>进行中任务</span><b data-testid="hud-open">{openCount}</b></div>
+      <div><span>{tx("hud.open")}</span><b data-testid="hud-open">{openCount}</b></div>
     </div>
   );
 }
@@ -48,8 +49,8 @@ export function TimelineBar() {
   const d = Math.max(1, duration);
   return (
     <div className="bar">
-      <button onClick={() => setPlaying(!playing)} aria-label={playing ? "暂停" : "播放"}>{playing ? "❚❚" : "▶"}</button>
-      <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="倍速">
+      <button onClick={() => setPlaying(!playing)} aria-label={playing ? tx("time.pause") : tx("time.play")}>{playing ? "❚❚" : "▶"}</button>
+      <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label={tx("time.speed")}>
         {SPEEDS.map((s) => (
           <option key={s} value={s}>{s}×</option>
         ))}
@@ -62,7 +63,7 @@ export function TimelineBar() {
               <i key={i} className={`m-${m.status === "error" || m.status === "denied" ? "bad" : m.kind}`} style={{ left: `${(m.t / d) * 100}%` }} title={m.kind} />
             ))}
         </div>
-        <input type="range" min={0} max={d} step={50} value={t} onChange={(e) => setTime(Number(e.target.value))} aria-label="时间轴" />
+        <input type="range" min={0} max={d} step={50} value={t} onChange={(e) => setTime(Number(e.target.value))} aria-label={tx("time.bar")} />
       </div>
       <span className="time" data-testid="clock">{clock(t)} / {clock(d)}</span>
       <LiveButton />
@@ -83,9 +84,9 @@ export function Nav() {
   };
   return (
     <div className="nav">
-      <button onClick={() => useStore.getState().setFocus(null)} className={focus ? "" : "on"} data-testid="nav-world">全景</button>
-      <button onClick={next} disabled={!live.length} data-testid="nav-live">进行中{live.length ? ` (${live.length})` : ""}</button>
-      {current ? <span className="where">{current.faction === "codex" ? "Codex" : "Claude Code"} · {current.name}</span> : <span className="where">世界 · {w?.towns.size ?? 0} 个镇</span>}
+      <button onClick={() => useStore.getState().setFocus(null)} className={focus ? "" : "on"} data-testid="nav-world">{tx("nav.world")}</button>
+      <button onClick={next} disabled={!live.length} data-testid="nav-live">{tx("nav.live")}{live.length ? ` (${live.length})` : ""}</button>
+      {current ? <span className="where">{current.faction === "codex" ? "Codex" : "Claude Code"} · {current.name}</span> : <span className="where">{tx("nav.where", { n: w?.towns.size ?? 0 })}</span>}
     </div>
   );
 }
@@ -94,10 +95,10 @@ export function Nav() {
 function LiveButton() {
   const source = useStore((s) => s.source);
   const following = useStore((s) => s.following);
-  if (source !== "real") return <button disabled title="只有真实数据有实时">实时</button>;
+  if (source !== "real") return <button disabled title={tx("live.onlyReal")}>{tx("live.label")}</button>;
   return (
     <button className={following ? "live-on" : ""} data-testid="live" aria-pressed={following}
-      title={following ? "正在跟随最新记录：拖动时间轴或暂停即离开" : "回到实时：跟随最新记录"}
-      onClick={() => useStore.getState().setFollowing(true)}>{following ? "● 实时" : "实时"}</button>
+      title={following ? tx("live.following") : tx("live.back")}
+      onClick={() => useStore.getState().setFollowing(true)}>{following ? `● ${tx("live.label")}` : tx("live.label")}</button>
   );
 }

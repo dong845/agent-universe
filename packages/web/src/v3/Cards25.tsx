@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCount } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import type { RequestRow } from "../../../schema/src/payload.ts";
-import { ROLE_NAMES } from "../../../schema/src/world.ts";
-import themes from "../../../../config/themes.json" with { type: "json" };
-import type { ThemesConfig } from "../../../schema/src/themes.ts";
+import { roleName } from "../i18n/data.ts";
 import { fetchRequest } from "../data.ts";
 import { cityPlaces } from "../city/cityData.ts";
 import { cityTowns, useReplay } from "../city/cityReplay.ts";
@@ -15,29 +13,30 @@ import { requestDiaries, type Diary, type DiaryStep } from "../ui/diaryModel.ts"
 import { TokenRows } from "../ui/HoverCard.tsx";
 import { copyResume } from "../ui/NeedsYou.tsx";
 import { WORK_NAMES, type Spot } from "./townLayout.ts";
+import { t as tx } from "../i18n/index.ts";
+import { themeName } from "../i18n/data.ts";
 
-const KIND_NAMES: Record<string, string> = { code: "代码", docs: "文档", slides: "幻灯", image: "图片", video: "影音", data: "数据" };
-const T = themes as ThemesConfig;
-const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
+const KIND_NAMES: Record<string, string> = { code: tx("product.code"), docs: tx("product.docs"), slides: tx("product.slides"), image: tx("product.image"), video: tx("product.video"), data: tx("product.data") };
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const when = (ms: number) => { const d = new Date(ms); return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const hms = (ms: number) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 export function took(ms: number): string {
   const m = Math.round(ms / 60000);
-  return m >= 60 ? `${Math.floor(m / 60)} 小时 ${m % 60} 分` : `${Math.max(m, 1)} 分钟`;
+  return m >= 60 ? tx("dur.hm", { h: Math.floor(m / 60), m: m % 60 }) : tx("dur.m", { n: Math.max(m, 1) });
 }
-const outcome = (r: RequestRow, live: boolean) => (live ? "进行中" : r.ok === false ? "以失败结束" : r.ok ? "完成" : "未见结束");
+const outcome = (r: RequestRow, live: boolean) => (live ? tx("outcome.running") : r.ok === false ? tx("cards.outcomeFailed") : r.ok ? tx("robot.done") : tx("outcome.unknown"));
 
 function RequestLines({ r, live }: { r: RequestRow; live: boolean }) {
   return (
     <>
-      {r.asked ? <div className="muted">你的原话：「{r.asked}」</div> : null}
-      <div className="row"><span>{r.class === "investigation" ? "调查" : "成品"}</span><b>{r.class === "investigation" ? "只读，没有改文件" : KIND_NAMES[r.productKind ?? "code"] ?? "—"}{r.topDir ? ` · 改动最多在 ${r.topDir === "." ? "根目录" : r.topDir}` : ""}</b></div>
-      <div className="row"><span>结果</span><b className={r.ok === false ? "bad" : ""}>{outcome(r, live)}</b></div>
-      <div className="row"><span>开始</span><b>{when(r.startTs)} · 用时 {took(r.endTs - r.startTs)}</b></div>
+      {r.asked ? <div className="muted">{tx("cards.asked", { text: r.asked })}</div> : null}
+      <div className="row"><span>{r.class === "investigation" ? tx("cards.investigation") : tx("cards.produced")}</span><b>{r.class === "investigation" ? tx("cards.readOnly") : KIND_NAMES[r.productKind ?? "code"] ?? "—"}{r.topDir ? tx("cards.topDir", { dir: r.topDir === "." ? tx("street.root") : r.topDir }) : ""}</b></div>
+      <div className="row"><span>{tx("facts.result")}</span><b className={r.ok === false ? "bad" : ""}>{outcome(r, live)}</b></div>
+      <div className="row"><span>{tx("diary.start")}</span><b>{tx("cards.startTook", { when: when(r.startTs), took: took(r.endTs - r.startTs) })}</b></div>
       <TokenRows t={r.tokens} label="token" />
-      <div className="row"><span>工具调用</span><b>{r.calls} 次{r.fails ? ` · 失败 ${r.fails}` : ""}{r.spawns ? ` · 子代理 ${r.spawns}` : ""} · {r.turns} 轮</b></div>
-      <div className="row"><span>技能</span><b>{r.skills.length ? r.skills.join("、") : "没有用技能"}</b></div>
+      <div className="row"><span>{tx("facts.calls")}</span><b>{tx("cards.callsLine", { n: r.calls })}{r.fails ? tx("cards.failsN", { n: r.fails }) : ""}{r.spawns ? tx("cards.subsN", { n: r.spawns }) : ""}{tx("cards.turnsN", { n: r.turns })}</b></div>
+      <div className="row"><span>{tx("facts.skills")}</span><b>{r.skills.length ? r.skills.join(tx("gist.sep")) : tx("cards.noSkills")}</b></div>
     </>
   );
 }
@@ -48,7 +47,7 @@ export function SpotCard({ district, spot }: { district: string; spot: Spot }) {
   if (!w) return null;
   const town = w.towns.get(district);
   const art = w.resolved.get(spot);
-  const note = art?.fallback ? <div className="muted">示意图：这个主题的画还没画好，暂用相近的建筑</div> : null;
+  const note = art?.fallback ? <div className="muted">{tx("cards.artFallback")}</div> : null;
   const head = (title: string) => <h4>{title}</h4>;
   const i = spot.info;
   if (i.kind === "house" || i.kind === "tent") {
@@ -56,17 +55,17 @@ export function SpotCard({ district, spot }: { district: string; spot: Spot }) {
     if (!r) return null;
     return (
       <div data-testid="spot-card">
-        {head(r.title ?? "（无标题）")}
+        {head(r.title ?? tx("history.untitled"))}
         <RequestLines r={r} live={w.live.has(r.requestId)} />
-        <div className="muted">房子大小 = 工作量在本镇的档位 · 点击打开任务日记</div>
+        <div className="muted">{tx("cards.houseHint")}</div>
         {note}
       </div>
     );
   }
-  if (i.kind === "public") return <div data-testid="spot-card">{head(WORK_NAMES[i.work] ?? i.work)}<div className="row"><span>这个镇里</span><b>{i.count.toLocaleString()} 次</b></div><div className="muted">代理做这类工作时来这里；做过 5 次以上才建</div>{note}</div>;
-  if (i.kind === "landmark") return <div data-testid="spot-card">{head(`${town?.name ?? ""} 的地标`)}<div className="row"><span>主题</span><b>{town ? themeName(town.theme) : "—"}</b></div><div className="row"><span>大小</span><b>第 {i.tier} 档（成品满 1 / 10 / 40 件各长一档）</b></div>{note}</div>;
-  if (i.kind === "hall") return <div data-testid="spot-card">{head("任务大厅")}<div className="muted">这个镇的 {town ? town.counts.produced + town.counts.investigation + town.counts.chat + town.counts.empty : 0} 个请求从这里开始</div>{note}</div>;
-  if (i.kind === "notice") return <div data-testid="spot-card">{head("告示板")}<div className="row"><span>问答</span><b>{i.chats} 次</b></div><div className="muted">没有成品的请求只记数，不建房</div></div>;
+  if (i.kind === "public") return <div data-testid="spot-card">{head(WORK_NAMES[i.work] ?? i.work)}<div className="row"><span>{tx("cards.inTown")}</span><b>{tx("card.timesN", { n: i.count.toLocaleString() })}</b></div><div className="muted">{tx("cards.publicHint")}</div>{note}</div>;
+  if (i.kind === "landmark") return <div data-testid="spot-card">{head(tx("cards.landmark", { name: town?.name ?? "" }))}<div className="row"><span>{tx("card.theme")}</span><b>{town ? themeName(town.theme) : "—"}</b></div><div className="row"><span>{tx("cards.size")}</span><b>{tx("cards.tier", { n: i.tier })}</b></div>{note}</div>;
+  if (i.kind === "hall") return <div data-testid="spot-card">{head(tx("city.hall"))}<div className="muted">{tx("cards.hallHint", { n: town ? town.counts.produced + town.counts.investigation + town.counts.chat + town.counts.empty : 0 })}</div>{note}</div>;
+  if (i.kind === "notice") return <div data-testid="spot-card">{head(tx("cards.notice"))}<div className="row"><span>{tx("card.chat")}</span><b>{tx("card.timesN", { n: i.chats })}</b></div><div className="muted">{tx("cards.noticeHint")}</div></div>;
   return null;
 }
 
@@ -76,8 +75,8 @@ function Steps({ steps }: { steps: DiaryStep[] }) {
       {steps.map((s, k) => (
         <div key={k} className={`step ${s.status === "error" || s.status === "denied" ? "bad" : ""}`} data-step>
           <span className="when">{hms(s.ts)}</span>
-          <span className="role">{s.role ? ROLE_NAMES[s.role] : "—"}</span>
-          <span className="tool">{s.tool}{s.status === "denied" ? " · 被拒绝" : s.status === "error" ? " · 失败" : ""}</span>
+          <span className="role">{s.role ? roleName(s.role) : "—"}</span>
+          <span className="tool">{s.tool}{s.status === "denied" ? tx("step.denied") : s.status === "error" ? tx("step.error") : ""}</span>
           <span className="target">{s.target ?? ""}</span>
         </div>
       ))}
@@ -107,11 +106,11 @@ export function RequestDiary({ district, requestId }: { district: string; reques
   const town = w?.towns.get(district);
   const ds = got?.id === requestId ? got.diaries : undefined;
   const steps = useMemo(() => ds?.reduce((a, d) => a + d.main.length + d.agents.reduce((b, x) => b + x.steps.length, 0), 0) ?? 0, [ds]);
-  if (!r) return <p className="muted">这个请求不在当前的世界里</p>;
+  if (!r) return <p className="muted">{tx("cards.notInWorld")}</p>;
   return (
     <>
       <small>{town ? `${town.faction === "codex" ? "Codex" : "Claude Code"} · ${town.name}` : ""}</small>
-      <h3>{r.title ?? "（无标题）"}</h3>
+      <h3>{r.title ?? tx("history.untitled")}</h3>
       <RequestLines r={r} live={w!.live.has(r.requestId)} />
       {got?.id === requestId && got.events?.length && cityTowns.has(district) ? (
         <button
@@ -119,24 +118,24 @@ export function RequestDiary({ district, requestId }: { district: string; reques
           onClick={() => {
             const layout = useStore.getState().w25?.layouts.get(district);
             if (!layout) return;
-            useReplay.getState().start(district, requestId, r.title ?? "（无标题）", got.events!, cityPlaces(layout, requestId));
+            useReplay.getState().start(district, requestId, r.title ?? tx("history.untitled"), got.events!, cityPlaces(layout, requestId));
             if (useStore.getState().city !== district) useStore.getState().setCity(district);
           }}
-        >▶ {city === district ? "在城里重放这次请求" : "进城重放这次请求"}</button>
+        >▶ {city === district ? tx("cards.replayHere") : tx("cards.replayEnter")}</button>
       ) : null}
       {source === "real" ? (
-        <button className="replay-btn" data-testid="copy-resume" onClick={() => void copyResume(r.faction, r.sessionId, r.cwd)} title="在终端里接着这个会话做">⧉ 复制恢复命令</button>
+        <button className="replay-btn" data-testid="copy-resume" onClick={() => void copyResume(r.faction, r.sessionId, r.cwd)} title={tx("cards.resumeHint")}>{tx("cards.resume")}</button>
       ) : null}
-      {got?.error ? <p className="muted">读取记录失败：{got.error}</p> : !ds ? <p className="muted">正在读取任务记录…</p> : (
+      {got?.error ? <p className="muted">{tx("cards.readFailed", { why: got.error })}</p> : !ds ? <p className="muted">{tx("diary.loading")}</p> : (
         <section>
-          <h4>经过 · {ds.length} 轮 · {steps} 步</h4>
+          <h4>{tx("cards.course", { turns: ds.length, steps })}</h4>
           {ds.map((d, i) => (
             <details key={d.taskId} open={i === 0} className="turn">
-              <summary>第 {i + 1} 轮 · {i === 0 ? "你的请求" : d.triggerBy === "peer" ? "子代理回报后继续" : d.triggerBy === "compact" ? "上下文压缩后继续" : "系统消息后继续"} · {hms(d.start)} · {formatCount(d.tokens.input + d.tokens.output + d.tokens.cacheRead + d.tokens.cacheWrite)} token</summary>
+              <summary>{tx("cards.turn", { n: i + 1 })} · {i === 0 ? tx("cards.yourRequest") : d.triggerBy === "peer" ? tx("opened.peer") : d.triggerBy === "compact" ? tx("opened.compact") : tx("opened.meta")} · {hms(d.start)} · {formatCount(d.tokens.input + d.tokens.output + d.tokens.cacheRead + d.tokens.cacheWrite)} token</summary>
               <Steps steps={d.main} />
               {d.agents.map((a) => (
                 <details key={a.agentId} className="agent">
-                  <summary>子代理 · {a.agentType ?? a.agentId} · {a.steps.length} 步</summary>
+                  <summary>{tx("diary.subSummary", { who: a.agentType ?? a.agentId, n: a.steps.length, tokens: "" }).replace(/ · $/, "")}</summary>
                   <Steps steps={a.steps} />
                 </details>
               ))}
@@ -152,23 +151,23 @@ export function RequestDiary({ district, requestId }: { district: string; reques
 export function TownPanel({ district }: { district: string }) {
   const w = useStore((s) => s.w25);
   const t = w?.towns.get(district);
-  if (!t) return <p className="muted">这个镇不在当前的世界里</p>;
+  if (!t) return <p className="muted">{tx("cards.townNotInWorld")}</p>;
   const l = w!.layouts.get(district)!;
   return (
     <>
       <small>{t.faction === "codex" ? "Codex" : "Claude Code"} · {themeName(t.theme)}</small>
       <h3>{t.name}</h3>
       {t.skillNote ? <div className="muted">{t.skillNote}</div> : null}
-      <div className="row"><span>成品</span><b>{t.counts.produced} 件（画出 {l.streets.reduce((a, s) => a + s.drawn, 0)} 件主要的）</b></div>
-      <div className="row"><span>调查</span><b>{t.counts.investigation} 次</b></div>
-      <div className="row"><span>问答</span><b>{t.counts.chat + t.counts.empty} 次</b></div>
+      <div className="row"><span>{tx("card.produced")}</span><b>{tx("cards.producedDrawn", { n: t.counts.produced, d: l.streets.reduce((a, s) => a + s.drawn, 0) })}</b></div>
+      <div className="row"><span>{tx("card.investigation")}</span><b>{tx("card.timesN", { n: t.counts.investigation })}</b></div>
+      <div className="row"><span>{tx("card.chat")}</span><b>{tx("card.timesN", { n: t.counts.chat + t.counts.empty })}</b></div>
       <section>
-        <h4>街道（一级目录）</h4>
-        {l.streets.map((s) => <div key={s.name} className="row"><span>{s.name}</span><b>{s.drawn} 栋{s.minor ? ` · 另有 ${s.minor} 件小改动` : ""}</b></div>)}
+        <h4>{tx("cards.streets")}</h4>
+        {l.streets.map((s) => <div key={s.name} className="row"><span>{s.name}</span><b>{tx("city.streetSub", { n: s.drawn })}{s.minor ? tx("city.streetMinor", { n: s.minor }) : ""}</b></div>)}
       </section>
       <section>
-        <h4>这里做过的工作</h4>
-        {Object.entries(t.workCounts).sort((a, b) => b[1] - a[1]).map(([k, n]) => <div key={k} className="row"><span>{WORK_NAMES[k] ?? k}</span><b>{n.toLocaleString()} 次</b></div>)}
+        <h4>{tx("cards.workHere")}</h4>
+        {Object.entries(t.workCounts).sort((a, b) => b[1] - a[1]).map(([k, n]) => <div key={k} className="row"><span>{WORK_NAMES[k] ?? k}</span><b>{tx("card.timesN", { n: n.toLocaleString() })}</b></div>)}
       </section>
     </>
   );

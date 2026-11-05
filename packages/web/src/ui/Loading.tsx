@@ -1,5 +1,6 @@
 // The screen before the world: reading progress, or what to do when the local server is not running.
 import type { Progress } from "../data.ts";
+import { t } from "../i18n/index.ts";
 
 export function Loading({ p }: { p: Progress | null }) {
   return (
@@ -7,12 +8,12 @@ export function Loading({ p }: { p: Progress | null }) {
       {p?.phase === "error" ? (
         <>
           <b>{p.message}</b>
-          <span>开发时另开一个终端运行 node --run serve，再刷新本页</span>
+          <span>{t("load.devHint")}</span>
         </>
       ) : (
         <>
-          <b>正在读取本机日志 {p ? `${p.done}/${p.total}` : ""}</b>
-          <span>第一次读取较慢；之后只重新读取有变化的会话</span>
+          <b>{t("load.reading")} {p ? `${p.done}/${p.total}` : ""}</b>
+          <span>{t("load.slowFirst")}</span>
         </>
       )}
     </div>

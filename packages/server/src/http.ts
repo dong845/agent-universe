@@ -19,6 +19,7 @@ import { downloadLogos, readLogos, removeLogos } from "./logos.ts";
 import { codeNames, sharePayload } from "../../schema/src/share.ts";
 import { buildShareHtml, SHARE_MAX_BYTES, ShareTooBig } from "./exportShare.ts";
 import type { Faction } from "../../schema/src/event.ts";
+import { langOf, say } from "./text.ts";
 
 export interface ServerState {
   phase: "loading" | "ready" | "error";
@@ -67,7 +68,7 @@ const TYPES: Record<string, string> = {
 };
 
 export function portInUseMessage(port: number): string {
-  return `端口 ${port} 已被占用：可能已经有一个 Agent Universe 在运行`;
+  return say(langOf(), "port.inUse", { port });
 }
 
 export function createServer(o: ServerOptions) {
@@ -100,6 +101,8 @@ export function createServer(o: ServerOptions) {
   };
   const themesFile = o.themesFile ?? join(homedir(), ".agent-town", "themes.json");
   const settingsFile = o.settingsFile ?? join(homedir(), ".agent-town", "settings.json");
+  /** the language the page last chose (its messages are worded in it), else the server's LANG */
+  const pageLang = () => readSettings(settingsFile).lang ?? langOf();
   const logosDir = o.logosDir ?? join(homedir(), ".agent-town", "logos");
   const secretFile = o.shareSecretFile ?? join(homedir(), ".agent-town", "share-secret");
   const shareIds = () => makeShareIds(shareSecret(secretFile));
@@ -163,7 +166,7 @@ export function createServer(o: ServerOptions) {
         // a watched reload that fails keeps the last good world (and its alerts); only a first load errors
         if (payload) {
           state.phase = "ready";
-          console.error(`重新读取日志失败，继续显示上一次的世界：${message}`);
+          console.error(say(langOf(), "reload.failed", { why: message }));
           return;
         }
         state.phase = "error";
@@ -308,7 +311,7 @@ export function createServer(o: ServerOptions) {
     });
   };
 
-  /** POST /api/settings {notify?, notifyTurnDone?}: the notification switches (hooks change via /api/hooks) */
+  /** POST /api/settings {notify?, notifyTurnDone?, lang?}: the notification switches and the page's language (hooks change via /api/hooks) */
   const saveSettings = (req: http.IncomingMessage, res: http.ServerResponse) => {
     let body = "";
     req.on("data", (c: Buffer) => { if (body.length < 4096) body += c; });
@@ -320,7 +323,7 @@ export function createServer(o: ServerOptions) {
         return json(res, 400, { error: "bad json" });
       }
       const cur = readSettings(settingsFile);
-      const next: Settings = { ...cur, notify: typeof b.notify === "boolean" ? b.notify : cur.notify, notifyTurnDone: typeof b.notifyTurnDone === "boolean" ? b.notifyTurnDone : cur.notifyTurnDone };
+      const next: Settings = { ...cur, notify: typeof b.notify === "boolean" ? b.notify : cur.notify, notifyTurnDone: typeof b.notifyTurnDone === "boolean" ? b.notifyTurnDone : cur.notifyTurnDone, ...(b.lang === "zh" || b.lang === "en" ? { lang: b.lang } : {}) };
       writeSettings(settingsFile, next);
       json(res, 200, next);
     });
@@ -348,7 +351,7 @@ export function createServer(o: ServerOptions) {
         writeSettings(settingsFile, { ...cur, hooks: { ...cur.hooks, [agent]: b.on } });
         json(res, 200, { on: b.on, file: hookFiles[agent], ...r });
       } catch (e) {
-        json(res, 409, { error: `没有改动 ${hookFiles[agent]}：${e instanceof Error ? e.message : String(e)}` });
+        json(res, 409, { error: say(pageLang(), "hooks.notChanged", { file: hookFiles[agent], why: e instanceof Error ? e.message : String(e) }) });
       }
     });
   };
@@ -362,20 +365,21 @@ export function createServer(o: ServerOptions) {
     req.on("data", (c: Buffer) => { if (body.length < 8192) body += c; });
     req.on("end", () => {
       if (!payload) return json(res, 503, state);
-      if (!o.staticDir) return json(res, 409, { error: "导出分享页需要网页构建：先运行 node --run start" });
-      let b: { townNames?: unknown; titles?: unknown; replays?: unknown };
+      if (!o.staticDir) return json(res, 409, { error: say(pageLang(), "export.needsBuild") });
+      let b: { townNames?: unknown; titles?: unknown; replays?: unknown; lang?: unknown };
       try {
         b = JSON.parse(body);
       } catch {
         return json(res, 400, { error: "bad json" });
       }
       const ids = Array.isArray(b.replays) ? b.replays.filter((x): x is string => typeof x === "string") : [];
-      if (ids.length > 5) return json(res, 400, { error: "最多带 5 个重放" });
+      if (ids.length > 5) return json(res, 400, { error: say(pageLang(), "export.maxReplays") });
       try {
         const replays = ids.map((id) => ({ requestId: id, events: byRequest.get(id) ?? [] })).filter((r) => r.events.length);
         // project names on unless switched off; titles (the owner's own words) off unless switched on
-        const shared = sharePayload(payload, { ids: shareIds(), townNames: b.townNames !== false, titles: b.titles === true, replays });
-        const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES);
+        const lang = b.lang === "en" || b.lang === "zh" ? b.lang : pageLang();
+        const shared = sharePayload(payload, { ids: shareIds(), townNames: b.townNames !== false, titles: b.titles === true, replays, lang });
+        const html = buildShareHtml(o.staticDir, shared, o.shareMaxBytes ?? SHARE_MAX_BYTES, lang);
         const d = new Date();
         const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-disposition": `attachment; filename="agent-universe-share-${day}.html"`, "cache-control": "no-store" });
@@ -405,7 +409,7 @@ export function createServer(o: ServerOptions) {
       }
       downloadLogos(logosDir, o.logoFetch)
         .then((r) => json(res, 200, { on: true, ...r, dir: logosDir }))
-        .catch((e: unknown) => json(res, 502, { error: `下载失败：${e instanceof Error ? e.message : String(e)}` }));
+        .catch((e: unknown) => json(res, 502, { error: say(pageLang(), "logos.failed", { why: e instanceof Error ? e.message : String(e) }) }));
     });
   };
 

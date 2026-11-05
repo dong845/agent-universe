@@ -99,40 +99,40 @@ export function HistoryPanel() {
   return (
     <aside className="g-history" data-testid="history">
       <header>
-        <b>历史 · {steps.length} 步</b>
-        <button onClick={closeHistory} title="回到现在" data-testid="history-close">回到现在 ✕</button>
+        <b>{t("history.title", { n: steps.length })}</b>
+        <button onClick={closeHistory} title={t("history.now")} data-testid="history-close">{t("history.now")} ✕</button>
       </header>
-      <p className="muted">每一步是这个项目的一次请求，按完成先后排。选中一步，城市停在它完成的那一刻：只显示那时已经建成的楼。说明全部来自日志记录。</p>
+      <p className="muted">{t("history.hint")}</p>
       <ol ref={list} className="g-history-list">
         {rows}
       </ol>
       <div className="g-history-nav">
-        <button onClick={() => goToStep(steps, cur.index - 1)} disabled={cur.index <= 1} data-testid="history-prev">◀ 上一步</button>
-        <span>第 {cur.index} / {steps.length} 步</span>
-        <button onClick={() => goToStep(steps, cur.index + 1)} disabled={cur.index >= steps.length} data-testid="history-next">下一步 ▶</button>
+        <button onClick={() => goToStep(steps, cur.index - 1)} disabled={cur.index <= 1} data-testid="history-prev">{t("history.prev")}</button>
+        <span>{t("history.step", { i: cur.index, n: steps.length })}</span>
+        <button onClick={() => goToStep(steps, cur.index + 1)} disabled={cur.index >= steps.length} data-testid="history-next">{t("history.next")}</button>
       </div>
       <section className="g-history-facts" data-testid="history-facts">
-        <h4 className={facts.gist ? "gist" : ""} title={facts.gist ? "这个请求没有标题：这句话是从它自己的记录里拼出来的" : undefined}>{facts.title}</h4>
+        <h4 className={facts.gist ? "gist" : ""} title={facts.gist ? t("history.gistHint") : undefined}>{facts.title}</h4>
         {facts.rows.map(([k, v]) => <div key={k} className="row"><span>{k}</span><b>{v}</b></div>)}
-        {!cur.drawn ? <p className="muted">{r.class === "chat" ? "问答不建楼：记在城里的问答牌上。" : r.class === "produced" ? "城里平时不画这一步的房子（一座城最多画 20 栋，挑最大的）：现在临时画在它那条街旁，带光圈的就是。" : "城里没有单独画出这一步（调查最多画 6 顶帐篷，挑最大的）。"}</p> : null}
-        {facts.work.length ? (<><h5>做了什么</h5><div className="chips">{facts.work.map((x) => <span key={x.name}>{x.name} <b>{x.n}</b></span>)}</div></>) : null}
+        {!cur.drawn ? <p className="muted">{r.class === "chat" ? t("history.chatNoHouse") : r.class === "produced" ? t("history.ghostHouse") : t("history.noTent")}</p> : null}
+        {facts.work.length ? (<><h5>{t("history.did")}</h5><div className="chips">{facts.work.map((x) => <span key={x.name}>{x.name} <b>{x.n}</b></span>)}</div></>) : null}
         {agents.length ? (
           <>
-            <h5>代理（站在任务大厅旁）</h5>
+            <h5>{t("history.agents")}</h5>
             <ul className="agents" data-testid="history-agents">
               {agents.slice(0, 1 + MAX_SUBS).map((a) => (
                 <li key={a.id}>
-                  <b>{a.kind === "main" ? "主代理" : `子代理${a.agentType ? ` · ${a.agentType}` : ""}`}</b>
+                  <b>{a.kind === "main" ? t("follow.main") : `${t("follow.sub")}${a.agentType ? ` · ${a.agentType}` : ""}`}</b>
                   {a.task ? <span className="task">{a.task}</span> : null}
-                  <span className="muted">{a.calls ? a.work.slice(0, 3).map((w) => `${w.name} ${w.n}`).join(" · ") : "没有调用工具"}</span>
+                  <span className="muted">{a.calls ? a.work.slice(0, 3).map((w) => `${w.name} ${w.n}`).join(" · ") : t("history.noCalls")}</span>
                 </li>
               ))}
             </ul>
-            {agents.length > 1 + MAX_SUBS ? <p className="muted">另有 {agents.length - 1 - MAX_SUBS} 个子代理没有画出</p> : null}
+            {agents.length > 1 + MAX_SUBS ? <p className="muted">{t("history.moreSubs", { n: agents.length - 1 - MAX_SUBS })}</p> : null}
           </>
         ) : null}
-        {facts.files.length ? (<><h5>改了哪些文件</h5><ul className="files">{facts.files.slice(0, 8).map((f) => <li key={f.path}><code>{f.path}</code>{f.edits > 1 ? <b>×{f.edits}</b> : null}</li>)}</ul>{facts.files.length > 8 ? <p className="muted">另有 {facts.files.length - 8} 个文件</p> : null}</>) : null}
-        {!shared && events.id === r.requestId && events.ev === null ? <p className="muted">正在读这一步的记录…</p> : null}
+        {facts.files.length ? (<><h5>{t("history.files")}</h5><ul className="files">{facts.files.slice(0, 8).map((f) => <li key={f.path}><code>{f.path}</code>{f.edits > 1 ? <b>×{f.edits}</b> : null}</li>)}</ul>{facts.files.length > 8 ? <p className="muted">{t("history.moreFiles", { n: facts.files.length - 8 })}</p> : null}</>) : null}
+        {!shared && events.id === r.requestId && events.ev === null ? <p className="muted">{t("history.loading")}</p> : null}
       </section>
     </aside>
   );
@@ -153,7 +153,7 @@ export function HistoryFocus({ p }: { p: Planet }) {
   const ghost = useMemo<Block | undefined>(() => {
     if (drawn || !req || req.class !== "produced" || !layout) return undefined;
     const house = p.blocks.find((b) => b.type === "house");
-    const street = layout.streets.find((s) => s.name === (req.topDir === null ? "其他" : req.topDir === "." ? "根目录" : req.topDir)) ?? layout.streets.find((s) => s.name === "其他") ?? layout.streets[0];
+    const street = layout.streets.find((s) => s.name === (req.topDir === null ? t("street.other") : req.topDir === "." ? t("street.root") : req.topDir)) ?? layout.streets.find((s) => s.name === t("street.other")) ?? layout.streets[0];
     const hall = p.blocks.find((b) => b.type === "hall");
     const at = street ? { x: street.x * 0.82, z: street.z * 0.82 } : hall ? { x: hall.spot.x + 2, z: hall.spot.z + 2 } : { x: 2, z: 2 };
     return { spot: { ...(house?.spot ?? {}), x: at.x, z: at.z, size: 1.2, info: { kind: "house", requestId: req.requestId } } as Block["spot"], type: "house", dir: house?.dir ?? [0, 1, 0], foot: house?.foot ?? p.unit, height: house?.height ?? p.unit, turn: 0, color: PRODUCT_COLOR[req.productKind ?? "code"] ?? PRODUCT_COLOR.code, live: false };
@@ -226,7 +226,7 @@ export function StandingAgents({ p }: { p: Planet }) {
     <>
       {actors.map(({ a, actor }) => (
         <Robot key={actor.id} id={actor.id} actor={actor} time={time} faction={p.town.faction} end={Infinity}
-          label={a.kind === "main" ? `主代理 · ${a.calls} 次调用` : `子代理${a.agentType ? ` · ${a.agentType}` : ""} · ${a.calls} 次`} />
+          label={a.kind === "main" ? t("history.mainLabel", { n: a.calls }) : t("history.subLabel", { type: a.agentType ? ` · ${a.agentType}` : "", n: a.calls })} />
       ))}
     </>
   );

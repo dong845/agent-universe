@@ -3,12 +3,13 @@
 // and layouts, so nothing moves. Whatever any label, card or list reads comes from this copy.
 import { maskedTitle } from "../../../schema/src/share.ts";
 import type { World25 } from "../v3/world25Data.ts";
+import { t, useLang } from "../i18n/index.ts";
 
 /** names: code names per town (null = keep project names); titles: keep request titles */
 export function maskWorld(w: World25, names: Record<string, string> | null, titles: boolean): World25 {
   const towns = names ? new Map([...w.towns].map(([k, t]) => [k, { ...t, name: names[k] ?? "?", guildOf: [], skillNote: undefined }])) : w.towns;
-  const requests = new Map([...w.requests].map(([k, r]) => [k, { ...r, title: titles ? r.title : maskedTitle(r), asked: titles ? r.asked : undefined, gist: titles ? r.gist : undefined, skills: names ? [] : r.skills, cwd: undefined }]));
-  const layouts = names ? new Map([...w.layouts].map(([k, l]) => [k, { ...l, streets: l.streets.map((s, i) => ({ ...s, name: `第 ${i + 1}` })) }])) : w.layouts;
+  const requests = new Map([...w.requests].map(([k, r]) => [k, { ...r, title: titles ? r.title : maskedTitle(r, useLang.getState().lang), asked: titles ? r.asked : undefined, gist: titles ? r.gist : undefined, skills: names ? [] : r.skills, cwd: undefined }]));
+  const layouts = names ? new Map([...w.layouts].map(([k, l]) => [k, { ...l, streets: l.streets.map((s, i) => ({ ...s, name: t("share.streetN", { n: i + 1 }) })) }])) : w.layouts;
   return { ...w, towns, requests, layouts };
 }
 

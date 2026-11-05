@@ -7,14 +7,12 @@ import { loadSeen, newMilestones, saveSeen, type Counts } from "../ui/milestones
 import { t, useLang } from "../i18n/index.ts";
 import { Search } from "../ui/Search.tsx";
 import { MiniWindow } from "../ui/MiniWindow.tsx";
+import { LangButton } from "../ui/LangButton.tsx";
 import { FrameGrab } from "../share/grab.ts";
 import { PosterButton } from "../share/PosterDialog.tsx";
-import { useRightPanel } from "../ui/rightPanel.ts";
 import { FollowCard } from "../city/FollowCard.tsx";
 import { TourHighlightCity, TourHighlightSpace } from "./TourHighlight.tsx";
 import * as THREE from "three";
-import themes from "../../../../config/themes.json" with { type: "json" };
-import type { ThemesConfig } from "../../../schema/src/themes.ts";
 import { useStore, type HoverTarget } from "../store.ts";
 import { Diary } from "../ui/Diary.tsx";
 import { CardBody } from "../ui/HoverCard.tsx";
@@ -37,10 +35,10 @@ import { ShareReplays } from "../share/ShareReplays.tsx";
 import { Tour } from "../ui/Tour.tsx";
 import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
 import { historySteps, useHistory } from "../city/history.ts";
+import { themeName } from "../i18n/data.ts";
 
-const T = themes as ThemesConfig;
-const themeName = (id: string) => T.themes.find((t) => t.id === id)?.name ?? ({ [T.default.id]: T.default.name, [T.fixed.capital.id]: T.fixed.capital.name, [T.fixed.outpost.id]: T.fixed.outpost.name } as Record<string, string>)[id] ?? id;
-const KIND_NAMES = { capital: "都城", guild: "技能公会", project: "项目", outpost: "野外营地" } as const;
+
+const KIND_NAMES = { capital: t("kind.capital"), guild: t("kind.guild"), project: t("kind.project"), outpost: t("kind.outpost") } as const;
 
 interface GL {
   id: string;
@@ -59,18 +57,18 @@ function labelsOf(g: Galaxy): GL[] {
   const out: GL[] = [];
   const sysOf = new Map(g.systems.map((s) => [s.faction, s]));
   for (const s of g.systems) {
-    out.push({ id: `star|${s.faction}`, emblem: s.faction, cls: `g-star f-${s.faction}`, title: s.faction === "codex" ? "Codex 星系" : "Claude Code 星系", sub: `${s.planets.length} 颗行星 · ${s.panels.length} 件成品`, priority: 1e9, at: (v) => v.set(s.x, s.shellRadius * 1.25, s.z) });
+    out.push({ id: `star|${s.faction}`, emblem: s.faction, cls: `g-star f-${s.faction}`, title: t("galaxy.star", { name: s.faction === "codex" ? "Codex" : "Claude Code" }), sub: t("galaxy.starSub", { p: s.planets.length, n: s.panels.length }), priority: 1e9, at: (v) => v.set(s.x, s.shellRadius * 1.25, s.z) });
   }
   for (const p of g.planets.values()) {
     const s = sysOf.get(p.town.faction)!;
-    out.push({ id: `planet|${p.key}`, emblem: p.town.faction, cls: `g-planet f-${p.town.faction}${p.live ? " live" : ""}`, title: p.town.name, sub: `${p.town.counts.produced} 件成品`, priority: 1e6 + p.town.counts.produced, at: (v) => { const [x, y, z] = planetPos(p, s, orbit.sec); return v.set(x, y + p.radius * 1.35, z); } });
+    out.push({ id: `planet|${p.key}`, emblem: p.town.faction, cls: `g-planet f-${p.town.faction}${p.live ? " live" : ""}`, title: p.town.name, sub: t("galaxy.planetSub", { n: p.town.counts.produced }), priority: 1e6 + p.town.counts.produced, at: (v) => { const [x, y, z] = planetPos(p, s, orbit.sec); return v.set(x, y + p.radius * 1.35, z); } });
     for (const b of p.blocks) {
       const i = b.spot.info;
       if (i.kind !== "public" && i.kind !== "hall") continue;
       const local = new THREE.Vector3(...b.dir).multiplyScalar(p.radius + b.height + b.foot * 0.9);
       out.push({
         id: `blk|${p.key}|${b.spot.cell}`, cls: "g-tag", near: p.key,
-        title: i.kind === "hall" ? "任务大厅" : WORK_NAMES[i.work] ?? i.work, sub: i.kind === "public" ? i.count.toLocaleString() : undefined,
+        title: i.kind === "hall" ? t("city.hall") : WORK_NAMES[i.work] ?? i.work, sub: i.kind === "public" ? i.count.toLocaleString() : undefined,
         priority: i.kind === "hall" ? 5e5 : i.count,
         at: (v) => { const o = spinOf.get(p.key); return o ? o.localToWorld(v.copy(local)) : null; },
       });
@@ -180,10 +178,10 @@ export function Badge({ f }: { f: "claude-code" | "codex" }) {
 function FocusBar({ g }: { g: Galaxy }) {
   const focus = useStore((s) => s.focus);
   const p = focus ? g.planets.get(focus) : undefined;
-  if (!p) return <div className="g-hint">滚轮对着行星放大会锁定跟随 · 拖动旋转 · 右键平移</div>;
+  if (!p) return <div className="g-hint">{t("galaxy.hint")}</div>;
   return (
     <div className="g-focus">
-      <button onClick={() => { const st = useStore.getState(); st.select(null); st.setFocus(null); }} data-testid="g-overview">← 回到全景</button>
+      <button onClick={() => { const st = useStore.getState(); st.select(null); st.setFocus(null); }} data-testid="g-overview">{t("galaxy.overview")}</button>
       <span><Badge f={p.town.faction} />{p.town.name}</span>
     </div>
   );
@@ -205,16 +203,16 @@ function Labels({ labels }: { labels: GL[] }) {
 function PlanetCard({ district, g }: { district: string; g: Galaxy }) {
   const p = g.planets.get(district);
   if (!p) return null;
-  const t = p.town;
+  const town = p.town;
   return (
     <div data-testid="planet-card">
-      <h4>{t.name}<small>{KIND_NAMES[t.kind]}</small></h4>
-      {t.skillNote ? <div className="muted">{t.skillNote}</div> : null}
-      <div className="row"><span>主题</span><b>{themeName(t.theme)}</b></div>
-      <div className="row"><span>成品</span><b>{t.counts.produced} 件</b></div>
-      <div className="row"><span>调查</span><b>{t.counts.investigation} 次</b></div>
-      <div className="row"><span>问答</span><b>{t.counts.chat + t.counts.empty} 次</b></div>
-      <div className="muted">行星大小 = 成品数{p.ring ? " · 光环 = 成品满 40 件" : ""} · 点击飞过去</div>
+      <h4>{town.name}<small>{KIND_NAMES[town.kind]}</small></h4>
+      {town.skillNote ? <div className="muted">{town.skillNote}</div> : null}
+      <div className="row"><span>{t("card.theme")}</span><b>{themeName(town.theme)}</b></div>
+      <div className="row"><span>{t("card.produced")}</span><b>{t("card.producedN", { n: town.counts.produced })}</b></div>
+      <div className="row"><span>{t("card.investigation")}</span><b>{t("card.timesN", { n: town.counts.investigation })}</b></div>
+      <div className="row"><span>{t("card.chat")}</span><b>{t("card.timesN", { n: town.counts.chat + town.counts.empty })}</b></div>
+      <div className="muted">{t("card.planetHint", { ring: p.ring ? t("card.ring") : "" })}</div>
     </div>
   );
 }
@@ -237,20 +235,20 @@ function GalaxyHoverCard({ g }: { g: Galaxy }) {
 }
 
 function ShellMeter({ g }: { g: Galaxy }) {
-  const t = useStore((s) => s.uiT);
+  const uiT = useStore((s) => s.uiT);
   return (
     <div className="g-meter">
       {g.systems.map((s) => {
-        const n = panelsAt(s, absTime(t));
+        const n = panelsAt(s, absTime(uiT));
         return (
           <div key={s.faction}>
-            <span>{s.faction === "codex" ? "Codex" : "Claude Code"} 戴森壳</span>
+            <span>{t("meter.shell", { name: s.faction === "codex" ? "Codex" : "Claude Code" })}</span>
             <i><em style={{ width: `${Math.min(100, (n / SHELL_FACES) * 100)}%`, background: FACTION_COLOR[s.faction] }} /></i>
-            <b>{Math.min(n, SHELL_FACES)} / {SHELL_FACES} 片{n > SHELL_FACES ? "（已满）" : ""}</b>
+            <b>{t("meter.panels", { n: Math.min(n, SHELL_FACES), total: SHELL_FACES })}{n > SHELL_FACES ? t("meter.full") : ""}</b>
           </div>
         );
       })}
-      {g.systems.some((s) => s.hidden) ? <small data-testid="hidden-note">另有 {g.systems.reduce((a, s) => a + s.hidden, 0)} 个小项目未显示（成品不到 {MIN_PRODUCED} 件），仍计入戴森壳</small> : null}
+      {g.systems.some((s) => s.hidden) ? <small data-testid="hidden-note">{t("meter.hidden", { n: g.systems.reduce((a, s) => a + s.hidden, 0), min: MIN_PRODUCED })}</small> : null}
     </div>
   );
 }
@@ -258,15 +256,15 @@ function ShellMeter({ g }: { g: Galaxy }) {
 const sw = (c: string) => <i className="sw" style={{ background: c }} />;
 function Legend() {
   const [open, setOpen] = useState(true);
-  if (!open) return <button className="legend g-legend g-legend-min" onClick={() => setOpen(true)} data-testid="legend">怎么看 ▸</button>;
+  if (!open) return <button className="legend g-legend g-legend-min" onClick={() => setOpen(true)} data-testid="legend">{t("legend.open")}</button>;
   return (
     <div className="legend g-legend" data-testid="legend">
-      <b>怎么看</b><button className="g-x" onClick={() => setOpen(false)} aria-label="收起">收起</button>
-      <div>恒星 = 一方：左 Claude Code，右 Codex · 戴森壳每亮一片 = 一件成品</div>
-      <div>行星 = 一个项目或技能公会，越大成品越多 · 有光环 = 成品满 40 件</div>
-      <div>方楼 = 主要成品，灯带颜色是种类：{sw(PRODUCT_COLOR.code)}代码 {sw(PRODUCT_COLOR.docs)}文档 {sw(PRODUCT_COLOR.slides)}幻灯 {sw(PRODUCT_COLOR.image)}图片 {sw(PRODUCT_COLOR.video)}影音 {sw(PRODUCT_COLOR.data)}数据</div>
-      <div>圆塔 = 一类工作（{sw(WORK_COLOR.scout)}读代码 {sw(WORK_COLOR.smith)}改代码 {sw(WORK_COLOR.engineer)}跑命令 {sw(WORK_COLOR.inspector)}测试…）· 雷达罩 = 大的调查 · 尖塔 = 地标 · 六角 = 任务大厅</div>
-      <div>传送带光点 = 工具调用，越密次数越多 · 光束 = 正在进行 · 飞船 = 同一会话在两个项目间切换</div>
+      <b>{t("legend.title")}</b><button className="g-x" onClick={() => setOpen(false)} aria-label={t("legend.fold")}>{t("legend.fold")}</button>
+      <div>{t("legend.stars")}</div>
+      <div>{t("legend.planets")}</div>
+      <div>{t("legend.blocks")}{sw(PRODUCT_COLOR.code)}{t("product.code")} {sw(PRODUCT_COLOR.docs)}{t("product.docs")} {sw(PRODUCT_COLOR.slides)}{t("product.slides")} {sw(PRODUCT_COLOR.image)}{t("product.image")} {sw(PRODUCT_COLOR.video)}{t("product.video")} {sw(PRODUCT_COLOR.data)}{t("product.data")}</div>
+      <div>{t("legend.towers")}{sw(WORK_COLOR.scout)}{t("work.scout")} {sw(WORK_COLOR.smith)}{t("work.smith")} {sw(WORK_COLOR.engineer)}{t("work.engineer")} {sw(WORK_COLOR.inspector)}{t("work.inspector")}{t("legend.towersEnd")}</div>
+      <div>{t("legend.belts")}</div>
     </div>
   );
 }
@@ -294,7 +292,7 @@ function FpsMeter() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
-  return <div className="g-fps" data-testid="fps">{text || "测量中…"}</div>;
+  return <div className="g-fps" data-testid="fps">{text || t("fps.measuring")}</div>;
 }
 
 const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -310,18 +308,18 @@ function ReplayBar() {
   const end = r.tl.duration;
   return (
     <div className="g-replay" data-testid="replay-bar">
-      <span className="tag">重放</span>
+      <span className="tag">{t("replay.tag")}</span>
       <b title={title}>{title}</b>
-      <button onClick={() => useReplay.getState().toggle()} aria-label={r.playing ? "暂停" : "播放"}>{r.playing ? "❚❚" : "▶"}</button>
-      <button onClick={() => useReplay.getState().next()} title="跳到下一步动作" data-testid="replay-next">⏭ 下一步</button>
-      <select value={r.speed} onChange={(e) => useReplay.getState().setSpeed(Number(e.target.value))} aria-label="重放倍速">
+      <button onClick={() => useReplay.getState().toggle()} aria-label={r.playing ? t("time.pause") : t("time.play")}>{r.playing ? "❚❚" : "▶"}</button>
+      <button onClick={() => useReplay.getState().next()} title={t("replay.nextHint")} data-testid="replay-next">{t("replay.next")}</button>
+      <select value={r.speed} onChange={(e) => useReplay.getState().setSpeed(Number(e.target.value))} aria-label={t("replay.speed")}>
         {REPLAY_SPEEDS.map((x) => <option key={x} value={x}>{x}×</option>)}
       </select>
-      <input type="range" min={0} max={Math.max(1, end)} step={100} value={Math.min(r.t, end)} onChange={(e) => useReplay.getState().seek(Number(e.target.value))} aria-label="重放进度" />
-      <span className="time" title={r.cut ? `长于 5 秒的空闲已压缩，共省去 ${mmss(r.cut)}` : undefined}>{mmss(Math.min(r.t, end))} / {mmss(end)}{r.cut ? " · 已压缩空闲" : ""}</span>
-      <label className="follow"><input type="checkbox" checked={r.follow} onChange={(e) => useReplay.getState().setFollow(e.target.checked)} />跟随</label>
-      <button onClick={() => useRecordUi.getState().open()} disabled={recording} data-testid="rec-open" title="把这次重放录成视频或动图">● 录制</button>
-      <button onClick={() => useReplay.getState().stop()} aria-label="结束重放">✕</button>
+      <input type="range" min={0} max={Math.max(1, end)} step={100} value={Math.min(r.t, end)} onChange={(e) => useReplay.getState().seek(Number(e.target.value))} aria-label={t("replay.bar")} />
+      <span className="time" title={r.cut ? t("replay.cutHint", { t: mmss(r.cut) }) : undefined}>{mmss(Math.min(r.t, end))} / {mmss(end)}{r.cut ? t("replay.cut") : ""}</span>
+      <label className="follow"><input type="checkbox" checked={r.follow} onChange={(e) => useReplay.getState().setFollow(e.target.checked)} />{t("replay.follow")}</label>
+      <button onClick={() => useRecordUi.getState().open()} disabled={recording} data-testid="rec-open" title={t("replay.recHint")}>{t("replay.rec")}</button>
+      <button onClick={() => useReplay.getState().stop()} aria-label={t("replay.end")}>✕</button>
     </div>
   );
 }
@@ -337,10 +335,10 @@ function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
   const steps = historySteps(w, p.key);
   return (
     <div className="g-focus g-citybar">
-      <button onClick={onLeave} data-testid="leave-city">← 返回太空</button>
+      <button onClick={onLeave} data-testid="leave-city">{t("city.leave")}</button>
       <span><Badge f={p.town.faction} />{p.town.name}<small>{themeName(p.town.theme)} · {p.town.faction === "codex" ? "Codex" : "Claude Code"}</small></span>
-      <em>{live ? `${live} 个请求正在进行` : history ? "历史：点一栋房子跳到它那一步" : "现在没有进行中的请求 · 点一栋房子可以重放那次请求"}</em>
-      {!history && steps.length ? <button className="g-history-btn" data-testid="history-open" onClick={() => { useHistory.getState().open(p.key, steps.length); goToStep(steps, steps.length); }}>⟲ 历史</button> : null}
+      <em>{live ? t("city.liveN", { n: live }) : history ? t("city.historyHint") : t("city.idleHint")}</em>
+      {!history && steps.length ? <button className="g-history-btn" data-testid="history-open" onClick={() => { useHistory.getState().open(p.key, steps.length); goToStep(steps, steps.length); }}>{t("city.history")}</button> : null}
     </div>
   );
 }
@@ -363,14 +361,14 @@ function CityLegend() {
       // not remembered
     }
   };
-  if (!open) return <button className="legend g-legend g-legend-min" onClick={() => setOpen(true)} data-testid="legend">怎么看 ▸</button>;
+  if (!open) return <button className="legend g-legend g-legend-min" onClick={() => setOpen(true)} data-testid="legend">{t("legend.open")}</button>;
   return (
     <div className="legend g-legend g-legend-city" data-testid="legend">
-      <b>城里怎么看</b><button className="g-x" onClick={() => setOpen(false)} aria-label="收起">收起</button>
-      <div>小机器人 = 正在干活的代理：面罩是阵营色，头顶有阵营徽标的是主代理；小一号的是子代理，胸灯是它的工种色</div>
-      <div>头顶的字 = 它此刻在做什么；它走到哪栋圆塔，就是在用哪类工具（读代码、跑命令、测试…）</div>
-      <div>圆塔 = 一类工作的地方 · 方楼 = 主要成品 · 雷达罩 = 大的调查 · 六角 = 任务大厅 · 光束 = 正在进行</div>
-      <div>传送带光点 = 工具调用 · 点一栋方楼 → 任务日记 → 「在城里重放这次请求」</div>
+      <b>{t("citylegend.title")}</b><button className="g-x" onClick={() => setOpen(false)} aria-label={t("legend.fold")}>{t("legend.fold")}</button>
+      <div>{t("citylegend.robots")}</div>
+      <div>{t("citylegend.words")}</div>
+      <div>{t("citylegend.blocks")}</div>
+      <div>{t("citylegend.belts")}</div>
     </div>
   );
 }
@@ -393,7 +391,8 @@ function EmptyLogsCard({ where }: { where: { claude: string; codex: string } }) 
 
 export function GalaxyApp() {
   const source = useStore((s) => s.source);
-  const toolsSide = useRightPanel();
+  // the task diary covers the top right; the history panel starts below the tools
+  const toolsSide = useStore((s) => !!s.selected);
   const emptyLogs = useStore((s) => s.emptyLogs);
   const w = useStore((s) => s.w25);
   const city = useStore((s) => s.city);
@@ -501,7 +500,7 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : emptyLogs ? t("empty.badge") : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? t("badge.real") : source === "share" ? t("badge.share") : emptyLogs ? t("empty.badge") : t("badge.demo")}</div>
       <Tour biggest={tourBiggest} hasRobot={!!(tourBiggest && g.planets.get(tourBiggest)?.live)} />
       {emptyLogs ? <EmptyLogsCard where={emptyLogs} /> : null}
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /><Search towns={searchList} /></>}
@@ -521,6 +520,7 @@ export function GalaxyApp() {
         {source === "real" && !cp ? <ExportShare /> : null}
         {source !== "share" && !cp ? <PosterButton /> : null}
         <MiniWindow />
+        <LangButton />
       </div>
       {source === "share" ? <ShareReplays /> : null}
       <Toast />

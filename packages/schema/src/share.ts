@@ -24,12 +24,19 @@ export interface ShareOptions {
   titles: boolean;
   /** requests whose replay goes along, with their full events (reduced here) */
   replays: { requestId: string; events: AgentTownEvent[] }[];
+  /** the language masked titles are written in (spec 2026-11-05 D); default Chinese */
+  lang?: "zh" | "en";
 }
 
-const CLASS_TEXT: Record<RequestRow["class"], string> = { produced: "完成作品", investigation: "调查", chat: "问答", empty: "空请求" };
+const CLASS_TEXT: Record<"zh" | "en", Record<RequestRow["class"], string>> = {
+  zh: { produced: "完成作品", investigation: "调查", chat: "问答", empty: "空请求" },
+  en: { produced: "Finished work", investigation: "Investigation", chat: "Q&A", empty: "Empty request" },
+};
 
-export function maskedTitle(r: RequestRow): string {
-  return r.calls > 0 && r.class !== "chat" ? `${CLASS_TEXT[r.class]} · ${r.calls} 次调用` : CLASS_TEXT[r.class];
+/** what a request was, standing in for its title when titles are hidden */
+export function maskedTitle(r: RequestRow, lang: "zh" | "en" = "zh"): string {
+  const c = CLASS_TEXT[lang][r.class];
+  return r.calls > 0 && r.class !== "chat" ? (lang === "zh" ? `${c} · ${r.calls} 次调用` : `${c} · ${r.calls} calls`) : c;
 }
 
 /** code names per town key, made unique with a "·2" suffix in key order (two towns may hash alike) */
@@ -76,7 +83,7 @@ export function sharePayload(p: WorldPayload, o: ShareOptions): WorldPayload {
     startTs: r.startTs,
     endTs: r.endTs,
     ok: r.ok,
-    title: titles && r.title ? r.title : maskedTitle(r),
+    title: titles && r.title ? r.title : maskedTitle(r, o.lang),
     class: r.class,
     productKind: r.productKind,
     tokens: { ...r.tokens },

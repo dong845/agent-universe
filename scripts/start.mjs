@@ -13,6 +13,26 @@ import { fileURLToPath } from "node:url";
 
 const MIN = [22, 18];
 
+/** zh for a Chinese locale (LANG / LC_ALL / LC_MESSAGES = zh_*), English otherwise (spec 2026-11-05 D) */
+export function langOf(env = process.env) {
+  const v = env.LC_ALL || env.LC_MESSAGES || env.LANG || "";
+  return v.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+const WORDS = {
+  zh: {
+    exit: "退出码 {code}", noCorepack: "。这个 Node 没有带 corepack：运行 npm install -g corepack 后再试", failed: "✗ {what}失败（{cmd}：{why}）{hint}",
+    open: "请在浏览器打开 {url}", oldNode: "✗ 需要 Node {min} 或更新（现在是 {v}）。到 https://nodejs.org 下载 LTS 版本后再运行 npm start。",
+    running: "Agent Universe 已经在运行：{url}", install: "安装依赖（第一次需要一两分钟）", build: "构建网页",
+  },
+  en: {
+    exit: "exit code {code}", noCorepack: ". This Node has no corepack: run npm install -g corepack and try again", failed: "✗ {what} failed ({cmd}: {why}){hint}",
+    open: "Open {url} in your browser", oldNode: "✗ Needs Node {min} or newer (this is {v}). Get the LTS version from https://nodejs.org, then run npm start again.",
+    running: "Agent Universe is already running: {url}", install: "Installing dependencies (a minute or two the first time)", build: "Building the page",
+  },
+};
+const L = langOf();
+export const msg = (key, vars = {}, lang = L) => WORDS[lang][key].replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+
 /** TypeScript runs directly from Node 22.18 (type stripping on by default) */
 export function nodeOk(version = process.version) {
   const [maj, min] = version.replace(/^v/, "").split(".").map(Number);
@@ -68,9 +88,9 @@ function run(cmd, args, root, what, shell = false) {
   console.log(`→ ${what}`);
   const r = spawnSync(cmd, args, { cwd: root, stdio: "inherit", shell, env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" } });
   if (r.status !== 0) {
-    const why = r.error ? r.error.message : `退出码 ${r.status ?? r.signal}`;
-    const hint = cmd === "corepack" && r.error ? "。这个 Node 没有带 corepack：运行 npm install -g corepack 后再试" : "";
-    console.error(`✗ ${what}失败（${cmd} ${args.join(" ")}：${why}）${hint}`);
+    const why = r.error ? r.error.message : msg("exit", { code: r.status ?? r.signal });
+    const hint = cmd === "corepack" && r.error ? msg("noCorepack") : "";
+    console.error(msg("failed", { what, cmd: `${cmd} ${args.join(" ")}`, why, hint }));
     process.exit(1);
   }
 }
@@ -78,7 +98,7 @@ function run(cmd, args, root, what, shell = false) {
 /** opens the page; when the system has no opener, says where the page is instead (never crashes) */
 export function openBrowser(url, override) {
   const [cmd, args] = override ? [override, [url]] : process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
-  const say = () => console.log(`请在浏览器打开 ${url}`);
+  const say = () => console.log(msg("open", { url }));
   try {
     const child = spawn(cmd, args, { stdio: "ignore", detached: true });
     child.on("error", say);
@@ -107,19 +127,19 @@ async function main() {
   const url = `http://127.0.0.1:${port}/`;
 
   if (!nodeOk()) {
-    console.error(`✗ 需要 Node ${MIN.join(".")} 或更新（现在是 ${process.version}）。到 https://nodejs.org 下载 LTS 版本后再运行 npm start。`);
+    console.error(msg("oldNode", { min: MIN.join("."), v: process.version }));
     process.exit(1);
   }
   if (await alreadyRunning(port)) {
-    console.log(`Agent Universe 已经在运行：${url}`);
+    console.log(msg("running", { url }));
     if (!noOpen) openBrowser(url);
     return;
   }
   if (needsInstall(root)) {
     const ic = installCommand();
-    run(ic.cmd, ic.args, root, "安装依赖（第一次需要一两分钟）", ic.shell);
+    run(ic.cmd, ic.args, root, msg("install"), ic.shell);
   }
-  if (needsBuild(root)) run(process.execPath, ["--run", "build"], root, "构建网页");
+  if (needsBuild(root)) run(process.execPath, ["--run", "build"], root, msg("build"));
 
   const server = spawn(process.execPath, [join(root, "scripts", "serve.ts"), ...pass], { cwd: root, stdio: "inherit" });
   server.on("exit", (code) => process.exit(code ?? 0));

@@ -9,7 +9,7 @@ import type { ThemesConfig } from "../../schema/src/themes.ts";
 import { buildTowns } from "../../schema/src/towns.ts";
 import { DEFAULT_WORLD_CONFIG } from "../../schema/src/worldConfig.ts";
 import themesConfig from "../../../config/themes.json" with { type: "json" };
-import { Builder, DEMO, demoScenario, tk } from "./scenario.ts";
+import { Builder, DEMO, demoLang, demoScenario, say, tk } from "./scenario.ts";
 
 export interface MockProject {
   projectId: string;
@@ -63,7 +63,7 @@ function history(p: MockProject): AgentTownEvent[] {
     const sec = start / 1000;
     const tokens = Math.round(p.scale * Math.exp((r() - 0.5) * 2.2));
     const minutes = 2 + r() * 38;
-    b.taskStart(sec, `历史任务 #${i + 1}`);
+    b.taskStart(sec, say(`历史任务 #${i + 1}`, `Earlier task #${i + 1}`));
     // a task's tokens as one call: cache-heavy like real sessions
     b.think("main", sec + 30, tk(Math.round(tokens * 0.02), Math.round(tokens * 0.86), Math.round(tokens * 0.08), Math.round(tokens * 0.04)));
     // what it did: mostly finished work in a few folders, some long investigations, some questions
@@ -94,12 +94,12 @@ function history(p: MockProject): AgentTownEvent[] {
 function codexLive(): AgentTownEvent[] {
   const b = new Builder({ faction: "codex", projectId: "/demo/web-shop", sessionId: "codex:web-shop:live", prefix: "live:codex", model: "demo-model-c" });
   const C = "src/cart/checkout.ts";
-  b.taskStart(5, "结账页接入新的重试客户端");
+  b.taskStart(5, say("结账页接入新的重试客户端", "Wire the checkout page to the new retry client"));
   b.think("main", 6.5, { ...tk(4200, 18000, 0, 520), reasoning: 300 });
   b.tool("main", 7.0, 0.4, "exec_command", "scout", "rg -n fetchJson src/cart");
   b.tool("main", 8.0, 0.3, "exec_command", "scout", `sed -n 1,80p ${C}`);
   b.think("main", 9.5, { ...tk(2600, 24000, 0, 640), reasoning: 420 });
-  const sp = b.spawn(10.5, "codex-sub", "subagent", "scout", "核对购物车的错误码");
+  const sp = b.spawn(10.5, "codex-sub", "subagent", "scout", say("核对购物车的错误码", "Check the cart's error codes"));
   b.think("codex-sub", 12.0, { ...tk(1800, 9000, 0, 260), reasoning: 120 }, "scout");
   b.tool("codex-sub", 12.5, 0.5, "exec_command", "scout", "rg -n ERR_ src/cart");
   b.think("codex-sub", 14.0, { ...tk(900, 11000, 0, 380), reasoning: 90 }, "scout");
@@ -144,7 +144,8 @@ export function worldScenario(): AgentTownEvent[] {
 }
 
 /** the demo world as the browser loads it (?demo=1): every event in full, live = tasks with tool calls */
-export function demoPayload(): WorldPayload {
+export function demoPayload(lang: "zh" | "en" = "zh"): WorldPayload {
+  demoLang.lang = lang;
   const events = worldScenario();
   // the live window's tasks; history tasks have steps too now, but they are finished
   const live = [...new Set(events.filter((e) => e.kind === "tool_start" && e.taskId && !e.sessionId.endsWith(":history")).map((e) => e.taskId!))];

@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatCount } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
-import { ROLE_NAMES } from "../../../schema/src/world.ts";
+import { roleName } from "../i18n/data.ts";
 import { fetchTask } from "../data.ts";
 import { useStore } from "../store.ts";
 import { districtKey } from "../orchestrator/worldgen.ts";
 import { diaryOf, taskOfSelection, type Diary as DiaryT, type DiaryStep } from "./diaryModel.ts";
 import { TokenRows } from "./HoverCard.tsx";
 import { RequestDiary, TownPanel } from "../v3/Cards25.tsx";
+import { t } from "../i18n/index.ts";
 
 /** steps rendered at once; the rest behind a "还有 N 步" button */
 const FIRST_STEPS = 200;
@@ -25,20 +26,20 @@ const dateTime = (ms: number) => {
 };
 function dur(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s} 秒`;
-  if (s < 3600) return `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
-  return `${Math.floor(s / 3600)} 小时 ${Math.floor((s % 3600) / 60)} 分`;
+  if (s < 60) return t("diary.s", { n: s });
+  if (s < 3600) return t("diary.ms", { m: Math.floor(s / 60), s: s % 60 });
+  return t("diary.hm", { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) });
 }
-const OUTCOME = { ok: "成功", error: "失败", unknown: "未见结束", running: "进行中" } as const;
-const OPENED_BY = { peer: "子代理回报后继续", compact: "上下文压缩后继续", meta: "系统消息后继续", other: "系统消息后继续" } as const;
-const PLACED = { files: "按改动的文件", inferred: "按命令里的路径推断", cwd: "按启动目录" } as const;
+const OUTCOME = { ok: t("outcome.ok"), error: t("outcome.error"), unknown: t("outcome.unknown"), running: t("outcome.running") } as const;
+const OPENED_BY = { peer: t("opened.peer"), compact: t("opened.compact"), meta: t("opened.meta"), other: t("opened.meta") } as const;
+const PLACED = { files: t("placed.files"), inferred: t("placed.inferred"), cwd: t("placed.cwd") } as const;
 
 function Step({ s }: { s: DiaryStep }) {
   return (
     <div className={`step ${s.status === "error" || s.status === "denied" ? "bad" : ""}`} data-step>
       <span className="when">{hms(s.ts)}</span>
-      <span className="role">{s.role ? ROLE_NAMES[s.role] : "—"}</span>
-      <span className="tool">{s.tool}{s.status === "denied" ? " · 被拒绝" : s.status === "error" ? " · 失败" : s.status === "running" ? " · 进行中" : ""}</span>
+      <span className="role">{s.role ? roleName(s.role) : "—"}</span>
+      <span className="tool">{s.tool}{s.status === "denied" ? t("step.denied") : s.status === "error" ? t("step.error") : s.status === "running" ? t("step.running") : ""}</span>
       <span className="tk">{s.tokens ? formatCount(s.tokens) : "—"}</span>
       {s.target ? <span className="target" title={s.target}>{s.target}</span> : null}
     </div>
@@ -51,7 +52,7 @@ function Steps({ steps }: { steps: DiaryStep[] }) {
   return (
     <>
       {shown.map((s, i) => <Step key={i} s={s} />)}
-      {steps.length > shown.length ? <button className="more" onClick={() => setAll(true)}>还有 {steps.length - shown.length} 步</button> : null}
+      {steps.length > shown.length ? <button className="more" onClick={() => setAll(true)}>{t("diary.more", { n: steps.length - shown.length })}</button> : null}
     </>
   );
 }
@@ -63,7 +64,7 @@ export function Diary() {
     return (
       <aside className="diary" data-testid="diary">
         <header>
-          <button className="back" onClick={() => useStore.getState().back()} aria-label="返回">← 返回</button>
+          <button className="back" onClick={() => useStore.getState().back()} aria-label={t("diary.backAria")}>{t("diary.back")}</button>
         </header>
         {selected.kind === "request" ? <RequestDiary district={selected.district} requestId={selected.requestId} /> : <TownPanel district={selected.district} />}
       </aside>
@@ -99,47 +100,47 @@ function TaskDiary() {
   return (
     <aside className="diary" data-testid="diary">
       <header>
-        <button className="back" onClick={() => useStore.getState().back()} aria-label="返回">← 返回</button>
+        <button className="back" onClick={() => useStore.getState().back()} aria-label={t("diary.backAria")}>{t("diary.back")}</button>
         <small>{town ? `${town.faction === "codex" ? "Codex" : "Claude Code"} · ${town.name}` : ""}</small>
       </header>
       {!taskId ? (
-        <p className="muted">这里现在没有进行中的任务</p>
+        <p className="muted">{t("diary.noTask")}</p>
       ) : got?.error ? (
-        <p className="muted">读取任务失败：{got.error}</p>
+        <p className="muted">{t("diary.failed", { why: got.error })}</p>
       ) : !d ? (
-        <p className="muted">正在读取任务记录…</p>
+        <p className="muted">{t("diary.loading")}</p>
       ) : (
         <>
-          <h3>{d.title ?? (d.continues ? `接续：${d.continues}` : "（无标题：系统触发的任务）")}</h3>
-          <div className="meta">{d.triggerBy ? `${OPENED_BY[d.triggerBy]} · ` : ""}{d.models.join("、") || "模型未知"}{d.projectBy ? ` · 归入此镇：${PLACED[d.projectBy]}` : ""}</div>
-          <div className="row"><span>开始</span><b>{dateTime(d.start)}</b></div>
-          <div className="row"><span>结束</span><b>{d.end !== null ? dateTime(d.end) : "—"}</b></div>
-          <div className="row"><span>用时</span><b>{d.end !== null ? dur(d.end - d.start) : "—"}</b></div>
-          <div className={`row outcome-${d.outcome}`}><span>结果</span><b>{OUTCOME[d.outcome]}</b></div>
-          <TokenRows t={d.tokens} label="合计 token" />
-          <div className="row"><span>其中子代理</span><b>{formatCount(d.subagentTokens)}</b></div>
+          <h3>{d.title ?? (d.continues ? t("worldgen.continues", { title: d.continues }) : t("diary.untitledSystem"))}</h3>
+          <div className="meta">{d.triggerBy ? `${OPENED_BY[d.triggerBy]} · ` : ""}{d.models.join(t("gist.sep")) || t("diary.noModel")}{d.projectBy ? t("diary.placed", { how: PLACED[d.projectBy] }) : ""}</div>
+          <div className="row"><span>{t("diary.start")}</span><b>{dateTime(d.start)}</b></div>
+          <div className="row"><span>{t("diary.end")}</span><b>{d.end !== null ? dateTime(d.end) : "—"}</b></div>
+          <div className="row"><span>{t("diary.took")}</span><b>{d.end !== null ? dur(d.end - d.start) : "—"}</b></div>
+          <div className={`row outcome-${d.outcome}`}><span>{t("diary.result")}</span><b>{OUTCOME[d.outcome]}</b></div>
+          <TokenRows t={d.tokens} label={t("diary.tokens")} />
+          <div className="row"><span>{t("diary.subTokens")}</span><b>{formatCount(d.subagentTokens)}</b></div>
           <button
             className="replay"
             disabled={!d.replayable || replay?.taskId === d.taskId}
-            title={d.replayable ? "在这个镇的工地上把这个任务从地基重新盖一遍" : "这个演示任务只有摘要，没有逐步记录"}
+            title={d.replayable ? t("diary.replayHint") : t("diary.noReplay")}
             onClick={() => got?.events?.length && useStore.getState().startReplay(districtKey(got.events[0]), got.events)}
           >
-            重放
+            {t("diary.replay")}
           </button>
           {d.rework.length ? (
             <section>
-              <h4>返工</h4>
-              {d.rework.map((r) => <div key={r.file} className="row"><span className="target">{r.file}</span><b>改了 {r.edits} 次</b></div>)}
+              <h4>{t("diary.rework")}</h4>
+              {d.rework.map((r) => <div key={r.file} className="row"><span className="target">{r.file}</span><b>{t("diary.editsN", { n: r.edits })}</b></div>)}
             </section>
           ) : null}
           <section>
-            <h4>步骤 · 指挥官 {d.main.length} 步</h4>
-            <div className="stephead"><span>时间</span><span>角色</span><span>工具</span><span>token</span></div>
+            <h4>{t("diary.steps", { n: d.main.length })}</h4>
+            <div className="stephead"><span>{t("diary.colTime")}</span><span>{t("diary.colRole")}</span><span>{t("diary.colTool")}</span><span>token</span></div>
             <Steps steps={d.main} />
           </section>
           {d.agents.map((a) => (
             <details key={a.agentId} className="agent">
-              <summary>子代理 · {a.agentType ?? a.agentId} · {a.steps.length} 步 · {formatCount(a.tokens)}</summary>
+              <summary>{t("diary.subSummary", { who: a.agentType ?? a.agentId, n: a.steps.length, tokens: formatCount(a.tokens) })}</summary>
               {a.agentTask ? <div className="task">{a.agentTask}</div> : null}
               <Steps steps={a.steps} />
             </details>

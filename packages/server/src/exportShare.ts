@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorldPayload } from "../../schema/src/payload.ts";
+import { say, type Lang } from "./text.ts";
 
 /** the models a shared world needs, by name (public/models/<name>.glb) */
 export const SHARE_MODELS = ["city", "robot"] as const;
@@ -14,8 +15,8 @@ export class ShareTooBig extends Error {
   // plain fields: node runs this file by stripping types, which has no parameter properties
   readonly bytes: number;
   readonly parts: { name: string; bytes: number }[];
-  constructor(bytes: number, parts: { name: string; bytes: number }[]) {
-    super(`分享页 ${(bytes / 1e6).toFixed(1)} MB，超过上限：最大的部分是 ${parts.slice(0, 3).map((p) => `${p.name} ${(p.bytes / 1e6).toFixed(1)} MB`).join("、")}`);
+  constructor(bytes: number, parts: { name: string; bytes: number }[], lang: Lang = "zh") {
+    super(say(lang, "export.tooBig", { mb: (bytes / 1e6).toFixed(1), parts: parts.slice(0, 3).map((p) => `${p.name} ${(p.bytes / 1e6).toFixed(1)} MB`).join(lang === "zh" ? "、" : ", ") }));
     this.bytes = bytes;
     this.parts = parts;
   }
@@ -27,32 +28,32 @@ const embedJson = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
 const embedJs = (s: string) => s.replace(/<\/(script)/gi, "<\\/$1");
 const embedCss = (s: string) => s.replace(/<\/(style)/gi, "<\\/$1");
 
-export function buildShareHtml(dist: string, payload: WorldPayload, maxBytes = SHARE_MAX_BYTES): string {
+export function buildShareHtml(dist: string, payload: WorldPayload, maxBytes = SHARE_MAX_BYTES, lang: Lang = "zh"): string {
   const index = readFileSync(join(dist, "index.html"), "utf8");
   const scripts = [...index.matchAll(/<script[^>]*\ssrc="\/([^"]+)"[^>]*><\/script>/g)];
-  if (scripts.length !== 1) throw new Error(`分享页需要网页构建只有一个脚本，现在有 ${scripts.length} 个（检查 vite 的分包设置）`);
+  if (scripts.length !== 1) throw new Error(say(lang, "export.oneScript", { n: scripts.length }));
   const styles = [...index.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"[^>]*>/g)];
   const js = readFileSync(join(dist, scripts[0][1]), "utf8");
   // inside a <script> block, "<!--" sends the HTML parser into a state where a later "<script" makes
   // the block's own end tag invisible: the page would never start. Refuse loudly rather than write it.
-  if (/<!--/.test(js)) throw new Error("网页程序里含有 <!--，内联进分享页会让页面无法启动；请检查最近更新的依赖");
+  if (/<!--/.test(js)) throw new Error(say(lang, "export.comment"));
   const css = styles.map((m) => readFileSync(join(dist, m[1]), "utf8")).join("\n");
   const models = Object.fromEntries(SHARE_MODELS.map((m) => [m, readFileSync(join(dist, "models", `${m}.glb`)).toString("base64")]));
 
   const parts = [
-    { name: "网页程序", bytes: js.length },
-    { name: "样式", bytes: css.length },
-    ...SHARE_MODELS.map((m) => ({ name: `${m} 模型`, bytes: models[m].length })),
-    { name: "世界数据", bytes: embedJson(payload).length },
+    { name: say(lang, "export.part.js"), bytes: js.length },
+    { name: say(lang, "export.part.css"), bytes: css.length },
+    ...SHARE_MODELS.map((m) => ({ name: say(lang, "export.part.model", { name: m }), bytes: models[m].length })),
+    { name: say(lang, "export.part.world"), bytes: embedJson(payload).length },
   ].sort((a, b) => b.bytes - a.bytes);
   const total = parts.reduce((a, p) => a + p.bytes, 0);
-  if (total > maxBytes) throw new ShareTooBig(total, parts);
+  if (total > maxBytes) throw new ShareTooBig(total, parts, lang);
 
   let html = index;
   html = html.replace(scripts[0][0], () => "");
   for (const m of styles) html = html.replace(m[0], () => "");
   // function replacers: a replacement string would read "$&", "$'" … in the minified app as patterns
-  html = html.replace(/<title>[^<]*<\/title>/, () => "<title>Agent Universe · 智能体宇宙 · 分享</title>");
+  html = html.replace(/<title>[^<]*<\/title>/, () => `<title>${say(lang, "export.title")}</title>`);
   html = html.replace("</head>", () => `<style>${embedCss(css)}</style>\n</head>`);
   html = html.replace(
     '<div id="root"></div>',

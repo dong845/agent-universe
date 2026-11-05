@@ -17,6 +17,7 @@ import { FACTION_COLOR, WORK_COLOR } from "../galaxy/galaxyData.ts";
 import { activityOf } from "./cityData.ts";
 import { ROBOT_URL } from "./kit.tsx";
 import { useStore } from "../store.ts";
+import { t as tx } from "../i18n/index.ts";
 
 const noRay = () => null;
 const GEO = {
@@ -196,7 +197,7 @@ export function Robot({ id, actor, time, faction, end, label }: { id: string; ac
     think.current!.rotation.y = k * 3;
     const sc = sub ? SCALE.sub : SCALE.main;
     info.anchor.set(s.pos.x, (TOP + hover) * sc, s.pos.z);
-    info.text = label ?? `${sub ? "子代理" : "主代理"} · ${done ? "完成" : activityOf(s.pose, s.building, sub)}`;
+    info.text = label ?? `${sub ? tx("follow.sub") : tx("follow.main")} · ${done ? tx("robot.done") : activityOf(s.pose, s.building, sub)}`;
     info.alert = s.pose === "raise_hand" || face === "error";
     info.face = face;
     info.prop = sh.prop ?? null;

@@ -6,6 +6,7 @@ import type { Places, Vec } from "../orchestrator/layout.ts";
 import type { Pose } from "../orchestrator/timeline.ts";
 import type { Spot, TownLayout } from "../v3/townLayout.ts";
 import { WORK_NAMES } from "../v3/townLayout.ts";
+import { t } from "../i18n/index.ts";
 
 const toward = (a: Vec, b: Vec, d: number): Vec => {
   const dx = b.x - a.x, dz = b.z - a.z;
@@ -65,17 +66,17 @@ export function activityOf(pose: Pose, building: BuildingId | undefined, subagen
   const role = building ? BUILDINGS.find((b) => b.id === building)?.role : undefined;
   const work = role ? WORK_NAMES[role] ?? role : "";
   switch (pose) {
-    case "work": return work || "干活";
-    case "think": return "思考";
-    case "walk": return work ? `去${work}` : "走动";
-    case "carry": return subagent ? "带回结果" : "带回成果";
-    case "dispatch": return "派出子代理";
-    case "raise_hand": return "等你回复";
-    case "fall": return "出错了";
-    case "shake": return "被拒绝";
-    case "pack": return "压缩记忆";
-    case "report": return "回报结果";
+    case "work": return work || t("act.work");
+    case "think": return t("act.think");
+    case "walk": return work ? t("act.walkTo", { work }) : t("act.walk");
+    case "carry": return subagent ? t("act.carrySub") : t("act.carry");
+    case "dispatch": return t("act.dispatch");
+    case "raise_hand": return t("act.raise");
+    case "fall": return t("act.fall");
+    case "shake": return t("act.shake");
+    case "pack": return t("act.pack");
+    case "report": return t("act.report");
     // between events the model is working on its next step
-    default: return "思考";
+    default: return t("act.think");
   }
 }

@@ -4,11 +4,13 @@ import { SpotCard } from "../v3/Cards25.tsx";
 import { useEffect, useState } from "react";
 import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent, Tokens } from "../../../schema/src/event.ts";
-import { BUILDINGS, ROLE_NAMES } from "../../../schema/src/world.ts";
+import { BUILDINGS } from "../../../schema/src/world.ts";
+import { roleName } from "../i18n/data.ts";
 import { activeAt, floorsAt, sampleActor } from "../orchestrator/timeline.ts";
 import { TIER_NAMES, TIER_TOKENS } from "../orchestrator/worldgen.ts";
 import { absTime, runtimeOf, useStore, type HoverTarget } from "../store.ts";
 import { openSessions } from "./counts.ts";
+import { t as tx } from "../i18n/index.ts";
 
 const SHOW_AFTER_MS = 150;
 
@@ -21,15 +23,15 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
-export function TokenRows({ t, label = "累计 token" }: { t: Tokens; label?: string }) {
+export function TokenRows({ t, label = tx("tok.total") }: { t: Tokens; label?: string }) {
   return (
     <>
       <Row k={label} v={formatCount(totalOf(t))} />
       <div className="split">
-        <span className="c-input">输入 {formatCount(t.input)}</span>
-        <span className="c-output">输出 {formatCount(t.output)}</span>
-        <span className="c-cache">缓存读 {formatCount(t.cacheRead)}</span>
-        <span>缓存写 {formatCount(t.cacheWrite)}</span>
+        <span className="c-input">{tx("tok.input", { n: formatCount(t.input) })}</span>
+        <span className="c-output">{tx("tok.output", { n: formatCount(t.output) })}</span>
+        <span className="c-cache">{tx("tok.cacheRead", { n: formatCount(t.cacheRead) })}</span>
+        <span>{tx("tok.cacheWrite", { n: formatCount(t.cacheWrite) })}</span>
       </div>
     </>
   );
@@ -37,10 +39,10 @@ export function TokenRows({ t, label = "累计 token" }: { t: Tokens; label?: st
 
 function fmtDur(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s} 秒`;
-  if (s < 3600) return `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时 ${Math.floor((s % 3600) / 60)} 分`;
-  return `${Math.floor(s / 86400)} 天`;
+  if (s < 60) return tx("diary.s", { n: s });
+  if (s < 3600) return tx("diary.ms", { m: Math.floor(s / 60), s: s % 60 });
+  if (s < 86400) return tx("diary.hm", { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) });
+  return tx("fmt.d", { n: Math.floor(s / 86400) });
 }
 
 function lastBefore(events: AgentTownEvent[], abs: number, pred: (e: AgentTownEvent) => boolean): AgentTownEvent | undefined {
@@ -54,8 +56,8 @@ function lastBefore(events: AgentTownEvent[], abs: number, pred: (e: AgentTownEv
 
 /** "更新于 N 秒前": age of the newest model call counted in this card */
 function Freshness({ abs, last }: { abs: number; last?: AgentTownEvent }) {
-  if (!last) return <div className="fresh">尚无消耗</div>;
-  return <div className="fresh">更新于 {fmtDur(abs - last.ts)}前</div>;
+  if (!last) return <div className="fresh">{tx("hover.noSpend")}</div>;
+  return <div className="fresh">{tx("hover.updated", { t: fmtDur(abs - last.ts) })}</div>;
 }
 
 export function CardBody({ target }: { target: HoverTarget }) {
@@ -70,10 +72,10 @@ export function CardBody({ target }: { target: HoverTarget }) {
     const towns = world.districts.filter((d) => d.faction === target.faction);
     return (
       <>
-        <h4>{target.faction === "codex" ? "Codex 阵营" : "Claude Code 阵营"}<small>{towns.length} 个街区</small></h4>
+        <h4>{tx("hover.faction", { name: target.faction === "codex" ? "Codex" : "Claude Code" })}<small>{tx("hover.districts", { n: towns.length })}</small></h4>
         <TokenRows t={tk} />
-        <Row k="缓存命中率" v={`${(hit * 100).toFixed(1)}%`} />
-        <Row k="活跃会话" v={String(openSessions(events, abs, (e) => e.faction === target.faction, useStore.getState().unended))} />
+        <Row k={tx("hover.cacheHit")} v={`${(hit * 100).toFixed(1)}%`} />
+        <Row k={tx("hover.sessions")} v={String(openSessions(events, abs, (e) => e.faction === target.faction, useStore.getState().unended))} />
       </>
     );
   }
@@ -94,10 +96,10 @@ export function CardBody({ target }: { target: HoverTarget }) {
         <h4>{d.name}<small>{TIER_NAMES[d.tier - 1]} · {d.faction === "codex" ? "Codex" : "Claude Code"}</small></h4>
         <div className="target">{d.projectId}</div>
         <TokenRows t={tk} />
-        <Row k="完成的任务" v={`${d.houses.length + d.olderTasks} 个`} />
-        {biggest ? <Row k="最贵的任务" v={`${biggest.title ?? "—"} · ${formatCount(biggest.tokens)}`} /> : null}
-        <Row k="下一级" v={next !== undefined ? `累计 ${formatCount(next)}` : "已是最高级"} />
-        <div className="fresh">双击飞入街区</div>
+        <Row k={tx("hover.tasksDone")} v={tx("hover.nItems", { n: d.houses.length + d.olderTasks })} />
+        {biggest ? <Row k={tx("hover.priciest")} v={`${biggest.title ?? "—"} · ${formatCount(biggest.tokens)}`} /> : null}
+        <Row k={tx("hover.nextTier")} v={next !== undefined ? tx("hover.atTotal", { n: formatCount(next) }) : tx("hover.topTier")} />
+        <div className="fresh">{tx("hover.dblClick")}</div>
       </>
     );
   }
@@ -107,11 +109,11 @@ export function CardBody({ target }: { target: HoverTarget }) {
     if (!h) return null;
     return (
       <>
-        <h4>{h.ok === null ? "停下的任务" : "已完成的任务"}<small>{h.ok === null ? "未见结束" : h.ok ? "成功" : "以失败告终"}</small></h4>
+        <h4>{h.ok === null ? tx("hover.stopped") : tx("hover.finished")}<small>{h.ok === null ? tx("outcome.unknown") : h.ok ? tx("outcome.ok") : tx("hover.failedEnd")}</small></h4>
         {h.title ? <div className="task">{h.title}</div> : null}
-        <TokenRows t={ledger.tokensAt(keys.task(h.taskId), abs)} label="合计 token" />
-        <Row k="楼高" v={`${h.floors} 层（按 token 规模）`} />
-        <Row k="完工于" v={`${fmtDur(abs - h.builtAt)}前`} />
+        <TokenRows t={ledger.tokensAt(keys.task(h.taskId), abs)} label={tx("diary.tokens")} />
+        <Row k={tx("hover.height")} v={tx("hover.floors", { n: h.floors })} />
+        <Row k={tx("hover.builtAt")} v={tx("hover.ago", { t: fmtDur(abs - h.builtAt) })} />
       </>
     );
   }
@@ -122,10 +124,10 @@ export function CardBody({ target }: { target: HoverTarget }) {
     return (
       <>
         <h4>{b.name}<small>{d.name} · {b.what}</small></h4>
-        <Row k="调用次数" v={String(st.calls)} />
-        <Row k="总耗时" v={fmtDur(st.durationMs)} />
-        <Row k="归因输入 token" v={formatCount(st.attributedInput)} />
-        <div className="fresh">归因：工具结果之后下一次模型请求的新增输入</div>
+        <Row k={tx("hover.calls")} v={String(st.calls)} />
+        <Row k={tx("hover.totalTime")} v={fmtDur(st.durationMs)} />
+        <Row k={tx("hover.attributed")} v={formatCount(st.attributedInput)} />
+        <div className="fresh">{tx("hover.attributedHint")}</div>
       </>
     );
   }
@@ -145,15 +147,15 @@ export function CardBody({ target }: { target: HoverTarget }) {
     return (
       <>
         <h4>
-          {actor.kind === "commander" ? "指挥官" : actor.agentType === "guardian" ? "哨兵 · 审批" : `子代理 · ${ROLE_NAMES[actor.baseRole]}`}
+          {actor.kind === "commander" ? tx("hover.commander") : actor.agentType === "guardian" ? tx("hover.sentry") : tx("hover.sub", { role: roleName(actor.baseRole) })}
           <small>{d.name}</small>
         </h4>
         {actor.agentTask ? <div className="task">{actor.agentTask}</div> : null}
-        <Row k="当前" v={tool ? `${tool.tool} · ${ROLE_NAMES[s.outfit]}` : s.pose === "think" ? "思考中" : "待命"} />
+        <Row k={tx("hover.now")} v={tool ? `${tool.tool} · ${roleName(s.outfit)}` : s.pose === "think" ? tx("hover.thinking") : tx("hover.standby")} />
         {tool?.target ? <div className="target">{tool.target}</div> : null}
-        <Row k="本步 token" v={s.pose === "think" && lastCall ? formatCount(totalOf(lastCall.tokens!)) : "—"} />
+        <Row k={tx("hover.stepTokens")} v={s.pose === "think" && lastCall ? formatCount(totalOf(lastCall.tokens!)) : "—"} />
         <TokenRows t={ledger.tokensAt(key, abs)} />
-        <Row k="上下文占用" v={`${Math.round(s.backpack * 100)}%`} />
+        <Row k={tx("hover.context")} v={`${Math.round(s.backpack * 100)}%`} />
         <Freshness abs={abs} last={lastCall} />
       </>
     );
@@ -163,17 +165,17 @@ export function CardBody({ target }: { target: HoverTarget }) {
     if (!taskId || !task) return null;
     const ended = tl.roofAt !== null && lt >= tl.roofAt;
     const failing = activeAt(tl.smoke, lt);
-    const roles = new Set(events.filter((e) => e.ts <= abs && e.taskId === taskId && e.kind === "tool_start" && e.role).map((e) => ROLE_NAMES[e.role!]));
+    const roles = new Set(events.filter((e) => e.ts <= abs && e.taskId === taskId && e.kind === "tool_start" && e.role).map((e) => roleName(e.role!)));
     const lastCall = lastBefore(events, abs, (e) => e.kind === "model_call" && e.taskId === taskId);
     return (
       <>
-        <h4>任务工地<small>{ended ? "已完工" : failing ? "测试失败中" : "进行中"}</small></h4>
+        <h4>{tx("hover.site")}<small>{ended ? tx("hover.siteDone") : failing ? tx("hover.siteFailing") : tx("hover.siteRunning")}</small></h4>
         {task.title ? <div className="task">{task.title}</div> : null}
-        <Row k="已用时" v={fmtDur((ended ? tl.roofAt! : lt) - (task.ts - tl.t0))} />
-        <Row k="楼层" v={String(floorsAt(tl, lt).length)} />
-        <TokenRows t={ledger.tokensAt(keys.task(taskId), abs)} label="合计 token" />
-        <Row k="其中子代理" v={formatCount(totalOf(ledger.tokensAt(keys.taskSubagents(taskId), abs)))} />
-        <Row k="参与角色" v={[...roles].join("、") || "—"} />
+        <Row k={tx("hover.elapsed")} v={fmtDur((ended ? tl.roofAt! : lt) - (task.ts - tl.t0))} />
+        <Row k={tx("hover.floorsLabel")} v={String(floorsAt(tl, lt).length)} />
+        <TokenRows t={ledger.tokensAt(keys.task(taskId), abs)} label={tx("diary.tokens")} />
+        <Row k={tx("diary.subTokens")} v={formatCount(totalOf(ledger.tokensAt(keys.taskSubagents(taskId), abs)))} />
+        <Row k={tx("hover.roles")} v={[...roles].join(tx("gist.sep")) || "—"} />
         <Freshness abs={abs} last={lastCall} />
       </>
     );
@@ -187,11 +189,11 @@ export function CardBody({ target }: { target: HoverTarget }) {
     const sid = events.find((e) => e.agentId === actor.id && inTown(e))?.sessionId ?? "";
     return (
       <>
-        <h4>子代理脚手架<small>{actor.agentType}</small></h4>
+        <h4>{tx("hover.scaffold")}<small>{actor.agentType}</small></h4>
         {actor.agentTask ? <div className="task">{actor.agentTask}</div> : null}
-        <Row k="步骤数" v={String(steps)} />
+        <Row k={tx("hover.steps")} v={String(steps)} />
         <TokenRows t={ledger.tokensAt(keys.agent({ sessionId: sid, agentId: actor.id }), abs)} />
-        <Row k="已用时" v={fmtDur(lt - actor.appear)} />
+        <Row k={tx("hover.elapsed")} v={fmtDur(lt - actor.appear)} />
         <Freshness abs={abs} last={lastCall} />
       </>
     );

@@ -14,6 +14,7 @@ import manifest from "../../../art/manifest.json" with { type: "json" };
 import type { Manifest } from "./v3/art.ts";
 import type { Spot } from "./v3/townLayout.ts";
 import { buildWorld25, type World25 } from "./v3/world25Data.ts";
+import { localizePayload } from "./i18n/data.ts";
 
 export type HoverTarget =
   | { kind: "figure"; district: string; agentId: string }
@@ -314,11 +315,14 @@ export const useStore = create<Store>((set, get) => ({
     set(sharedPatch(get().prepare(p), get));
   },
   prepare(p) {
+    // the data's own words (town names, continued titles) in the page's language (spec 2026-11-05 D)
+    p = localizePayload(p);
     const a = prepareClock(p);
     const ledger = buildLedger(p.events, p.buildingRows);
     return finishPrepare(p, a, ledger, get);
   },
   async prepareInFrames(p, nextFrame) {
+    p = localizePayload(p);
     // three short frames instead of one long one (spec 2026-11-03 A2)
     const a = prepareClock(p);
     await nextFrame();

@@ -9,8 +9,9 @@ import { Badge } from "../galaxy/GalaxyApp.tsx";
 import { useStore } from "../store.ts";
 import { useRightPanel } from "./rightPanel.ts";
 import { Face2D } from "../character/Face2D.tsx";
+import { t } from "../i18n/index.ts";
 
-export const STATE_TEXT: Record<AttentionState, string> = { "maybe-waiting": "可能在等你授权", waiting: "在等你授权", "turn-done": "本轮完成，等你回复", error: "出错停止" };
+export const STATE_TEXT: Record<AttentionState, string> = { "maybe-waiting": t("state.maybe-waiting"), waiting: t("state.waiting"), "turn-done": t("state.turn-done"), error: t("state.error") };
 
 const useToast = create<{ msg: string | null; show(m: string): void }>((set) => {
   let t: ReturnType<typeof setTimeout> | null = null;
@@ -35,13 +36,13 @@ export async function copyResume(faction: Attention["faction"], sessionId: strin
   const cmd = resumeCommand(faction, sessionId, cwd);
   try {
     await navigator.clipboard.writeText(cmd);
-    toast("已复制恢复命令");
+    toast(t("needs.copied"));
   } catch {
-    toast(`复制失败，请手动复制：${cmd}`);
+    toast(t("needs.copyFailed", { cmd }));
   }
 }
 
-const ago = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} 秒前` : ms < 3_600_000 ? `${Math.round(ms / 60_000)} 分钟前` : `${Math.round(ms / 3_600_000)} 小时前`);
+const ago = (ms: number) => (ms < 60_000 ? t("ago.s", { n: Math.max(1, Math.round(ms / 1000)) }) : ms < 3_600_000 ? t("ago.m", { n: Math.round(ms / 60_000) }) : t("ago.h", { n: Math.round(ms / 3_600_000) }));
 
 export function NeedsYou() {
   const all = useStore((s) => s.attention);
@@ -58,7 +59,7 @@ export function NeedsYou() {
   const now = Date.now();
   return (
     <div className={`g-needs${diaryOpen ? " beside-diary" : ""}`} data-testid="needs-you">
-      <header>需要你 · {list.length}</header>
+      <header>{t("needs.title", { n: list.length })}</header>
       {list.map((a) => {
         const key = `${a.faction}|${a.projectId}`;
         const town = w?.towns.get(key);
@@ -71,15 +72,15 @@ export function NeedsYou() {
         };
         return (
           <div key={a.session} className={`g-need s-${a.state}`} data-testid="needs-row" data-town={key}>
-            <button className="g-need-open" onClick={open} title="飞到这个小镇，打开这次请求">
+            <button className="g-need-open" onClick={open} title={t("needs.open")}>
               <Face2D face={a.state === "error" ? "error" : a.state === "turn-done" ? "happy" : "wide"} faction={a.faction} size={30} className="g-need-face" />
               <Badge f={a.faction} />
               <b>{town?.name ?? a.projectId.split("/").filter(Boolean).pop() ?? a.projectId}</b>
               <span className="g-need-state">{STATE_TEXT[a.state]}{a.tool ? ` · ${a.tool}` : ""}</span>
               <span className="g-need-ago">{ago(now - a.since)}</span>
             </button>
-            <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>复制恢复命令</button>
-            <button className="g-need-close" aria-label="关闭这条" title="关闭这条：这个会话有新动静时会再出现" data-testid="needs-close" onClick={() => useStore.getState().closeAttention(a)}>×</button>
+            <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>{t("needs.copy")}</button>
+            <button className="g-need-close" aria-label={t("needs.close")} title={t("needs.closeHint")} data-testid="needs-close" onClick={() => useStore.getState().closeAttention(a)}>×</button>
           </div>
         );
       })}

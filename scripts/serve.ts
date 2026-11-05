@@ -9,6 +9,8 @@ import { loadEventsAsync } from "../packages/server/src/load.ts";
 import { watchRoots } from "../packages/server/src/watch.ts";
 import { createNotifier, osascriptSend } from "../packages/server/src/notify.ts";
 import { readSettings } from "../packages/server/src/settings.ts";
+import { langOf, say } from "../packages/server/src/text.ts";
+const LANG = langOf();
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -51,11 +53,11 @@ const srv = createServer({
         onProgress(done, total);
         if (Date.now() - lastPrint > 2000 || done === total) {
           lastPrint = Date.now();
-          console.log(`读取日志 ${done}/${total}`);
+          console.log(say(LANG, "serve.reading", { done, total }));
         }
       },
     }).then((r) => {
-      console.log(`已就绪：${r.events.length} 条事件，用时 ${((Date.now() - t0) / 1000).toFixed(1)} 秒（缓存 ${r.cached}，重新解析 ${r.parsed}，续读 ${r.tailed}）`);
+      console.log(say(LANG, "serve.ready", { n: r.events.length, s: ((Date.now() - t0) / 1000).toFixed(1), cached: r.cached, parsed: r.parsed, tailed: r.tailed }));
       return r;
     });
   },
@@ -63,7 +65,7 @@ const srv = createServer({
 // macOS notifications for sessions that need the owner (spec 2026-11-01 A5)
 srv.onAttention(createNotifier(osascriptSend, () => readSettings(srv.settingsFile), srv.townName));
 srv.server.on("error", (e: NodeJS.ErrnoException) => {
-  console.error(e.code === "EADDRINUSE" ? portInUseMessage(port) : `启动失败：${e.message}`);
+  console.error(e.code === "EADDRINUSE" ? portInUseMessage(port) : say(LANG, "serve.failed", { why: e.message }));
   process.exit(1);
 });
 srv.server.listen(port, "127.0.0.1", () => {
@@ -73,8 +75,8 @@ srv.server.listen(port, "127.0.0.1", () => {
     mkdirSync(dirname(portFile), { recursive: true });
     writeFileSync(portFile, String(port));
   } catch (e) {
-    console.error(`写端口文件失败：${(e as Error).message}`);
+    console.error(say(LANG, "serve.portFile", { why: (e as Error).message }));
   }
-  console.log(`Agent Universe · 智能体宇宙: http://127.0.0.1:${port}/${srv.state().phase === "loading" ? "（正在读取日志）" : ""}`);
-  if (!existsSync(join(dist, "index.html"))) console.log("还没有网页构建：先运行 node --run build；开发时用 node --run dev 打开 http://127.0.0.1:5180/");
+  console.log(say(LANG, "serve.url", { url: `http://127.0.0.1:${port}/`, loading: srv.state().phase === "loading" ? say(LANG, "serve.loading") : "" }));
+  if (!existsSync(join(dist, "index.html"))) console.log(say(LANG, "serve.noBuild"));
 });

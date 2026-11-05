@@ -23,6 +23,7 @@ import { useTour } from "./ui/tourStore.ts";
 import { useCelebrations } from "./galaxy/Celebration.tsx";
 import type { Milestone } from "./ui/milestones.ts";
 import { attentionSounds, makeChimer, playSound, soundsOn } from "./ui/sounds.ts";
+import { t, useLang } from "./i18n/index.ts";
 
 // sounds (spec 2026-11-05 C4, off by default): what newly happened in 需要你, never the first snapshot
 const chime = makeChimer(playSound);
@@ -41,7 +42,7 @@ let payload;
 try {
   payload = await loadWorld(q.get("demo") === "1", showLoading);
 } catch (e) {
-  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务没有启动：在项目目录运行 npm start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
+  showLoading({ phase: "error", message: e instanceof ServerDown ? t("load.serverDown") : t("load.failedWhy", { why: e instanceof Error ? e.message : String(e) }) });
   throw e;
 }
 const store = useStore.getState();
@@ -50,7 +51,7 @@ const fromServer = payload.source === "real";
 if (fromServer && !payload.requests.length) {
   const st = await fetch("/api/status").then((r) => r.json()).catch(() => ({}));
   store.setEmptyLogs(st.roots ?? { claude: "~/.claude/projects", codex: "~/.codex/sessions" });
-  payload = demoPayload();
+  payload = demoPayload(useLang.getState().lang);
 }
 store.load(payload);
 // the official marks, if the owner downloaded them on this machine (spec 2026-11-03 C2)

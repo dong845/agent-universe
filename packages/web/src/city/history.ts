@@ -26,19 +26,19 @@ export function historySteps(w: World25, town: string): HistoryStep[] {
     .map((request, i) => ({ index: i + 1, request, drawn: drawn.has(request.requestId) }));
 }
 
-const CLASS_NAMES: Record<RequestRow["class"], string> = { produced: "完成作品", investigation: "调查（只读）", chat: "问答", empty: "空请求" };
-const PRODUCT_NAMES: Record<string, string> = { code: "代码", docs: "文档", slides: "幻灯", image: "图片", video: "影音", data: "数据" };
+const CLASS_NAMES: Record<RequestRow["class"], string> = { produced: t("class.produced"), investigation: t("class.investigation"), chat: t("class.chat"), empty: t("class.empty") };
+const PRODUCT_NAMES: Record<string, string> = { code: t("product.code"), docs: t("product.docs"), slides: t("product.slides"), image: t("product.image"), video: t("product.video"), data: t("product.data") };
 
 export function duration(ms: number): string {
   const s = Math.round(ms / 1000);
-  if (s < 60) return `${s} 秒`;
+  if (s < 60) return t("dur.s", { n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} 分钟`;
-  return `${Math.floor(m / 60)} 小时 ${m % 60} 分`;
+  if (m < 60) return t("dur.m", { n: m });
+  return t("dur.hm", { h: Math.floor(m / 60), m: m % 60 });
 }
 
 /** a tool call's kind of work in plain words; the main agent's spawning calls carry the role "commander" */
-export const workName = (role: AgentTownEvent["role"] | undefined) => (!role ? "其他" : role === "commander" ? WORK_NAMES.spawn ?? "派子代理" : WORK_NAMES[role] ?? role);
+export const workName = (role: AgentTownEvent["role"] | undefined) => (!role ? t("street.other") : role === "commander" ? WORK_NAMES.spawn ?? t("work.spawn") : WORK_NAMES[role] ?? role);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 /** one formatter for every row: creating one per call made a long list stall the page (owner 2026-11-03: 抖动) */
@@ -60,16 +60,16 @@ export interface StepFacts {
 /** the facts of one step: the request row, plus its events when they are loaded */
 export function stepFacts(r: RequestRow, events: AgentTownEvent[] | null): StepFacts {
   const rows: [string, string][] = [];
-  rows.push(["时间", `${when(r.startTs)} → ${when(r.endTs).slice(11)}`]);
-  rows.push(["用时", duration(r.endTs - r.startTs)]);
-  rows.push(["结果", r.class === "produced" ? `${CLASS_NAMES.produced} · ${PRODUCT_NAMES[r.productKind ?? "code"] ?? r.productKind}` : CLASS_NAMES[r.class]]);
-  if (r.ok === false) rows.push(["结束", "有一轮没有正常结束"]);
+  rows.push([t("facts.time"), `${when(r.startTs)} → ${when(r.endTs).slice(11)}`]);
+  rows.push([t("facts.took"), duration(r.endTs - r.startTs)]);
+  rows.push([t("facts.result"), r.class === "produced" ? `${CLASS_NAMES.produced} · ${PRODUCT_NAMES[r.productKind ?? "code"] ?? r.productKind}` : CLASS_NAMES[r.class]]);
+  if (r.ok === false) rows.push([t("facts.end"), t("facts.badEnd")]);
   const agents = events ? new Set(events.map((e) => e.agentId)).size : null;
-  rows.push(["轮次 · 代理", `${r.turns} 轮${agents !== null ? ` · ${agents} 个代理` : ""}${r.spawns ? `（派出 ${r.spawns} 个子代理）` : ""}`]);
-  rows.push(["工具调用", `${r.calls} 次${r.fails ? `，失败 ${r.fails} 次` : ""}`]);
-  rows.push(["token", `${formatCount(r.tokens.input + r.tokens.output + r.tokens.cacheRead + r.tokens.cacheWrite)}（输出 ${formatCount(r.tokens.output)}）`]);
-  if (r.skills.length) rows.push(["技能", r.skills.join("、")]);
-  if (r.topDir) rows.push(["改动最多在", r.topDir === "." ? "根目录" : r.topDir]);
+  rows.push([t("facts.turns"), t("facts.turnsN", { n: r.turns }) + (agents !== null ? t("facts.agentsN", { n: agents }) : "") + (r.spawns ? t("facts.spawnsN", { n: r.spawns }) : "")]);
+  rows.push([t("facts.calls"), t("facts.callsN", { n: r.calls }) + (r.fails ? t("facts.failsN", { n: r.fails }) : "")]);
+  rows.push(["token", formatCount(r.tokens.input + r.tokens.output + r.tokens.cacheRead + r.tokens.cacheWrite) + t("facts.outputN", { n: formatCount(r.tokens.output) })]);
+  if (r.skills.length) rows.push([t("facts.skills"), r.skills.join(t("gist.sep"))]);
+  if (r.topDir) rows.push([t("facts.topDir"), r.topDir === "." ? t("street.root") : r.topDir]);
 
   const work = new Map<string, number>();
   const files = new Map<string, number>();

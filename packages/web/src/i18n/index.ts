@@ -27,6 +27,7 @@ function initial(): Lang {
 }
 
 export const useLang = create<{ lang: Lang }>(() => ({ lang: initial() }));
+if (typeof document !== "undefined") document.documentElement.lang = useLang.getState().lang === "zh" ? "zh-CN" : "en";
 
 export function setLang(l: Lang) {
   useLang.setState({ lang: l });

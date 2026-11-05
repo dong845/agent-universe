@@ -2,6 +2,7 @@
 // damaged file, or a field of the wrong type, falls back to the default for that field.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { Lang } from "./text.ts";
 
 export interface Settings {
   /** macOS notifications for sessions that need the owner */
@@ -10,6 +11,8 @@ export interface Settings {
   notifyTurnDone: boolean;
   /** which agents have Agent Town's hooks installed (mirrors what was installed, for the switches) */
   hooks: { claude: boolean; codex: boolean };
+  /** the language the page last chose (spec 2026-11-05 D); absent: the server's LANG */
+  lang?: Lang;
 }
 
 export const DEFAULT_SETTINGS: Settings = { notify: true, notifyTurnDone: false, hooks: { claude: false, codex: false } };
@@ -29,6 +32,7 @@ export function readSettings(file: string): Settings {
     notify: bool(raw.notify, d.notify),
     notifyTurnDone: bool(raw.notifyTurnDone, d.notifyTurnDone),
     hooks: { claude: bool(raw.hooks?.claude, d.hooks.claude), codex: bool(raw.hooks?.codex, d.hooks.codex) },
+    ...(raw.lang === "zh" || raw.lang === "en" ? { lang: raw.lang } : {}),
   };
 }
 

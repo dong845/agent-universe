@@ -4,10 +4,11 @@
 // give the same world.
 import type { AgentTownEvent, Faction } from "../../../schema/src/event.ts";
 import type { Vec } from "./layout.ts";
+import { t as tx } from "../i18n/index.ts";
 
 /** tier thresholds on a project's cumulative tokens (plan: 按对数增长分 5 级) */
 export const TIER_TOKENS = [0, 3e6, 1e7, 3e7, 1e8] as const;
-export const TIER_NAMES = ["村落", "小镇", "镇", "大镇", "城区"] as const;
+export const TIER_NAMES: readonly string[] = [tx("tier.0"), tx("tier.1"), tx("tier.2"), tx("tier.3"), tx("tier.4")];
 /** plan: a bridge appears when the other faction starts work on the same path within 30 min */
 export const BRIDGE_WINDOW_MS = 30 * 60_000;
 /** where a district's houses begin, outside its ring of tool buildings */
@@ -135,7 +136,7 @@ export function slotsFor(side: -1 | 1, n = 10, g: Grid = gridFor(10, 20)): Vec[]
 /** a town's name: its folder, with the parent folder added when two towns of a faction share it */
 function townNames(towns: { faction: Faction; projectId: string }[], home?: string): Map<string, string> {
   const parts = (p: string) => p.split(/[\\/]/).filter(Boolean);
-  const base = (p: string) => (home !== undefined && p === home ? "主目录" : parts(p).pop() ?? p);
+  const base = (p: string) => (home !== undefined && p === home ? tx("worldgen.home") : parts(p).pop() ?? p);
   const count = new Map<string, number>();
   for (const t of towns) count.set(`${t.faction}|${base(t.projectId)}`, (count.get(`${t.faction}|${base(t.projectId)}`) ?? 0) + 1);
   const out = new Map<string, string>();
@@ -174,7 +175,7 @@ export function buildWorld(events: AgentTownEvent[], live?: Set<string>, home?: 
     if (!live && e.kind === "tool_start") t.live = true;
     if (e.kind === "task_start") {
       t.start = e.ts;
-      t.title = e.title ?? (e.continues ? `接续：${e.continues}` : undefined);
+      t.title = e.title ?? (e.continues ? tx("worldgen.continues", { title: e.continues }) : undefined);
     } else if (e.kind === "task_end") {
       t.end = e.ts;
       t.ok = e.status !== "error";
