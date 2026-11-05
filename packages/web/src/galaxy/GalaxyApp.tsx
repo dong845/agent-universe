@@ -3,6 +3,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import { t, useLang } from "../i18n/index.ts";
+import { Search } from "../ui/Search.tsx";
 import * as THREE from "three";
 import themes from "../../../../config/themes.json" with { type: "json" };
 import type { ThemesConfig } from "../../../schema/src/themes.ts";
@@ -446,6 +447,7 @@ export function GalaxyApp() {
   (window as unknown as { __galaxyLive?: string[] }).__galaxyLive = [...g.planets.values()].filter((p) => p.live).map((p) => p.key);
   (window as unknown as { __galaxyKeys?: string[] }).__galaxyKeys = [...g.planets.values()].sort((a, b) => b.town.counts.produced - a.town.counts.produced).map((p) => p.key);
   const cam = ov.center.clone().addScaledVector(VIEW_DIR, ov.dist);
+  const searchList = [...g.planets.values()].map((p) => ({ key: p.key, name: p.town.name, faction: p.town.faction, badge: <Badge f={p.town.faction} /> }));
   return (
     <div className="app galaxy" onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}>
       <Canvas flat shadows dpr={DPR} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ position: [cam.x, cam.y, cam.z], fov: 38, near: 0.05, far: 12000 }}>
@@ -467,7 +469,7 @@ export function GalaxyApp() {
       <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : emptyLogs ? t("empty.badge") : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       <Tour />
       {emptyLogs ? <EmptyLogsCard where={emptyLogs} /> : null}
-      {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
+      {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /><Search towns={searchList} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
       {cp ? <HistoryPanel /> : null}

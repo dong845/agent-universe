@@ -418,3 +418,15 @@ canvas { display: block; }
 .g-empty code { display: block; font-size: 11px; color: #fff; word-break: break-all; margin-top: 4px; }
 .g-empty small { display: block; color: #b8ad96; }
 .g-empty .g-x { position: absolute; top: 6px; right: 8px; }
+
+/* find a project (spec 2026-11-05 B3): top right, beside the top bar */
+.g-search { position: absolute; top: 18px; right: 64px; width: 230px; z-index: 16; font-size: 13px; }
+.g-search input {
+  width: 100%; box-sizing: border-box; padding: 7px 12px; border-radius: 999px; font: inherit; color: #e6eefc;
+  background: rgba(10, 16, 30, 0.82); border: 1px solid rgba(130, 170, 240, 0.35); backdrop-filter: blur(8px); outline: none;
+}
+.g-search input:focus { border-color: rgba(160, 200, 255, 0.8); }
+.g-search ul { list-style: none; margin: 6px 0 0; padding: 4px; background: rgba(10, 16, 30, 0.92); border: 1px solid rgba(130, 170, 240, 0.3); border-radius: 10px; }
+.g-search li { padding: 6px 8px; border-radius: 6px; cursor: pointer; color: #dbe6fb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-search li.on, .g-search li:hover { background: rgba(120, 160, 240, 0.22); }
+.g-search li.none { color: #8fa3c4; cursor: default; background: none; }
