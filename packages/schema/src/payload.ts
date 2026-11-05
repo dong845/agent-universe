@@ -54,6 +54,17 @@ export interface RequestRow {
   cwd?: string;
   /** tool calls per kind of work (role, plus `spawn` and `compaction`), as a town counts them */
   work?: Record<string, number>;
-  /** an untitled request: one sentence of what it did, from its own events; this machine only, never exported */
-  gist?: string;
+  /** an untitled request: what it did, from its own events, as facts the page words in its language;
+   * this machine only, never exported */
+  gist?: GistFacts;
 }
+
+/** what an untitled request did (spec 2026-11-03 B3, 2026-11-05 D): the files it edited (a count and the
+ * first two names), else its first command, else what it looked up, else how many files it read, else
+ * how many calls it made */
+export type GistFacts =
+  | { kind: "edit"; n: number; files: string[] }
+  | { kind: "run"; command: string }
+  | { kind: "web"; query: string }
+  | { kind: "read"; n: number }
+  | { kind: "calls"; n: number };

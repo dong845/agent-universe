@@ -7,6 +7,8 @@ import type { AgentTownEvent, Role } from "../../../schema/src/event.ts";
 import type { RequestRow } from "../../../schema/src/payload.ts";
 import { WORK_NAMES } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
+import { t, useLang } from "../i18n/index.ts";
+import { formatGist } from "../i18n/gist.ts";
 
 export interface HistoryStep {
   index: number;
@@ -83,7 +85,7 @@ export function stepFacts(r: RequestRow, events: AgentTownEvent[] | null): StepF
     }
   }
   return {
-    title: r.title ?? r.gist ?? "（无标题）",
+    title: r.title ?? (r.gist ? formatGist(r.gist, useLang.getState().lang) : t("history.untitled")),
     gist: !r.title && !!r.gist,
     rows,
     work: [...work].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || (a.name < b.name ? -1 : 1)),

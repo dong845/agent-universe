@@ -12,6 +12,8 @@ import { useStore } from "../store.ts";
 import { historySteps, stepAgents, stepDay, stepFacts, useHistory, type HistoryStep } from "./history.ts";
 import character from "../../../../art/character.json" with { type: "json" };
 import { Robot, SCALE } from "./Robot.tsx";
+import { t, useLang } from "../i18n/index.ts";
+import { formatGist } from "../i18n/gist.ts";
 import type { Actor } from "../orchestrator/timeline.ts";
 
 /** at most this many subagents stand in the city for one step (the rest are listed) */
@@ -59,7 +61,7 @@ export function HistoryPanel() {
       <button onClick={() => goToStep(steps, s.index)} data-testid="history-step">
         <span className="n">{s.index}</span>
         <span className="d">{stepDay(s.request.endTs)}</span>
-        <span className={`t${s.request.title ? "" : " gist"}`}>{s.request.title ?? s.request.gist ?? "（无标题）"}</span>
+        <span className={`t${s.request.title ? "" : " gist"}`}>{s.request.title ?? (s.request.gist ? formatGist(s.request.gist, useLang.getState().lang) : t("history.untitled"))}</span>
       </button>
     </li>
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the steps' content (stepsSig), not their identity

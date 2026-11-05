@@ -2,7 +2,7 @@
 // continues it (subagent hand-backs, compaction summaries, other meta lines) — spec v3 4.1.
 // Pure: the browser builds the demo with it too.
 import { addTokens, zeroTokens, type AgentTownEvent } from "./event.ts";
-import type { ProductKind, RequestRow } from "./payload.ts";
+import type { GistFacts, ProductKind, RequestRow } from "./payload.ts";
 import { skillsOfEvent } from "./skills.ts";
 import type { WorldConfig } from "./worldConfig.ts";
 
@@ -68,19 +68,16 @@ const work = (r: RequestRow, k: string) => {
   r.work[k] = (r.work[k] ?? 0) + 1;
 };
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
-const list = (names: string[], total: number, unit: string) =>
-  `${total} ${unit}：${names.slice(0, 2).join("、")}${total > 2 ? " 等" : ""}`;
-
 /**
- * What an untitled request did, in one sentence from its own events (spec 2026-11-03 B3) — facts only:
+ * What an untitled request did, as facts from its own events (spec 2026-11-03 B3; the page words them):
  * the files it edited, else its first command, else what it looked up or read, else how many calls.
  */
-function gistOf(a: { edited: Map<string, number>; command?: string; web?: string; reads: number; calls: number }): string | undefined {
-  if (a.edited.size) return `改了 ${list([...a.edited.keys()].map(base), a.edited.size, "个文件")}`;
-  if (a.command) return `跑命令：${a.command}`;
-  if (a.web) return `联网：${a.web}`;
-  if (a.reads) return `读了 ${a.reads} 个文件`;
-  if (a.calls) return `调用了 ${a.calls} 次工具`;
+function gistOf(a: { edited: Map<string, number>; command?: string; web?: string; reads: number; calls: number }): GistFacts | undefined {
+  if (a.edited.size) return { kind: "edit", n: a.edited.size, files: [...a.edited.keys()].slice(0, 2).map(base) };
+  if (a.command) return { kind: "run", command: a.command };
+  if (a.web) return { kind: "web", query: a.web };
+  if (a.reads) return { kind: "read", n: a.reads };
+  if (a.calls) return { kind: "calls", n: a.calls };
   return undefined;
 }
 

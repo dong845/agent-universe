@@ -9,6 +9,8 @@ export default defineConfig({
   use: {
     channel: "chrome",
     viewport: { width: 1440, height: 900 },
+    // the specs read the Chinese interface; English is checked by its own spec (spec 2026-11-05 D)
+    locale: "zh-CN",
     launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
   },
   webServer: { command: "./node_modules/.bin/vite", url: "http://127.0.0.1:5180", reuseExistingServer: true },

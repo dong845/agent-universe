@@ -22,7 +22,8 @@ function initial(): Lang {
   } catch {
     // storage blocked or absent (tests, the share page in a strict browser)
   }
-  return typeof navigator === "undefined" ? "zh" : detectLang(navigator.languages ?? [navigator.language]);
+  // outside a browser (unit tests, scripts) the page's original language
+  return typeof window === "undefined" ? "zh" : detectLang(navigator.languages ?? [navigator.language]);
 }
 
 export const useLang = create<{ lang: Lang }>(() => ({ lang: initial() }));
@@ -37,8 +38,11 @@ export function setLang(l: Lang) {
   if (typeof document !== "undefined") document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
 }
 
-/** the text for a key in the current language, with {name} placeholders filled */
-export function t(key: Key, vars?: Record<string, string | number>): string {
-  const s = DICT[useLang.getState().lang][key];
+/** the text for a key in a given language, with {name} placeholders filled */
+export function tl(lang: Lang, key: Key, vars?: Record<string, string | number>): string {
+  const s = DICT[lang][key];
   return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
 }
+
+/** the text for a key in the current language */
+export const t = (key: Key, vars?: Record<string, string | number>): string => tl(useLang.getState().lang, key, vars);

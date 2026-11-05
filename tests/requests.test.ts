@@ -180,8 +180,25 @@ describe("per-request work and a sentence for untitled requests (spec 2026-11-03
     expect(byId.get("t2")!.work).toEqual({ engineer: 1 });
   });
   it("an untitled request gets a sentence of what it did, from its own events", () => {
-    expect(byId.get("t1")!.gist).toBe("改了 3 个文件：a.ts、b.ts 等");
-    expect(byId.get("t2")!.gist).toBe("跑命令：git status");
+    expect(byId.get("t1")!.gist).toEqual({ kind: "edit", n: 3, files: ["a.ts", "b.ts"] });
+    expect(byId.get("t2")!.gist).toEqual({ kind: "run", command: "git status" });
     expect(byId.get("t3")!.gist).toBeUndefined(); // it has a title
+  });
+  it("the page says it in its own language (spec 2026-11-05 D)", async () => {
+    const { formatGist } = await import("../packages/web/src/i18n/gist.ts");
+    expect(formatGist({ kind: "edit", n: 3, files: ["a.ts", "b.ts"] }, "zh")).toBe("改了 3 个文件：a.ts、b.ts 等");
+    expect(formatGist({ kind: "edit", n: 1, files: ["a.ts"] }, "zh")).toBe("改了 1 个文件：a.ts");
+    expect(formatGist({ kind: "run", command: "git status" }, "zh")).toBe("跑命令：git status");
+    expect(formatGist({ kind: "web", query: "vite 8" }, "zh")).toBe("联网：vite 8");
+    expect(formatGist({ kind: "read", n: 12 }, "zh")).toBe("读了 12 个文件");
+    expect(formatGist({ kind: "calls", n: 4 }, "zh")).toBe("调用了 4 次工具");
+    expect(formatGist({ kind: "edit", n: 3, files: ["a.ts", "b.ts"] }, "en")).toBe("Edited 3 files: a.ts, b.ts …");
+    expect(formatGist({ kind: "edit", n: 1, files: ["a.ts"] }, "en")).toBe("Edited 1 file: a.ts");
+    expect(formatGist({ kind: "run", command: "git status" }, "en")).toBe("Ran: git status");
+    expect(formatGist({ kind: "web", query: "vite 8" }, "en")).toBe("Web: vite 8");
+    expect(formatGist({ kind: "read", n: 12 }, "en")).toBe("Read 12 files");
+    expect(formatGist({ kind: "calls", n: 1 }, "en")).toBe("1 tool call");
+    // a sentence from an older server passes through as it is
+    expect(formatGist("跑命令：ls", "en")).toBe("跑命令：ls");
   });
 });

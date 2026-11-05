@@ -3,4 +3,12 @@ import type { Key } from "./zh.ts";
 
 export const en: Record<Key, string> = {
   "common.calls": "{n} calls",
+  "gist.edit": "Edited {n} files: {files}",
+  "gist.more": " …",
+  "gist.sep": ", ",
+  "gist.run": "Ran: {command}",
+  "gist.web": "Web: {query}",
+  "gist.read": "Read {n} files",
+  "gist.calls": "{n} tool calls",
+  "history.untitled": "(untitled)",
 };
