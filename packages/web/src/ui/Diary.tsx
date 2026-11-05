@@ -118,7 +118,6 @@ function TaskDiary() {
           <div className={`row outcome-${d.outcome}`}><span>结果</span><b>{OUTCOME[d.outcome]}</b></div>
           <TokenRows t={d.tokens} label="合计 token" />
           <div className="row"><span>其中子代理</span><b>{formatCount(d.subagentTokens)}</b></div>
-          <div className="row"><span>等效花费</span><b>未配置价格</b></div>
           <button
             className="replay"
             disabled={!d.replayable || replay?.taskId === d.taskId}

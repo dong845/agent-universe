@@ -406,3 +406,15 @@ canvas { display: block; }
 .g-tour div { display: flex; justify-content: flex-end; gap: 6px; }
 .g-tour button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 7px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); cursor: pointer; }
 .g-tour button.primary { background: rgba(255, 196, 92, 0.18); border-color: rgba(255, 196, 92, 0.5); }
+
+/* no logs found (spec 2026-11-05 B3): a card on the right, under the top bar, never over another panel */
+.g-empty {
+  position: absolute; top: 76px; right: 14px; width: 340px; padding: 12px 14px; font-size: 12px; line-height: 1.6;
+  background: rgba(10, 16, 30, 0.88); border: 1px solid rgba(255, 196, 92, 0.4); border-radius: 10px; color: #f2e6cc;
+  backdrop-filter: blur(8px); z-index: 6;
+}
+.g-empty b { display: block; color: #ffd58a; font-size: 13px; margin-bottom: 4px; }
+.g-empty p { margin: 0 0 6px; }
+.g-empty code { display: block; font-size: 11px; color: #fff; word-break: break-all; margin-top: 4px; }
+.g-empty small { display: block; color: #b8ad96; }
+.g-empty .g-x { position: absolute; top: 6px; right: 8px; }

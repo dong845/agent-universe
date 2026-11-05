@@ -25,7 +25,6 @@ export function Hud() {
   return (
     <div className="hud" data-testid="hud">
       <div><span>全局 token</span><b data-testid="hud-total">{formatCount(all)}</b></div>
-      <div><span>等效花费</span><b>未配置价格</b></div>
       <div><span>Claude Code</span><b>{formatCount(claude)}</b></div>
       <div><span>Codex</span><b>{formatCount(codex)}</b></div>
       <div><span>进行中任务</span><b data-testid="hud-open">{openCount}</b></div>

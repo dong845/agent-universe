@@ -2,6 +2,7 @@
 // legend and the switch back to the town view.
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
+import { t, useLang } from "../i18n/index.ts";
 import * as THREE from "three";
 import themes from "../../../../config/themes.json" with { type: "json" };
 import type { ThemesConfig } from "../../../schema/src/themes.ts";
@@ -335,8 +336,24 @@ function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
   );
 }
 
+/** the city's legend starts folded (spec 2026-11-05 B2); the user's own choice is remembered */
+const CITY_LEGEND = "agent-universe:city-legend";
 function CityLegend() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpenState] = useState(() => {
+    try {
+      return localStorage.getItem(CITY_LEGEND) === "open";
+    } catch {
+      return false;
+    }
+  });
+  const setOpen = (o: boolean) => {
+    setOpenState(o);
+    try {
+      localStorage.setItem(CITY_LEGEND, o ? "open" : "closed");
+    } catch {
+      // not remembered
+    }
+  };
   if (!open) return <button className="legend g-legend g-legend-min" onClick={() => setOpen(true)} data-testid="legend">怎么看 ▸</button>;
   return (
     <div className="legend g-legend g-legend-city" data-testid="legend">
@@ -345,6 +362,22 @@ function CityLegend() {
       <div>头顶的字 = 它此刻在做什么；它走到哪栋圆塔，就是在用哪类工具（读代码、跑命令、测试…）</div>
       <div>圆塔 = 一类工作的地方 · 方楼 = 主要成品 · 雷达罩 = 大的调查 · 六角 = 任务大厅 · 光束 = 正在进行</div>
       <div>传送带光点 = 工具调用 · 点一栋方楼 → 任务日记 → 「在城里重放这次请求」</div>
+    </div>
+  );
+}
+
+/** no logs were found (spec 2026-11-05 B3): where Agent Universe looks, in a card that can be closed */
+function EmptyLogsCard({ where }: { where: { claude: string; codex: string } }) {
+  useLang();
+  const [shut, setShut] = useState(false);
+  if (shut) return null;
+  return (
+    <div className="g-empty" data-testid="empty-logs" role="note">
+      <button className="g-x" onClick={() => setShut(true)} data-testid="empty-logs-close" aria-label={t("common.close")}>×</button>
+      <b>{t("empty.title")}</b>
+      <p>{t("empty.body")}</p>
+      <code>{where.claude}</code><small>Claude Code</small>
+      <code>{where.codex}</code><small>Codex</small>
     </div>
   );
 }
@@ -431,8 +464,9 @@ export function GalaxyApp() {
       </Canvas>
       {cp ? <CityLabels key={cp.key} labels={cityLabels} /> : <Labels labels={labels} />}
       <Hud />
-      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : emptyLogs ? `没有找到日志：这是演示世界。Agent Universe 读取 ${emptyLogs.claude}（Claude Code）和 ${emptyLogs.codex}（Codex），有了日志会自动换成你的世界` : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
+      <div className="demo-badge" data-testid="source-badge">{source === "real" ? "真实数据 · 仅本机" : source === "share" ? "Agent Universe 分享 · 只读" : emptyLogs ? t("empty.badge") : "演示数据：模拟的世界与任务，不是你的真实会话"}</div>
       <Tour />
+      {emptyLogs ? <EmptyLogsCard where={emptyLogs} /> : null}
       {cp ? <CityBar g={g} onLeave={leave} /> : <><ShellMeter g={g} /><FocusBar g={g} /></>}
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />

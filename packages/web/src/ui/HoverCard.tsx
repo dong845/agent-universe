@@ -63,7 +63,6 @@ export function CardBody({ target }: { target: HoverTarget }) {
   const t = useStore((s) => s.uiT);
   useStore((s) => s.historyAt);
   const abs = absTime(t);
-  const pricing = <Row k="等效花费" v="未配置价格" />;
 
   if (target.kind === "faction") {
     const tk = ledger.tokensAt(keys.faction({ faction: target.faction }), abs);
@@ -73,7 +72,6 @@ export function CardBody({ target }: { target: HoverTarget }) {
       <>
         <h4>{target.faction === "codex" ? "Codex 阵营" : "Claude Code 阵营"}<small>{towns.length} 个街区</small></h4>
         <TokenRows t={tk} />
-        {pricing}
         <Row k="缓存命中率" v={`${(hit * 100).toFixed(1)}%`} />
         <Row k="活跃会话" v={String(openSessions(events, abs, (e) => e.faction === target.faction, useStore.getState().unended))} />
       </>
@@ -175,7 +173,6 @@ export function CardBody({ target }: { target: HoverTarget }) {
         <Row k="楼层" v={String(floorsAt(tl, lt).length)} />
         <TokenRows t={ledger.tokensAt(keys.task(taskId), abs)} label="合计 token" />
         <Row k="其中子代理" v={formatCount(totalOf(ledger.tokensAt(keys.taskSubagents(taskId), abs)))} />
-        {pricing}
         <Row k="参与角色" v={[...roles].join("、") || "—"} />
         <Freshness abs={abs} last={lastCall} />
       </>
