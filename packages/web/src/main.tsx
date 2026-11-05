@@ -20,6 +20,18 @@ import { absTime, useStore, type HoverTarget } from "./store.ts";
 import "./styles.css";
 import { replayTour } from "./ui/Tour.tsx";
 import { useTour } from "./ui/tourStore.ts";
+import { useCelebrations } from "./galaxy/Celebration.tsx";
+import type { Milestone } from "./ui/milestones.ts";
+import { attentionSounds, makeChimer, playSound, soundsOn } from "./ui/sounds.ts";
+
+// sounds (spec 2026-11-05 C4, off by default): what newly happened in 需要你, never the first snapshot
+const chime = makeChimer(playSound);
+let primed = false;
+useStore.subscribe((s, p) => {
+  if (s.attention === p.attention) return;
+  if (!primed) return void (primed = true);
+  if (soundsOn()) for (const k of attentionSounds(p.attention, s.attention)) chime(k, Date.now());
+});
 
 const q = new URLSearchParams(location.search);
 const root = createRoot(document.getElementById("root")!);
@@ -134,6 +146,8 @@ window.__agentTown = {
   enterCity: (k: string | null) => useStore.getState().setCity(k),
   /** test hook: what a click on a robot does (spec 2026-11-05 C1); robot ids as in __robotSizes */
   clickRobot: (id: string | null) => useStore.getState().setFollowAgent(id),
+  /** test hook: show a milestone's burst (spec 2026-11-05 C4) */
+  celebrate: (m: Milestone) => useCelebrations.getState().add(m),
   /** test hook: the tour from its first step, as the settings button does */
   startTour: () => replayTour(),
   tour: () => ({ step: useTour.getState().step, id: useTour.getState().steps[useTour.getState().step]?.id ?? null, invite: useTour.getState().invite, follow: useStore.getState().followAgent }),

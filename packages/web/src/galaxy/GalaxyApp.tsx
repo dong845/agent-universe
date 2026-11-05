@@ -1,7 +1,9 @@
 // The star-system view's page: the canvas, labels that follow the moving planets, hover cards, the
 // legend and the switch back to the town view.
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Celebrations, useCelebrations } from "./Celebration.tsx";
+import { loadSeen, newMilestones, saveSeen, type Counts } from "../ui/milestones.ts";
 import { t, useLang } from "../i18n/index.ts";
 import { Search } from "../ui/Search.tsx";
 import { MiniWindow } from "../ui/MiniWindow.tsx";
@@ -27,7 +29,7 @@ import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx"
 import { cityTowns, REPLAY_SPEEDS, useEnter, useReplay } from "../city/cityReplay.ts";
 import { GalaxyScene, orbit, overviewOf, SHELL_FACES, spinOf, VIEW_DIR } from "./Galaxy.tsx";
 import { absTime } from "../store.ts";
-import { NeedsYou, Toast } from "../ui/NeedsYou.tsx";
+import { NeedsYou, Toast, toast } from "../ui/NeedsYou.tsx";
 import { Settings } from "../ui/Settings.tsx";
 import { RecordDialog, RecordHost, useRecordUi } from "../share/RecordDialog.tsx";
 import { ExportShare } from "../share/ExportDialog.tsx";
@@ -403,6 +405,25 @@ export function GalaxyApp() {
   const cp = city && g ? g.planets.get(city) : undefined;
   const cityLayout = cp && w ? w.layouts.get(cp.key) : undefined;
   const cityLabels = useMemo(() => (cp && cityLayout ? cityLabelsOf(cp, cityLayout) : []), [cp, cityLayout]);
+  // milestones reached while the page is open (spec 2026-11-05 C4): a toast and a burst of light
+  const counts = useRef<Counts | null>(null);
+  useEffect(() => {
+    if (!g || !w || source === "share") return;
+    const next: Counts = {
+      products: g.systems.reduce((a, s) => a + s.panels.length, 0),
+      shells: Object.fromEntries(g.systems.map((s) => [s.faction, { lit: Math.min(s.panels.length, SHELL_FACES), total: SHELL_FACES }])),
+      projects: Object.fromEntries([...w.towns].map(([k, t]) => [k, t.counts.produced])),
+    };
+    const seen = loadSeen();
+    const fresh = newMilestones(counts.current, next, seen);
+    counts.current = next;
+    for (const m of fresh) {
+      seen.add(m.id);
+      useCelebrations.getState().add(m);
+      toast(m.kind === "products" ? t("celebrate.products", { n: m.n }) : m.kind === "shell" ? t("celebrate.shell", { star: m.where === "codex" ? "Codex" : "Claude Code", n: m.n }) : t("celebrate.first", { name: w.towns.get(m.where)?.name ?? m.where }));
+    }
+    if (fresh.length) saveSeen(seen);
+  }, [g, w, source]);
   // a planet was clicked: fly there, fade, open its city
   useEffect(() => {
     if (!entering) return;
@@ -472,6 +493,7 @@ export function GalaxyApp() {
           <>
             <GalaxyScene g={g} />
             <TourHighlightSpace g={g} />
+            <Celebrations g={g} />
             <FrameGrab />
             <Projector labels={labels} g={g} />
           </>
