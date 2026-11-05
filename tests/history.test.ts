@@ -98,6 +98,22 @@ describe("stepAgents (owner 2026-11-03: show the step's agents)", () => {
     // the main agent's own spawning calls are named in plain words, not by their role id
     expect(a[0].work.map((w) => w.name)).toEqual(["派子代理", "跑命令"]);
   });
+  it("a general subagent's kind of work is what it did most (for its prop and colour)", async () => {
+    const { stepAgents } = await import("../packages/web/src/city/history.ts");
+    const base = { faction: "claude-code" as const, projectId: "/p", sessionId: "s", taskId: "t1", raw: { file: "", line: 0 } };
+    let n = 0;
+    const ev = (agentId: string, kind: AgentTownEvent["kind"], extra: Partial<AgentTownEvent> = {}): AgentTownEvent => ({ ...base, id: `e${n++}`, ts: n, agentId, kind, ...extra });
+    const a = stepAgents([
+      ev("main", "task_start"),
+      ev("g", "agent_spawn", { agentType: "general-purpose", parentAgentId: "main", role: "commander" }),
+      ev("g", "tool_start", { tool: "WebFetch", role: "messenger" }),
+      ev("g", "tool_start", { tool: "Read", role: "scout" }),
+      ev("g", "tool_start", { tool: "WebSearch", role: "messenger" }),
+      ev("idle", "agent_spawn", { agentType: "general-purpose", parentAgentId: "main", role: "commander" }),
+    ]);
+    expect(a.find((x) => x.id === "g")!.top).toBe("messenger");
+    expect(a.find((x) => x.id === "idle")!.top).toBeUndefined();
+  });
   it("no events, no agents", async () => {
     const { stepAgents } = await import("../packages/web/src/city/history.ts");
     expect(stepAgents(null)).toEqual([]);

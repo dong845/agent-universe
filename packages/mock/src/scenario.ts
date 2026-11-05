@@ -116,20 +116,24 @@ export const tk = (input: number, cacheRead: number, cacheWrite: number, output:
  * One task, two parallel subagents, a failing-test loop that turns into rework, a compaction, a
  * permission wait, a denied command and a tool error: every behaviour the prototype must show.
  */
+/** the demo's own words in the page's language (spec 2026-11-05 D); set by demoPayload */
+export const demoLang: { lang: "zh" | "en" } = { lang: "zh" };
+export const say = (zh: string, en: string) => (demoLang.lang === "zh" ? zh : en);
+
 export function demoScenario(): AgentTownEvent[] {
   const b = new Builder();
   const SHOP = "src/http/client.ts";
-  b.taskStart(0, "给 HTTP 客户端加上失败重试，并补上测试");
+  b.taskStart(0, say("给 HTTP 客户端加上失败重试，并补上测试", "Add retries to the HTTP client, with tests"));
   b.think("main", 1.5, tk(2400, 15000, 6000, 380));
-  b.tool("main", 2.0, 0.3, "TodoWrite", "scribe", "计划：4 项");
+  b.tool("main", 2.0, 0.3, "TodoWrite", "scribe", say("计划：4 项", "Plan: 4 items"));
   b.think("main", 3.0, tk(300, 21000, 900, 160));
   b.tool("main", 3.5, 0.4, "Read", "scout", SHOP);
   b.tool("main", 4.5, 0.5, "Grep", "scout", "fetchJson");
   b.think("main", 6.0, tk(1800, 22000, 3000, 520));
 
   // two subagents from one message, working in parallel
-  const sa = b.spawn(7.0, "agent-scout", "Explore", "scout", "找出 fetchJson 的全部调用方");
-  const sb = b.spawn(7.0, "agent-tests", "general-purpose", "commander", "为重试逻辑写单元测试");
+  const sa = b.spawn(7.0, "agent-scout", "Explore", "scout", say("找出 fetchJson 的全部调用方", "Find every caller of fetchJson"));
+  const sb = b.spawn(7.0, "agent-tests", "general-purpose", "commander", say("为重试逻辑写单元测试", "Write unit tests for the retry logic"));
   b.think("agent-scout", 8.5, tk(1200, 9000, 2500, 210), "scout");
   b.tool("agent-scout", 9.0, 0.6, "Grep", "scout", "fetchJson(");
   b.think("agent-scout", 10.5, tk(900, 11500, 1400, 180), "scout");

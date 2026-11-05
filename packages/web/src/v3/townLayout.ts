@@ -5,6 +5,7 @@
 import type { RequestRow } from "../../../schema/src/payload.ts";
 import type { TownRow } from "../../../schema/src/towns.ts";
 import type { ArtQuery } from "./art.ts";
+import { t } from "../i18n/index.ts";
 
 export interface LayoutConfig {
   maxHouses: number;
@@ -70,8 +71,8 @@ export const WORK_ART: Record<string, string> = {
 };
 /** plain names for the public buildings (owner 2026-10-28) */
 export const WORK_NAMES: Record<string, string> = {
-  scout: "读代码", smith: "改代码", engineer: "跑命令", inspector: "测试", messenger: "联网", diplomat: "外部工具",
-  scribe: "计划", painter: "看图/生图", operator: "操作屏幕", spawn: "派子代理", compaction: "压缩记忆",
+  scout: t("work.scout"), smith: t("work.smith"), engineer: t("work.engineer"), inspector: t("work.inspector"), messenger: t("work.messenger"), diplomat: t("work.diplomat"),
+  scribe: t("work.scribe"), painter: t("work.painter"), operator: t("work.operator"), spawn: t("work.spawn"), compaction: t("work.compaction"),
 };
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
@@ -91,7 +92,7 @@ export function hash(s: string, salt = 0): number {
   return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
 }
 const work = (r: RequestRow) => r.tokens.input + r.tokens.output + r.tokens.cacheWrite;
-const streetOf = (d: string | null) => (d === null ? "其他" : d === "." ? "根目录" : d);
+const streetOf = (d: string | null) => (d === null ? t("street.other") : d === "." ? t("street.root") : d);
 
 export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutConfig): TownLayout {
   const cells = new Map<string, { q: number; r: number; kind: TownLayout["cells"][number]["kind"] }>();
@@ -142,8 +143,8 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
   const byFolder = new Map<string, number>();
   for (const r of produced) byFolder.set(streetOf(r.topDir), (byFolder.get(streetOf(r.topDir)) ?? 0) + 1);
   let names = [...byFolder.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([n]) => n);
-  if (names.length > cfg.maxStreets) names = [...names.filter((n) => n !== "其他").slice(0, cfg.maxStreets - 1), "其他"];
-  const streetName = (r: RequestRow) => (names.includes(streetOf(r.topDir)) ? streetOf(r.topDir) : "其他");
+  if (names.length > cfg.maxStreets) names = [...names.filter((n) => n !== t("street.other")).slice(0, cfg.maxStreets - 1), t("street.other")];
+  const streetName = (r: RequestRow) => (names.includes(streetOf(r.topDir)) ? streetOf(r.topDir) : t("street.other"));
   // work in progress first (most recent first), then the larger half of the finished work, at most maxHouses in all
   const liveOnes = produced.filter(isLive).sort((a, b) => b.startTs - a.startTs || (a.requestId < b.requestId ? -1 : 1)).slice(0, cfg.maxHouses);
   const done = produced.filter((r) => !isLive(r));

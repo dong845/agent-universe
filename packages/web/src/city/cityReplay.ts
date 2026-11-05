@@ -31,6 +31,8 @@ export interface CityReplay {
   requestId: string;
   title: string;
   tl: Timeline;
+  /** the request's events on the replay's own clock (idle gaps cut): the follow card reads them */
+  events: AgentTownEvent[];
   /** ms after the request's first event */
   t: number;
   speed: number;
@@ -59,7 +61,7 @@ export const useReplay = create<ReplayStore>((set, get) => ({
   start(district, requestId, title, events, places) {
     if (!events.length) throw new Error(`request ${requestId} has no events to replay`);
     const c = compressGaps(events);
-    set({ r: { district, requestId, title, tl: buildTimeline(c.events, places), t: 0, speed: 2, playing: true, cut: c.cut, follow: true } });
+    set({ r: { district, requestId, title, tl: buildTimeline(c.events, places), events: c.events, t: 0, speed: 2, playing: true, cut: c.cut, follow: true } });
   },
   stop: () => set({ r: null }),
   setFollow(f) {

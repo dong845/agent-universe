@@ -7,6 +7,7 @@
 // hook's own stdin JSON to Agent Town and can never hold the agent up: 1 s timeout, no output (a Stop
 // hook's stdout could be read as a decision), always exit 0.
 import { chmodSync, copyFileSync, existsSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { langOf, say } from "./text.ts";
 
 export const HOOK_MARKER = "agent-town-hook";
 export type HookAgent = "claude" | "codex";
@@ -54,7 +55,7 @@ function writeAtomic(file: string, json: unknown, seen: Seen, w: WriteHooks = {}
   const target = existsSync(file) ? realpathSync(file) : file;
   const now = seenOf(target);
   if ((seen === null) !== (now === null) || (seen && now && (seen.mtimeMs !== now.mtimeMs || seen.size !== now.size))) {
-    throw new Error(`${file} 在读取后又被改动了（可能是 Claude Code 或 Codex 正在写它），没有写入，请再试一次`);
+    throw new Error(say(langOf(), "hooks.raced", { file }));
   }
   const tmp = `${target}.agent-town.tmp`;
   writeFileSync(tmp, JSON.stringify(json, null, 2) + "\n", { mode: 0o600 });

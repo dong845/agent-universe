@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "../store.ts";
 import { useRightPanel } from "../ui/rightPanel.ts";
 import { toast } from "../ui/NeedsYou.tsx";
+import { t, useLang } from "../i18n/index.ts";
 
 const MAX_REPLAYS = 5;
 
@@ -20,7 +21,7 @@ export function ExportShare() {
   const go = async () => {
     setBusy(true);
     try {
-      const r = await fetch("/api/export/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ townNames: names, titles, replays: picked }) });
+      const r = await fetch("/api/export/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ townNames: names, titles, replays: picked, lang: useLang.getState().lang }) });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `${r.status}`);
       const blob = await r.blob();
       const name = /filename="([^"]+)"/.exec(r.headers.get("content-disposition") ?? "")?.[1] ?? "agent-universe-share.html";
@@ -31,36 +32,36 @@ export function ExportShare() {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
-      toast(`已保存 ${name}（${(blob.size / 1e6).toFixed(1)} MB${blob.size > 15e6 ? "，偏大" : ""}）`);
+      toast(t("export.saved", { name, mb: (blob.size / 1e6).toFixed(1), big: blob.size > 15e6 ? t("export.big") : "" }));
       setOpen(false);
     } catch (e) {
-      toast(`导出失败：${e instanceof Error ? e.message : String(e)}`);
+      toast(t("export.failed", { why: e instanceof Error ? e.message : String(e) }));
     } finally {
       setBusy(false);
     }
   };
   return (
     <>
-      <button className={`g-export${side}`} data-testid="export-share" onClick={() => setOpen(!open)} title="把这个世界导出成一个网页文件，发给别人打开">⇪ 导出分享页</button>
+      <button className={`g-export${side}`} data-testid="export-share" onClick={() => setOpen(!open)} title={t("export.buttonHint")}>{t("export.button")}</button>
       {open ? (
-        <div className="g-rec-dialog g-export-dialog" data-testid="export-dialog" role="dialog" aria-label="导出分享页">
-          <b>导出分享页</b>
-          <p className="muted">一个离线 HTML 文件：别人打开就能转动你的星系、进城看看。不带日志原文、路径和会话编号，用我们自己的阵营标志。</p>
-          <label><input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} /> 显示项目名称<small>关掉则用代号</small></label>
-          <label><input type="checkbox" checked={titles} onChange={(e) => setTitles(e.target.checked)} /> 显示请求标题<small>你自己写的话会写进文件</small></label>
-          <p className="muted">带上几次重放（最多 {MAX_REPLAYS} 个，只含动作的种类和时间）：</p>
+        <div className="g-rec-dialog g-export-dialog" data-testid="export-dialog" role="dialog" aria-label={t("export.title")}>
+          <b>{t("export.title")}</b>
+          <p className="muted">{t("export.hint")}</p>
+          <label><input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} /> {t("share.names")}<small>{t("share.namesHint")}</small></label>
+          <label><input type="checkbox" checked={titles} onChange={(e) => setTitles(e.target.checked)} /> {t("share.titles")}<small>{t("export.titlesHint")}</small></label>
+          <p className="muted">{t("export.replays", { n: MAX_REPLAYS })}</p>
           <div className="g-export-list">
             {recent.map((r) => (
               <label key={r.requestId}>
                 <input type="checkbox" checked={picked.includes(r.requestId)} disabled={!picked.includes(r.requestId) && picked.length >= MAX_REPLAYS}
                   onChange={(e) => setPicked(e.target.checked ? [...picked, r.requestId] : picked.filter((x) => x !== r.requestId))} />
-                <span>{w?.towns.get(`${r.faction}|${r.projectId}`)?.name} · {r.title ?? "（无标题）"}</span>
+                <span>{w?.towns.get(`${r.faction}|${r.projectId}`)?.name} · {r.title ?? t("history.untitled")}</span>
               </label>
             ))}
           </div>
           <div className="g-rec-actions">
-            <button onClick={() => setOpen(false)}>取消</button>
-            <button className="primary" disabled={busy} data-testid="export-go" onClick={() => void go()}>{busy ? "正在生成…" : "导出"}</button>
+            <button onClick={() => setOpen(false)}>{t("common.cancel")}</button>
+            <button className="primary" disabled={busy} data-testid="export-go" onClick={() => void go()}>{busy ? t("export.busy") : t("export.go")}</button>
           </div>
         </div>
       ) : null}

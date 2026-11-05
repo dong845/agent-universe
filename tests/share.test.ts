@@ -95,7 +95,7 @@ describe("code names", () => {
 describe("the sentence for untitled requests stays home (spec 2026-11-03 B3)", () => {
   it("is never in a shared world", () => {
     const p = demoPayload();
-    const withGist = { ...p, requests: p.requests.map((r) => ({ ...r, title: undefined, gist: "跑命令：SECRET-command" })) };
+    const withGist = { ...p, requests: p.requests.map((r) => ({ ...r, title: undefined, gist: { kind: "run" as const, command: "SECRET-command" } })) };
     for (const o of [{ townNames: true, titles: true }, { townNames: false, titles: false }]) {
       expect(JSON.stringify(sharePayload(withGist, { ids, ...o, replays: [] }))).not.toContain("SECRET-command");
     }

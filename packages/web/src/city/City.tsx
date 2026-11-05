@@ -18,7 +18,7 @@ import { HistoryFocus, StandingAgents } from "./HistoryPanel.tsx";
 import { countsAt, useHistory } from "./history.ts";
 import { LAYOUT_DEFAULTS } from "../v3/townLayout.ts";
 import { useReplay } from "./cityReplay.ts";
-import { Robot, robotInfo } from "./Robot.tsx";
+import { Robot, RobotProbe, robotInfo, type RobotInfo } from "./Robot.tsx";
 import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
 
 const noRay = () => null;
@@ -254,13 +254,28 @@ function CityCamera({ layout }: { layout: TownLayout }) {
   const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update(): void } | null;
   const R = layout.radius;
   const want = useMemo(() => new THREE.Vector3(), []);
-  // during a replay the camera follows the main agent (it can be switched off on the replay bar)
+  const lost = useRef(0);
+  // the camera follows a clicked robot (spec 2026-11-05 C1), else during a replay the main agent (that
+  // can be switched off on the replay bar); a followed robot gone for 3 s lets go (a world swap remounts robots)
   useFrame((_, dt) => {
-    const r = useReplay.getState().r;
-    if (!controls || !r || !r.follow) return;
-    const main = r.tl.actors.find((a) => a.kind === "commander");
-    const info = main ? robotInfo.get(`rp|${main.id}`) : undefined;
-    if (!info?.visible) return;
+    if (!controls) return;
+    const st = useStore.getState();
+    let info: RobotInfo | undefined;
+    if (st.followAgent) {
+      info = robotInfo.get(st.followAgent);
+      if (!info?.visible) {
+        lost.current += dt;
+        if (lost.current > 3) st.setFollowAgent(null);
+        return;
+      }
+      lost.current = 0;
+    } else {
+      const r = useReplay.getState().r;
+      if (!r || !r.follow) return;
+      const main = r.tl.actors.find((a) => a.kind === "commander");
+      info = main ? robotInfo.get(`rp|${main.id}`) : undefined;
+      if (!info?.visible) return;
+    }
     want.set(info.anchor.x, 0, info.anchor.z);
     const k = 1 - Math.exp(-dt * 2.5);
     const delta = want.sub(controls.target).multiplyScalar(k);
@@ -277,6 +292,15 @@ function CityCamera({ layout }: { layout: TownLayout }) {
     camera.lookAt(0, 0, 0);
   }, [camera, R]);
   (window as unknown as { __agentTownFlying?: unknown; __cityView?: unknown }).__agentTownFlying = () => false;
+  (window as unknown as { __agentTownControls?: unknown }).__agentTownControls = controls;
+  // dragging the view yourself lets go of a followed robot (Esc does too: the store's back())
+  useEffect(() => {
+    const c = controls as unknown as THREE.EventDispatcher<{ start: object }> | null;
+    if (!c) return;
+    const letGo = () => useStore.getState().setFollowAgent(null);
+    c.addEventListener("start", letGo);
+    return () => c.removeEventListener("start", letGo);
+  }, [controls]);
   // test hook: look from a given direction and distance (screenshots of the sky and the horizon)
   (window as unknown as { __cityView?: unknown }).__cityView = (phi: number, theta: number, dist: number) => {
     if (!controls) return;
@@ -322,6 +346,7 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
         <ReplayAgents p={p} />
       </Suspense>
       <CityCamera layout={layout} />
+      <RobotProbe />
       <HistoryFocus p={p} />
       <Suspense fallback={null}><StandingAgents p={p} /></Suspense>
       <Clock />

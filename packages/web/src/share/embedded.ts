@@ -1,6 +1,7 @@
 // A shared page (spec 2026-11-01 D) carries its world and models inside itself: <script
 // type="application/json"> blocks written by the server's exporter. Viewer mode = such a block exists.
 import type { WorldPayload } from "../../../schema/src/payload.ts";
+import { t } from "../i18n/index.ts";
 
 const block = (id: string) => (typeof document === "undefined" ? null : document.getElementById(id));
 
@@ -20,7 +21,7 @@ export function modelUrl(name: string): string {
   if (!isViewer()) return `/models/${name}.glb`;
   models ??= JSON.parse(block("agent-town-models")?.textContent ?? "{}") as Record<string, string>;
   const b64 = models[name];
-  if (!b64) throw new Error(`这个分享页没有带 ${name} 模型`);
+  if (!b64) throw new Error(t("share.noModel", { name }));
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const url = URL.createObjectURL(new Blob([bytes], { type: "model/gltf-binary" }));
   models[name] = "";

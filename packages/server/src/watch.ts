@@ -1,6 +1,7 @@
 // Watches the log roots and calls back once per burst of writes to .jsonl files (spec 2026-11-01 A1).
 // A root that does not exist is skipped (an owner may use only one of the two tools).
 import { existsSync, watch, type FSWatcher } from "node:fs";
+import { langOf, say } from "./text.ts";
 
 export function watchRoots(roots: string[], onChange: () => void, debounceMs = 1500): () => void {
   const watchers: FSWatcher[] = [];
@@ -18,10 +19,10 @@ export function watchRoots(roots: string[], onChange: () => void, debounceMs = 1
       const w = watch(root, { recursive: true }, (_ev, name) => {
         if (name && String(name).endsWith(".jsonl")) fire();
       });
-      w.on("error", (e) => console.error(`停止监视 ${root}：${e.message}`));
+      w.on("error", (e) => console.error(say(langOf(), "watch.stopped", { root, why: e.message })));
       watchers.push(w);
     } catch (e) {
-      console.error(`无法监视 ${root}：${(e as Error).message}`);
+      console.error(say(langOf(), "watch.failed", { root, why: (e as Error).message }));
     }
   }
   return () => {

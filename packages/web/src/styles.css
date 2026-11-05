@@ -406,3 +406,82 @@ canvas { display: block; }
 .g-tour div { display: flex; justify-content: flex-end; gap: 6px; }
 .g-tour button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 7px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); cursor: pointer; }
 .g-tour button.primary { background: rgba(255, 196, 92, 0.18); border-color: rgba(255, 196, 92, 0.5); }
+
+/* no logs found (spec 2026-11-05 B3): a card on the right, under the top bar, never over another panel */
+.g-empty {
+  position: absolute; top: 76px; right: 14px; width: 340px; padding: 12px 14px; font-size: 12px; line-height: 1.6;
+  background: rgba(10, 16, 30, 0.88); border: 1px solid rgba(255, 196, 92, 0.4); border-radius: 10px; color: #f2e6cc;
+  backdrop-filter: blur(8px); z-index: 6;
+}
+.g-empty b { display: block; color: #ffd58a; font-size: 13px; margin-bottom: 4px; }
+.g-empty p { margin: 0 0 6px; }
+.g-empty code { display: block; font-size: 11px; color: #fff; word-break: break-all; margin-top: 4px; }
+.g-empty small { display: block; color: #b8ad96; }
+.g-empty .g-x { position: absolute; top: 6px; right: 8px; }
+
+/* find a project (spec 2026-11-05 B3): top right, beside the top bar */
+.g-search { position: absolute; top: 18px; right: 64px; width: 230px; z-index: 16; font-size: 13px; }
+.g-search input {
+  width: 100%; box-sizing: border-box; padding: 7px 12px; border-radius: 999px; font: inherit; color: #e6eefc;
+  background: rgba(10, 16, 30, 0.82); border: 1px solid rgba(130, 170, 240, 0.35); backdrop-filter: blur(8px); outline: none;
+}
+.g-search input:focus { border-color: rgba(160, 200, 255, 0.8); }
+.g-search ul { list-style: none; margin: 6px 0 0; padding: 4px; background: rgba(10, 16, 30, 0.92); border: 1px solid rgba(130, 170, 240, 0.3); border-radius: 10px; }
+.g-search li { padding: 6px 8px; border-radius: 6px; cursor: pointer; color: #dbe6fb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-search li.on, .g-search li:hover { background: rgba(120, 160, 240, 0.22); }
+.g-search li.none { color: #8fa3c4; cursor: default; background: none; }
+
+/* the followed agent's card (spec 2026-11-05 C1): bottom left, above the time bar */
+.g-follow {
+  position: absolute; left: 14px; bottom: 96px; width: 300px; padding: 12px 14px; z-index: 14; font-size: 12px;
+  background: rgba(10, 16, 30, 0.9); border: 1px solid rgba(130, 170, 240, 0.35); border-radius: 12px; color: #dbe6fb; backdrop-filter: blur(8px);
+}
+.g-follow .g-x { position: absolute; top: 6px; right: 8px; font: inherit; font-size: 15px; color: #8fa3c4; background: none; border: 0; cursor: pointer; }
+.g-follow-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.g-follow-head b { font-size: 14px; color: #fff; }
+.g-follow-task { display: block; color: #9fb0cc; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.g-follow-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid rgba(130, 170, 240, 0.12); }
+.g-follow-row span { color: #8fa3c4; white-space: nowrap; }
+.g-follow-row b { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.g-follow-kids { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.g-follow-kids span { width: 100%; color: #8fa3c4; }
+.g-follow button:not(.g-x) { font: inherit; font-size: 11.5px; padding: 3px 9px; border-radius: 999px; cursor: pointer; background: rgba(120, 160, 240, 0.16); color: #dbe6fb; border: 1px solid rgba(130, 170, 240, 0.3); }
+.g-follow button:disabled { opacity: 0.45; cursor: default; }
+.g-follow-parent { margin-top: 8px; }
+.face2d { display: inline-block; flex: none; line-height: 0; }
+
+/* the tour's highlight on a panel (spec 2026-11-05 B1) */
+.tour-glow { outline: 2px solid rgba(255, 196, 92, 0.9) !important; outline-offset: 3px; box-shadow: 0 0 0 6px rgba(255, 196, 92, 0.18), 0 0 30px rgba(255, 196, 92, 0.35) !important; transition: outline-color 0.3s; }
+.g-tour { transition: left 0.35s ease, top 0.35s ease; }
+.g-settings-btn { font: inherit; font-size: 12px; padding: 4px 12px; border-radius: 7px; cursor: pointer; color: #e6eefc; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(130, 170, 240, 0.35); }
+
+/* the mini window (spec 2026-11-05 C2) */
+.g-mini-btn { position: absolute; top: 18px; right: 302px; z-index: 16; font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; color: #e6eefc; background: rgba(10, 16, 30, 0.82); border: 1px solid rgba(130, 170, 240, 0.35); backdrop-filter: blur(8px); }
+.g-mini-doc { margin: 0; background: #0b0f18; color: #dbe6fb; font: 13px/1.45 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; }
+.g-mini { padding: 10px 12px; }
+.g-mini header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.g-mini header b { font-size: 13px; color: #ffd58a; }
+.g-mini h4 { margin: 10px 0 4px; font-size: 11.5px; font-weight: 600; color: #8fa3c4; }
+.g-mini button { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 6px; cursor: pointer; color: #dbe6fb; background: rgba(120, 160, 240, 0.14); border: 1px solid rgba(130, 170, 240, 0.3); }
+.g-mini-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; }
+.g-mini-row.s-waiting, .g-mini-row.s-maybe-waiting { background: rgba(255, 196, 92, 0.1); }
+.g-mini-row.s-error { background: rgba(255, 80, 80, 0.12); }
+.g-mini-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.g-mini-text b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-mini-text span { font-size: 11.5px; color: #9fb0cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-mini-none { color: #8fa3c4; font-size: 12px; }
+.g-need-face { margin-right: 4px; vertical-align: middle; }
+
+/* the top-right tools in one row (spec 2026-11-05): export · poster · mini window, left of the gear;
+   the search box on the line below */
+.g-tools { position: absolute; top: 14px; right: 52px; z-index: 21; display: flex; flex-direction: row-reverse; gap: 8px; align-items: center; }
+.g-tools.beside-diary { right: 426px; }
+.g-tools .g-export, .g-tools .g-mini-btn { position: static; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+.g-tools .g-mini-btn { color: var(--ink); background: var(--panel); border: 1px solid var(--line); backdrop-filter: none; }
+.g-search { top: 54px; right: 14px; }
+.g-empty { top: 100px; }
+.g-poster-dialog { bottom: auto; top: 52px; left: auto; right: 0; transform: none; width: 380px; }
+.g-poster-periods { display: flex; gap: 6px; }
+.g-poster-periods button { flex: 1; font: inherit; font-size: 12px; padding: 4px 0; border-radius: 7px; cursor: pointer; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.g-poster-periods button.on { background: rgba(255, 196, 92, 0.18); border-color: rgba(255, 196, 92, 0.55); }
+.g-poster-preview { width: 100%; aspect-ratio: 1080 / 1350; border-radius: 8px; background: #070b16; }

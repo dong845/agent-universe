@@ -14,6 +14,7 @@ import manifest from "../../../art/manifest.json" with { type: "json" };
 import type { Manifest } from "./v3/art.ts";
 import type { Spot } from "./v3/townLayout.ts";
 import { buildWorld25, type World25 } from "./v3/world25Data.ts";
+import { localizePayload } from "./i18n/data.ts";
 
 export type HoverTarget =
   | { kind: "figure"; district: string; agentId: string }
@@ -107,6 +108,9 @@ interface Store {
   shareTitles: boolean;
   /** live: the clock follows the newest record (real data opens so; scrubbing leaves it; 实时 returns) */
   following: boolean;
+  /** the robot the city camera follows (spec 2026-11-05 C1): its robot id (live|…, hist|…|i, rp|…) */
+  followAgent: string | null;
+  setFollowAgent(id: string | null): void;
   setFollowing(f: boolean): void;
   /** a history step's moment: the world is drawn as it stood then (null = the clock) */
   historyAt: number | null;
@@ -184,14 +188,16 @@ export const useStore = create<Store>((set, get) => ({
     set(s ? { selected: s, focus: s.district } : { selected: null });
   },
   back() {
-    const { selected, focus, city } = get();
-    if (selected) get().select(null);
+    const { selected, focus, city, followAgent } = get();
+    // one step back each time: a followed agent first (spec 2026-11-05 C1), then the selection, the city…
+    if (followAgent) set({ followAgent: null });
+    else if (selected) get().select(null);
     else if (city) set({ city: null });
     else if (focus) set({ focus: null });
   },
   city: null,
   setCity(k) {
-    set(k ? { city: k, focus: k } : { city: null });
+    set(k ? { city: k, focus: k, followAgent: null } : { city: null, followAgent: null });
   },
   startReplay(district, events) {
     // a replay plays at its own speed: it leaves live (review 2026-11-04)
@@ -255,6 +261,10 @@ export const useStore = create<Store>((set, get) => ({
     set({ logos: l });
   },
   following: false,
+  followAgent: null,
+  setFollowAgent(id) {
+    if (get().followAgent !== id) set({ followAgent: id });
+  },
   setFollowing(f) {
     const { t, duration } = get();
     // pressing 实时 far back in the record goes straight to now; close behind, the clock walks on
@@ -305,11 +315,14 @@ export const useStore = create<Store>((set, get) => ({
     set(sharedPatch(get().prepare(p), get));
   },
   prepare(p) {
+    // the data's own words (town names, continued titles) in the page's language (spec 2026-11-05 D)
+    p = localizePayload(p);
     const a = prepareClock(p);
     const ledger = buildLedger(p.events, p.buildingRows);
     return finishPrepare(p, a, ledger, get);
   },
   async prepareInFrames(p, nextFrame) {
+    p = localizePayload(p);
     // three short frames instead of one long one (spec 2026-11-03 A2)
     const a = prepareClock(p);
     await nextFrame();

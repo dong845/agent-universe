@@ -18,6 +18,21 @@ import { orbit } from "./galaxy/Galaxy.tsx";
 import { activeAt, floorsAt, sampleActor } from "./orchestrator/timeline.ts";
 import { absTime, useStore, type HoverTarget } from "./store.ts";
 import "./styles.css";
+import { replayTour } from "./ui/Tour.tsx";
+import { useTour } from "./ui/tourStore.ts";
+import { useCelebrations } from "./galaxy/Celebration.tsx";
+import type { Milestone } from "./ui/milestones.ts";
+import { attentionSounds, makeChimer, playSound, soundsOn } from "./ui/sounds.ts";
+import { t, useLang } from "./i18n/index.ts";
+
+// sounds (spec 2026-11-05 C4, off by default): what newly happened in 需要你, never the first snapshot
+const chime = makeChimer(playSound);
+let primed = false;
+useStore.subscribe((s, p) => {
+  if (s.attention === p.attention) return;
+  if (!primed) return void (primed = true);
+  if (soundsOn()) for (const k of attentionSounds(p.attention, s.attention)) chime(k, Date.now());
+});
 
 const q = new URLSearchParams(location.search);
 const root = createRoot(document.getElementById("root")!);
@@ -27,7 +42,7 @@ let payload;
 try {
   payload = await loadWorld(q.get("demo") === "1", showLoading);
 } catch (e) {
-  showLoading({ phase: "error", message: e instanceof ServerDown ? "本地服务没有启动：在项目目录运行 npm start" : `读取日志失败：${e instanceof Error ? e.message : String(e)}` });
+  showLoading({ phase: "error", message: e instanceof ServerDown ? t("load.serverDown") : t("load.failedWhy", { why: e instanceof Error ? e.message : String(e) }) });
   throw e;
 }
 const store = useStore.getState();
@@ -36,7 +51,7 @@ const fromServer = payload.source === "real";
 if (fromServer && !payload.requests.length) {
   const st = await fetch("/api/status").then((r) => r.json()).catch(() => ({}));
   store.setEmptyLogs(st.roots ?? { claude: "~/.claude/projects", codex: "~/.codex/sessions" });
-  payload = demoPayload();
+  payload = demoPayload(useLang.getState().lang);
 }
 store.load(payload);
 // the official marks, if the owner downloaded them on this machine (spec 2026-11-03 C2)
@@ -130,6 +145,13 @@ window.__agentTown = {
   orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
+  /** test hook: what a click on a robot does (spec 2026-11-05 C1); robot ids as in __robotSizes */
+  clickRobot: (id: string | null) => useStore.getState().setFollowAgent(id),
+  /** test hook: show a milestone's burst (spec 2026-11-05 C4) */
+  celebrate: (m: Milestone) => useCelebrations.getState().add(m),
+  /** test hook: the tour from its first step, as the settings button does */
+  startTour: () => replayTour(),
+  tour: () => ({ step: useTour.getState().step, id: useTour.getState().steps[useTour.getState().step]?.id ?? null, invite: useTour.getState().invite, follow: useStore.getState().followAgent }),
   /** test hook: fetch the newest world and apply it now (real data) */
   reloadNow: async () => {
     // the same path the stream takes: download, parse and apply in separate frames

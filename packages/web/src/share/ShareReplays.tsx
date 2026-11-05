@@ -4,6 +4,7 @@ import { useReplay } from "../city/cityReplay.ts";
 import { cityPlaces } from "../city/cityData.ts";
 import { useStore } from "../store.ts";
 import { embeddedWorld } from "./embedded.ts";
+import { t } from "../i18n/index.ts";
 
 export function ShareReplays() {
   const w = useStore((s) => s.w25);
@@ -13,7 +14,7 @@ export function ShareReplays() {
   if (!list.length || !w) return null;
   return (
     <div className="g-share-replays" data-testid="share-replays">
-      <header>可以重放的请求</header>
+      <header>{t("share.replays")}</header>
       {list.map((rp) => {
         const r = w.requests.get(rp.requestId);
         if (!r) return null;

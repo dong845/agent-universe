@@ -4,9 +4,9 @@
 import { execFile } from "node:child_process";
 import type { Attention, AttentionState } from "../../schema/src/attention.ts";
 import type { Settings } from "./settings.ts";
+import { langOf, say, type Lang } from "./text.ts";
 
-const TEXT: Record<AttentionState, string> = { "maybe-waiting": "可能在等你授权", waiting: "在等你授权", "turn-done": "本轮完成，等你回复", error: "出错停止" };
-export const notificationText = (s: AttentionState) => TEXT[s];
+export const notificationText = (s: AttentionState, lang: Lang = langOf()) => say(lang, `state.${s}`);
 
 export function createNotifier(send: (title: string, body: string) => void, settings: () => Settings, townName: (projectId: string, faction: Attention["faction"]) => string): (list: Attention[]) => void {
   let shown = new Map<string, AttentionState>();
@@ -18,7 +18,7 @@ export function createNotifier(send: (title: string, body: string) => void, sett
       if (shown.get(a.session) === a.state) continue;
       if (!s.notify) continue;
       if (a.state === "turn-done" && !s.notifyTurnDone) continue;
-      send("Agent Universe", `${townName(a.projectId, a.faction)} · ${TEXT[a.state]}`);
+      send("Agent Universe", `${townName(a.projectId, a.faction)} · ${notificationText(a.state, s.lang ?? langOf())}`);
     }
     shown = next;
   };
@@ -34,7 +34,7 @@ export function osascriptSend(title: string, body: string): void {
   execFile("osascript", ["-e", `display notification ${appleScriptString(body)} with title ${appleScriptString(title)}`], (err) => {
     if (err && !warned) {
       warned = true;
-      console.error(`发送通知失败（之后不再提示）：${err.message}`);
+      console.error(say(langOf(), "notify.failed", { why: err.message }));
     }
   });
 }

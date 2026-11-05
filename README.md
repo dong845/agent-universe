@@ -1,5 +1,7 @@
 # Agent Universe · 智能体宇宙
 
+[中文说明](README.zh.md)
+
 Your Claude Code and Codex work, drawn as a universe that grows with it. Everything is read from the
 logs on your own computer and shown only there.
 
@@ -12,8 +14,15 @@ logs on your own computer and shown only there.
   waits exact.
 - **历史**: a town's requests as steps; pick one and the city stands as it was when that request
   finished, explained from what the logs record.
+- **The agents** are little big-headed robots: their faces show what they are doing (focused, thinking,
+  waiting for you, an error, done), subagents carry a tool for their kind of work, and a click on one
+  makes the camera follow it, with a card saying what it is doing right now.
+- **Mini window**: a small always-on-top window (Chrome/Edge) with who is working and who waits for you.
+- **Review poster**: the last 7 / 30 / 365 days or all time as one picture to share.
 - **Share**: record a replay as MP4/GIF, or export the world as one offline HTML page. Project names
   are kept, request titles hidden, paths and session ids never included.
+- **Chinese or English**: follows your browser; the 中文 / English button switches. Optional sounds, and
+  a small celebration for milestones reached while the page is open. A guided tour on the first visit.
 
 ## Start
 

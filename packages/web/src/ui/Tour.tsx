@@ -1,46 +1,115 @@
-// A first visit's short tour (spec 2026-11-03 C4): what the star, planets, panels, cities, robots,
-// 需要你 and 历史 mean. A small card beside the scene — it never blocks it — skippable, remembered.
-import { useState } from "react";
+// The guided tour (spec 2026-11-05 B1): each step moves the camera to what it explains and highlights it
+// (a ring in the scene, a glow on a panel); the card sits beside the highlight, never over the middle of
+// the screen. It ends back in space inviting a click on a planet. Skippable, remembered, replayable from
+// the settings.
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEnter } from "../city/cityReplay.ts";
+import { mainRobot } from "../city/Robot.tsx";
+import { t, useLang } from "../i18n/index.ts";
+import { useStore } from "../store.ts";
+import { tourDone, useTour } from "./tourStore.ts";
+import { autoStart, tourSteps, type TourGo } from "./tourSteps.ts";
 
-const KEY = "agent-universe:tour-done";
-const STEPS: { title: string; text: string }[] = [
-  { title: "欢迎来到智能体宇宙", text: "这里是你用 Claude Code 和 Codex 做过的事。全部从你电脑上的日志读出来，只在本机显示。" },
-  { title: "两颗恒星", text: "左边是 Claude Code，右边是 Codex。围着恒星的戴森壳，每亮一片代表一件完成的成品。" },
-  { title: "行星 = 项目", text: "每个项目（或技能公会）是一颗行星，成品越多越大。点一颗行星，飞过去、进城。" },
-  { title: "城市和机器人", text: "城里的方楼是成品，圆塔是一类工作（读代码、跑命令……）。小机器人是正在干活的代理，小一号的是子代理。" },
-  { title: "需要你", text: "右上角的「需要你」列出在等你的会话：可能在等授权、出错停止、本轮完成。设置里可以打开系统通知和精确提醒。" },
-  { title: "历史", text: "没有在进行的城市会打开「历史」：每一步是一次请求，选中一步，城市停在它完成的那一刻。" },
-];
+/** start the tour for this world (on a first visit, or from the settings) */
+export function replayTour() {
+  const { biggest, hasRobot } = useTour.getState().ctx;
+  startTour(biggest, hasRobot);
+}
 
-const done = () => {
-  try {
-    return localStorage.getItem(KEY) === "1";
-  } catch {
-    return false;
-  }
-};
+export function startTour(biggest: string | null, hasRobot: boolean) {
+  const source = useStore.getState().source;
+  useTour.getState().start(tourSteps({ source, biggest, hasRobot }));
+}
 
-export function Tour() {
-  const [i, setI] = useState(() => (done() ? -1 : 0));
-  if (i < 0) return null;
-  const close = () => {
-    try {
-      localStorage.setItem(KEY, "1");
-    } catch {
-      // storage blocked: the tour shows again next time
+function carryOut(go: TourGo, key: string | null) {
+  const st = useStore.getState();
+  if (go === "overview" || go === "leave") {
+    st.setFollowAgent(null);
+    if (st.city) st.setCity(null);
+    st.select(null);
+    st.setFocus(null);
+  } else if (go === "focus" && key) {
+    if (st.city) st.setCity(null);
+    st.setFocus(key);
+  } else if (go === "enter" && key) {
+    st.setFollowAgent(null);
+    if (st.city !== key) {
+      st.setFocus(key);
+      useEnter.getState().request(key);
     }
-    setI(-1);
-  };
-  const s = STEPS[i];
+  } else if (go === "follow") {
+    // the robots appear once the city has loaded: try for a while
+    let n = 0;
+    const tryFollow = () => {
+      const id = mainRobot();
+      if (id) useStore.getState().setFollowAgent(id);
+      else if (n++ < 40 && useTour.getState().steps[useTour.getState().step]?.go === "follow") setTimeout(tryFollow, 250);
+    };
+    tryFollow();
+  } else if (go === "stay") st.setFollowAgent(null);
+}
+
+const CARD_W = 300;
+/** beside the anchor, on its side away from the middle of the screen when that fits */
+function place(a: { x: number; y: number; r?: number }, w: number, h: number) {
+  const gap = Math.max(70, (a.r ?? 0) + 24);
+  const left = a.x - gap - CARD_W, right = a.x + gap;
+  const fitsLeft = left >= 10, fitsRight = right + CARD_W <= w - 10;
+  const x = a.x < w / 2 ? (fitsLeft ? left : right) : (fitsRight ? right : left);
+  return { left: Math.max(10, Math.min(x, w - CARD_W - 10)), top: Math.max(70, Math.min(a.y - 70, h - 280)) };
+}
+
+export function Tour({ biggest, hasRobot }: { biggest: string | null; hasRobot: boolean }) {
+  useLang();
+  const step = useTour((s) => s.step);
+  const steps = useTour((s) => s.steps);
+  const anchor = useTour((s) => s.anchor);
+  const s = step >= 0 ? steps[step] : undefined;
+  useEffect(() => useTour.setState({ ctx: { biggest, hasRobot } }), [biggest, hasRobot]);
+  // a first visit starts it
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if (autoStart({ done: tourDone(), hash: location.hash })) startTour(biggest, hasRobot);
+  }, [biggest, hasRobot]);
+  // each step goes where it explains
+  useEffect(() => {
+    if (!s) return;
+    carryOut(s.go, s.highlight?.kind === "planet" ? s.highlight.key : biggest);
+  }, [s, biggest]);
+  // a panel the step points at glows; the card goes beside it
+  const [dom, setDom] = useState<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    if (s?.highlight?.kind !== "dom") return setDom(null);
+    const ids = s.highlight.testid.split("|");
+    let el: Element | null = null;
+    const find = () => {
+      el?.classList.remove("tour-glow");
+      el = ids.map((id) => document.querySelector(`[data-testid="${id}"]`)).find(Boolean) ?? null;
+      el?.classList.add("tour-glow");
+      setDom(el ? el.getBoundingClientRect() : null);
+    };
+    find();
+    const h = setInterval(find, 400);
+    return () => { clearInterval(h); el?.classList.remove("tour-glow"); };
+  }, [s]);
+  if (!s) return null;
+  const W = typeof window === "undefined" ? 1440 : window.innerWidth, H = typeof window === "undefined" ? 900 : window.innerHeight;
+  const at = dom ? { x: dom.left < W / 2 ? dom.right : dom.left, y: dom.top + 70 } : s.highlight && s.highlight.kind !== "dom" ? anchor : null;
+  const style = at ? place(at, W, H) : undefined;
+  const last = step === steps.length - 1;
   return (
-    <div className="g-tour" data-testid="tour" role="dialog" aria-label="引导">
-      <small>{i + 1} / {STEPS.length}</small>
-      <b>{s.title}</b>
-      <p>{s.text}</p>
+    <div className="g-tour" data-testid="tour" data-step={s.id} role="dialog" aria-label={t(s.title)} style={style}>
+      <small>{step + 1} / {steps.length}</small>
+      <b>{t(s.title)}</b>
+      <p>{t(s.text)}</p>
       <div>
-        <button onClick={close} data-testid="tour-skip">跳过</button>
-        {i > 0 ? <button onClick={() => setI(i - 1)}>上一步</button> : null}
-        {i < STEPS.length - 1 ? <button className="primary" onClick={() => setI(i + 1)} data-testid="tour-next">下一步</button> : <button className="primary" onClick={close}>开始</button>}
+        <button onClick={() => useTour.getState().end(false)} data-testid="tour-skip">{t("tour.skip")}</button>
+        {step > 0 ? <button onClick={() => useTour.getState().go(step - 1)}>{t("tour.prev")}</button> : null}
+        {last
+          ? <button className="primary" onClick={() => useTour.getState().end(true)} data-testid="tour-done">{t("tour.start")}</button>
+          : <button className="primary" onClick={() => useTour.getState().go(step + 1)} data-testid="tour-next">{t("tour.next")}</button>}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import type { AgentTownEvent } from "../../schema/src/event.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
 import type { Attention } from "../../schema/src/attention.ts";
 import { embeddedWorld } from "./share/embedded.ts";
+import { t, useLang } from "./i18n/index.ts";
 
 export type Progress = { phase: "loading"; done: number; total: number } | { phase: "error"; message: string };
 
@@ -15,7 +16,7 @@ export async function loadWorld(isDemo: boolean, onProgress: (p: Progress) => vo
   // a shared page: the world is inside the file
   const shared = embeddedWorld();
   if (shared) return shared;
-  if (isDemo) return (demo = demoPayload());
+  if (isDemo) return (demo = demoPayload(useLang.getState().lang));
   for (;;) {
     let s: { phase: string; done: number; total: number; error?: string };
     try {
@@ -25,7 +26,7 @@ export async function loadWorld(isDemo: boolean, onProgress: (p: Progress) => vo
     } catch (e) {
       throw e instanceof ServerDown ? e : new ServerDown(String(e));
     }
-    if (s.phase === "error") throw new Error(s.error ?? "读取日志失败");
+    if (s.phase === "error") throw new Error(s.error ?? t("load.failed"));
     if (s.phase === "ready") break;
     onProgress({ phase: "loading", done: s.done, total: s.total });
     await new Promise((res) => setTimeout(res, 500));
