@@ -12,11 +12,17 @@ export interface TourStep {
   highlight: TourHighlightTarget;
 }
 
+/** a first visit starts the tour, unless the page was opened on a link to something (#req=…): that
+ * visitor came for the thing the link names */
+export function autoStart(o: { done: boolean; hash: string }): boolean {
+  return !o.done && !o.hash.replace(/^#/, "");
+}
+
 /** `biggest`: the planet the tour visits (the one with most finished work); `hasRobot`: the city has a
  * live agent now (else the robot step follows one of the history step's standing agents) */
 export function tourSteps(ctx: { source: "real" | "demo" | "share"; biggest: string | null; hasRobot: boolean }): TourStep[] {
   const steps: TourStep[] = [
-    { id: "welcome", title: "tour.welcome.title", text: ctx.source === "demo" ? "tour.welcome.demo" : ctx.source === "share" ? "tour.welcome.share" : "tour.welcome.real", go: "overview", highlight: null },
+    { id: "welcome", title: "tour.welcome.title", text: ctx.source === "demo" ? "tour.welcome.demo" : ctx.source === "share" ? "tour.welcome.share" : "tour.welcome.real", go: "stay", highlight: null },
     { id: "stars", title: "tour.stars.title", text: "tour.stars.text", go: "overview", highlight: { kind: "star" } },
   ];
   if (ctx.biggest) {

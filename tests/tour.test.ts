@@ -3,10 +3,17 @@ import { describe, expect, it } from "vitest";
 import { tourSteps } from "../packages/web/src/ui/tourSteps.ts";
 
 describe("tourSteps", () => {
+  it("does not start by itself on a page opened with a link to something", async () => {
+    const { autoStart } = await import("../packages/web/src/ui/tourSteps.ts");
+    expect(autoStart({ done: false, hash: "" })).toBe(true);
+    expect(autoStart({ done: false, hash: "#req=abc" })).toBe(false);
+    expect(autoStart({ done: true, hash: "" })).toBe(false);
+  });
   it("seven steps in the spec's order, each going somewhere", () => {
     const s = tourSteps({ source: "real", biggest: "claude-code|/p", hasRobot: true });
     expect(s.map((x) => x.id)).toEqual(["welcome", "stars", "planet", "city", "robot", "panels", "invite"]);
-    expect(s.map((x) => x.go)).toEqual(["overview", "overview", "focus", "enter", "follow", "stay", "leave"]);
+    // the welcome moves nothing: a page opened on a link keeps what it opened (e2e world.spec #req=)
+    expect(s.map((x) => x.go)).toEqual(["stay", "overview", "focus", "enter", "follow", "stay", "leave"]);
     expect(s.find((x) => x.id === "planet")!.highlight).toEqual({ kind: "planet", key: "claude-code|/p" });
     expect(s.find((x) => x.id === "stars")!.highlight).toEqual({ kind: "star" });
   });

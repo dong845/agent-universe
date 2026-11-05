@@ -8,7 +8,7 @@ import { mainRobot } from "../city/Robot.tsx";
 import { t, useLang } from "../i18n/index.ts";
 import { useStore } from "../store.ts";
 import { tourDone, useTour } from "./tourStore.ts";
-import { tourSteps, type TourGo } from "./tourSteps.ts";
+import { autoStart, tourSteps, type TourGo } from "./tourSteps.ts";
 
 /** start the tour for this world (on a first visit, or from the settings) */
 export function replayTour() {
@@ -71,7 +71,7 @@ export function Tour({ biggest, hasRobot }: { biggest: string | null; hasRobot: 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    if (!tourDone()) startTour(biggest, hasRobot);
+    if (autoStart({ done: tourDone(), hash: location.hash })) startTour(biggest, hasRobot);
   }, [biggest, hasRobot]);
   // each step goes where it explains
   useEffect(() => {
