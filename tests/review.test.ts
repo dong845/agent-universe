@@ -89,3 +89,40 @@ describe("drawPoster", () => {
     expect(drawn.join(" ")).not.toContain("beta");
   });
 });
+
+describe("poster work rows (D26 A3: a long label ran into its bar)", () => {
+  /** a canvas stub that knows text widths (from the font size) and where bars start */
+  const recorder = () => {
+    let font = "16px x";
+    const texts: { t: string; x: number; y: number; w: number }[] = [];
+    const bars: { x: number; y: number; w: number }[] = [];
+    const size = () => Number(/(\d+(?:\.\d+)?)px/.exec(font)![1]);
+    const noop = () => undefined;
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (_, k: string) => {
+        if (k === "font") return font;
+        if (k === "measureText") return (t: string) => ({ width: [...t].reduce((a, ch) => a + (ch.charCodeAt(0) > 0x2e80 ? 1 : 0.58), 0) * size() });
+        if (k === "fillText") return (t: string, x: number, y: number) => texts.push({ t, x, y, w: [...t].reduce((a, ch) => a + (ch.charCodeAt(0) > 0x2e80 ? 1 : 0.58), 0) * size() });
+        if (k === "roundRect") return (x: number, y: number, w: number) => bars.push({ x, y, w });
+        if (k === "createLinearGradient") return () => ({ addColorStop: noop });
+        return noop;
+      },
+      set: (_, k: string, v: unknown) => { if (k === "font") font = String(v); return true; },
+    });
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, texts, bars };
+  };
+  for (const lang of ["zh", "en"] as const) {
+    it(`no work label overlaps its bar (${lang})`, () => {
+      const s = { ...reviewStats(requests, "week", NOW, { tz: TZ }), work: [{ role: "engineer" as const, n: 68434 }, { role: "scout" as const, n: 31630 }, { role: "operator" as const, n: 6421 }, { role: "inspector" as const, n: 5623 }] };
+      const { ctx, texts, bars } = recorder();
+      drawPoster(ctx, s, { bg: null, face: null, lang, period: "week", names: () => "p" });
+      const labels = texts.filter((x) => ["Running commands", "Reading code", "Using the screen", "Testing", "跑命令", "读代码", "操作屏幕", "测试"].includes(x.t));
+      expect(labels).toHaveLength(4);
+      for (const l of labels) {
+        const bar = bars.find((b) => b.y <= l.y && l.y <= b.y + 40 && b.x > 72);
+        expect(bar, l.t).toBeTruthy();
+        expect(l.x + l.w + 8, l.t).toBeLessThanOrEqual(bar!.x);
+      }
+    });
+  }
+});
