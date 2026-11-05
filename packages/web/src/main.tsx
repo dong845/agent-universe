@@ -24,7 +24,7 @@ import { useCelebrations } from "./galaxy/Celebration.tsx";
 import type { Milestone } from "./ui/milestones.ts";
 import { attentionSounds, makeChimer, playSound, soundsOn } from "./ui/sounds.ts";
 import { t, useLang } from "./i18n/index.ts";
-import { startPresence, useDecision, type PendingAsk } from "./ui/decision.ts";
+import { refreshToken, startPresence, useDecision, type PendingAsk } from "./ui/decision.ts";
 
 // sounds (spec 2026-11-05 C4, off by default): what newly happened in 需要你, never the first snapshot
 const chime = makeChimer(playSound);
@@ -88,7 +88,7 @@ if (fromServer) {
   subscribe({ world, attention: (a) => useStore.getState().setAttention(a), asks: (a) => useDecision.getState().setAsks(a as PendingAsk[]) });
   // answering from the page (spec 2026-11-05 D26 B): the token the server gives only its own page, and a
   // heartbeat while the page is in front, so the server holds hooks only for a page someone looks at
-  fetch("/api/status").then((r) => r.json()).then((s: { token?: string }) => useDecision.getState().setToken(s.token ?? null)).catch(() => undefined);
+  void refreshToken().catch(() => undefined);
   startPresence();
 }
 

@@ -47,9 +47,21 @@ export const useDecision = create<{ asks: PendingAsk[]; open: string | null; tok
   setToken: (token) => set({ token }),
 }));
 
-const post = (path: string, body: unknown) => {
+/** the page's token, from the server (it changes when the server restarts) */
+export async function refreshToken() {
+  const s = (await (await fetch("/api/status")).json().catch(() => ({}))) as { token?: string };
+  useDecision.getState().setToken(s.token ?? null);
+}
+const send1 = (path: string, body: unknown) => {
   const token = useDecision.getState().token;
   return fetch(path, { method: "POST", headers: { "content-type": "application/json", ...(token ? { "x-agent-universe-token": token } : {}) }, body: JSON.stringify(body) });
+};
+/** a refused token (the server restarted with a new one): fetch the new token and try once more */
+const post = async (path: string, body: unknown) => {
+  const r = await send1(path, body);
+  if (r.status !== 403) return r;
+  await refreshToken().catch(() => undefined);
+  return send1(path, body);
 };
 /** send the page's choice to the waiting hook; false if it is no longer waiting */
 export async function sendAnswer(id: string, a: { answers?: Record<string, string>; behavior?: "allow" | "deny" }): Promise<boolean> {

@@ -455,6 +455,7 @@ export function createServer(o: ServerOptions) {
       } catch {
         return json(res, 400, { error: "bad json" });
       }
+      if (!b || typeof b !== "object" || Array.isArray(b)) return json(res, 400, { error: "not an object" });
       // it is also the exact signal that the session waits for the owner
       if (typeof b.session_id === "string") {
         hooks.push({ session: `${src === "claude" ? "claude-code" : "codex"}|${b.session_id}`, event: "PermissionRequest", ts: now(), kind: "permission" });
@@ -507,6 +508,7 @@ export function createServer(o: ServerOptions) {
       } catch {
         return json(res, 400, { error: "bad json" });
       }
+      if (!b || typeof b !== "object" || Array.isArray(b)) return json(res, 400, { error: "not an object" });
       const sid = b.session_id ?? b.sessionId ?? b["thread-id"] ?? b.thread_id;
       const event = b.hook_event_name ?? b.type;
       if (typeof sid !== "string" || typeof event !== "string") return json(res, 400, { error: "no session or event" });
