@@ -19,7 +19,7 @@ import { countsAt, useHistory } from "./history.ts";
 import { LAYOUT_DEFAULTS } from "../v3/townLayout.ts";
 import { useReplay } from "./cityReplay.ts";
 import { Robot, RobotProbe, robotInfo, type RobotInfo } from "./Robot.tsx";
-import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
+import { Deliveries, Haze, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
 import { mainOf, uniqueAgents } from "../orchestrator/sessionAgents.ts";
 
 const noRay = () => null;
@@ -349,7 +349,7 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
       </Suspense>
       <StudioEnvironment />
       <Haze p={p} layout={layout} />
-      <Suspense fallback={null}><HoverCars p={p} layout={layout} /></Suspense>
+      <Suspense fallback={null}><Deliveries p={p} layout={layout} /></Suspense>
       <Buildings p={p} w={w} />
       <Suspense fallback={null}>
         <LiveAgents p={p} layout={layout} w={w} />
