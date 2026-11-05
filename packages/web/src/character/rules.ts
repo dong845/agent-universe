@@ -32,12 +32,11 @@ for (const [role, prop] of Object.entries(ROLE_PROP)) {
   if (!(PROPS as readonly string[]).includes(prop)) throw new Error(`art/character.json: role ${role} has unknown prop "${prop}"`);
 }
 
-/** a subagent's prop: its own role's; a general subagent's: the work it has done most by `t` (ties: the
- * work it did first); before any work, a backpack. A main agent carries none. */
-export function propOf(actor: Actor, t: number): Prop | null {
+/** a subagent's kind of work: its own role; a general subagent's: the work it has done most by `t` (ties:
+ * the work it did first); null before any work, and for a main agent */
+export function workOf(actor: Actor, t: number): Role | null {
   if (actor.kind === "commander") return null;
-  const own = ROLE_PROP[actor.baseRole];
-  if (own) return own;
+  if (ROLE_PROP[actor.baseRole]) return actor.baseRole;
   const n = new Map<Role, { n: number; first: number }>();
   for (const a of actor.actions) {
     if (a.start > t || !ROLE_PROP[a.outfit]) continue;
@@ -50,5 +49,13 @@ export function propOf(actor: Actor, t: number): Prop | null {
     const b = best ? n.get(best)! : null;
     if (!b || c.n > b.n || (c.n === b.n && c.first < b.first)) best = r;
   }
-  return best ? ROLE_PROP[best]! : "backpack";
+  return best;
+}
+
+/** a subagent's prop: the one for its kind of work (workOf); before any work, a backpack. A main agent
+ * carries none. */
+export function propOf(actor: Actor, t: number): Prop | null {
+  if (actor.kind === "commander") return null;
+  const w = workOf(actor, t);
+  return w ? ROLE_PROP[w]! : "backpack";
 }

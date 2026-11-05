@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import character from "../art/character.json" with { type: "json" };
 import type { Role } from "../packages/schema/src/event.ts";
-import { FACES, faceOf, PROPS, propOf, ROLE_PROP } from "../packages/web/src/character/rules.ts";
+import { FACES, faceOf, PROPS, propOf, ROLE_PROP, workOf } from "../packages/web/src/character/rules.ts";
 import { FACTION_COLOR } from "../packages/web/src/galaxy/galaxyData.ts";
 import type { Action, Actor, Pose } from "../packages/web/src/orchestrator/timeline.ts";
 
@@ -49,6 +49,15 @@ describe("propOf", () => {
   });
   it("dispatching alone is not a kind of work: backpack", () => {
     expect(propOf(actor("subagent", "commander", [act("commander", 1)]), 10)).toBe("backpack");
+  });
+});
+
+describe("workOf", () => {
+  it("is the role behind the prop, so the headphones match it", () => {
+    expect(workOf(actor("commander", "commander", [act("smith", 0)]), 10)).toBeNull();
+    expect(workOf(actor("subagent", "inspector"), 0)).toBe("inspector");
+    expect(workOf(actor("subagent", "commander", [act("messenger", 1)]), 10)).toBe("messenger");
+    expect(workOf(actor("subagent", "commander"), 10)).toBeNull();
   });
 });
 

@@ -10,7 +10,8 @@ import { PRODUCT_COLOR, type Block, type Planet } from "../galaxy/galaxyData.ts"
 import { KitBuildings } from "./CityKit.tsx";
 import { useStore } from "../store.ts";
 import { historySteps, stepAgents, stepDay, stepFacts, useHistory, type HistoryStep } from "./history.ts";
-import { Robot } from "./Robot.tsx";
+import character from "../../../../art/character.json" with { type: "json" };
+import { Robot, SCALE } from "./Robot.tsx";
 import type { Actor } from "../orchestrator/timeline.ts";
 
 /** at most this many subagents stand in the city for one step (the rest are listed) */
@@ -198,16 +199,23 @@ export function StandingAgents({ p }: { p: Planet }) {
   const actors = useMemo(() => {
     if (!hall || !agents.length) return [];
     const hx = hall.spot.x, hz = hall.spot.z;
-    // facing the square: from the hall towards the city's centre
-    const out = Math.atan2(-hz, -hx);
-    const r0 = (hall.foot / p.unit) * 0.95 + 1.2;
-    const subs = agents.slice(1, 1 + MAX_SUBS);
+    // on the side of the hall that faces the city's default camera (CityCamera: from +z, a little +x), so
+    // the hall never hides them: the main agent in the middle, subagents beside it a figure's width
+    // apart (SCALE × the head's width, plus a gap), three each side; more stand in a second row in front
+    const out = Math.atan2(1.55, 0.2);
+    const r0 = (hall.foot / p.unit) * 0.95 + 1.8;
+    const gap = SCALE.sub * character.head.w + 0.45;
     return agents.slice(0, 1 + MAX_SUBS).map((a, i): { a: typeof a; actor: Actor } => {
-      const k = a.kind === "main" ? 0 : subs.indexOf(a) + 1;
-      // the main agent straight out from the door; subagents alternate left and right, a step further each
-      const ang = out + (k === 0 ? 0 : (k % 2 ? 1 : -1) * (0.38 + Math.floor((k - 1) / 2) * 0.32));
-      const r = r0 + (k === 0 ? 0 : 0.9 + Math.floor((k - 1) / 2) * 0.15);
-      return { a, actor: { id: `hist|${a.id}|${i}`, kind: a.kind === "main" ? "commander" : "subagent", baseRole: a.role ?? "scout", agentType: a.agentType, home: { x: hx + Math.cos(ang) * r, z: hz + Math.sin(ang) * r }, lane: 0, appear: 0, vanish: null, actions: [], backpack: [] } };
+      const row = i <= 6 ? 0 : 1;
+      const j = row === 0 ? i : i - 7;
+      // row 0: 0 = main, then right, left, right…; row 1: half a step off, so they stand in the gaps
+      // (in subagent widths from the middle: half the main agent, half a subagent, then one per step)
+      const side = j % 2 ? 1 : -1;
+      const slot = row === 0 ? (j === 0 ? 0 : side * (SCALE.main / SCALE.sub / 2 + 0.5 + Math.ceil(j / 2) - 1)) : side * (Math.floor(j / 2) + 0.5);
+      const r = r0 + row * 1.5;
+      const ang = out + (slot * gap) / r;
+      const role = a.kind === "main" ? "commander" : a.role && a.role !== "commander" ? a.role : (a.top ?? "commander");
+      return { a, actor: { id: `hist|${a.id}|${i}`, kind: a.kind === "main" ? "commander" : "subagent", baseRole: role, agentType: a.agentType, home: { x: hx + Math.cos(ang) * r, z: hz + Math.sin(ang) * r }, lane: 0, appear: 0, vanish: null, actions: [], backpack: [] } };
     });
   }, [agents, hall, p.unit]);
   if (!actors.length) return null;

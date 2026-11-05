@@ -18,7 +18,7 @@ import { HistoryFocus, StandingAgents } from "./HistoryPanel.tsx";
 import { countsAt, useHistory } from "./history.ts";
 import { LAYOUT_DEFAULTS } from "../v3/townLayout.ts";
 import { useReplay } from "./cityReplay.ts";
-import { Robot, robotInfo } from "./Robot.tsx";
+import { Robot, RobotProbe, robotInfo } from "./Robot.tsx";
 import { Haze, HoverCars, KitBuildings, KitGround, StudioEnvironment } from "./CityKit.tsx";
 
 const noRay = () => null;
@@ -322,6 +322,7 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
         <ReplayAgents p={p} />
       </Suspense>
       <CityCamera layout={layout} />
+      <RobotProbe />
       <HistoryFocus p={p} />
       <Suspense fallback={null}><StandingAgents p={p} /></Suspense>
       <Clock />

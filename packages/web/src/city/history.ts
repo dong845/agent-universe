@@ -3,7 +3,7 @@
 // explanation is assembled only from what the logs record — nothing is summarised or guessed.
 import { create } from "zustand";
 import { formatCount } from "../../../schema/src/aggregate.ts";
-import type { AgentTownEvent } from "../../../schema/src/event.ts";
+import type { AgentTownEvent, Role } from "../../../schema/src/event.ts";
 import type { RequestRow } from "../../../schema/src/payload.ts";
 import { WORK_NAMES } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
@@ -115,6 +115,8 @@ export interface StepAgent {
   task?: string;
   calls: number;
   work: { name: string; n: number }[];
+  /** the kind of work it did most (ties: the one it did first); none before any work */
+  top?: Role;
 }
 
 /** the agents a step used: the main agent first, then each subagent in the order it was sent out */
@@ -123,6 +125,7 @@ export function stepAgents(events: AgentTownEvent[] | null): StepAgent[] {
   const spawned = new Map<string, AgentTownEvent>();
   for (const e of events) if (e.kind === "agent_spawn" && !spawned.has(e.agentId)) spawned.set(e.agentId, e);
   const calls = new Map<string, Map<string, number>>();
+  const roles = new Map<string, Map<Role, number>>();
   const order: string[] = [];
   for (const e of events) {
     if (!calls.has(e.agentId)) { calls.set(e.agentId, new Map()); order.push(e.agentId); }
@@ -130,11 +133,18 @@ export function stepAgents(events: AgentTownEvent[] | null): StepAgent[] {
     const name = workName(e.role);
     const m = calls.get(e.agentId)!;
     m.set(name, (m.get(name) ?? 0) + 1);
+    if (e.role && e.role !== "commander") {
+      const r = roles.get(e.agentId) ?? new Map<Role, number>();
+      r.set(e.role, (r.get(e.role) ?? 0) + 1);
+      roles.set(e.agentId, r);
+    }
   }
   const of = (id: string) => {
     const m = calls.get(id) ?? new Map<string, number>();
     const work = [...m].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || (a.name < b.name ? -1 : 1));
-    return { calls: work.reduce((a, w) => a + w.n, 0), work };
+    let top: Role | undefined;
+    for (const [r, n] of roles.get(id) ?? []) if (!top || n > roles.get(id)!.get(top)!) top = r;
+    return { calls: work.reduce((a, w) => a + w.n, 0), work, ...(top ? { top } : {}) };
   };
   // the main agent: the busiest agent that was not sent out by another
   const mains = order.filter((id) => !spawned.has(id)).sort((a, b) => of(b).calls - of(a).calls);
