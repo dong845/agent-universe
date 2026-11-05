@@ -110,6 +110,10 @@ export function createAsks(o: { now?: () => number; setTimer?: (ms: number, f: (
     settle(over: (p: PendingAsk) => boolean) {
       for (const [id, h] of [...held]) if (over(h.p)) finish(id, "");
     },
+    /** no page has looked for watchMs: let go of everything held (the terminal still asks) */
+    expire() {
+      if (now() - lastBeat > watchMs) for (const id of [...held.keys()]) finish(id, "");
+    },
     pending: (): PendingAsk[] => [...held.values()].map((h) => h.p),
   };
 }

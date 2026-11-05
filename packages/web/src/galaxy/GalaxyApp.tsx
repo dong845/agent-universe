@@ -36,6 +36,7 @@ import { Tour } from "../ui/Tour.tsx";
 import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
 import { historySteps, useHistory } from "../city/history.ts";
 import { themeName } from "../i18n/data.ts";
+import { DecisionPanel } from "../ui/Decision.tsx";
 
 
 const KIND_NAMES = { capital: t("kind.capital"), guild: t("kind.guild"), project: t("kind.project"), outpost: t("kind.outpost") } as const;
@@ -515,6 +516,7 @@ export function GalaxyApp() {
       {source === "share" || historyOpen ? null : <TimelineBar />}
       <RecordDialog />
       <NeedsYou />
+      <DecisionPanel />
       {source === "real" ? <Settings /> : null}
       <div className={`g-tools${toolsSide ? " beside-diary" : ""}`}>
         {source === "real" && !cp ? <ExportShare /> : null}

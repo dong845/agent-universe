@@ -168,3 +168,17 @@ describe("over HTTP (spec D26 B5)", async () => {
     srv.server.close();
   });
 });
+
+describe("the page went away (D26 review focus 1)", () => {
+  it("held hooks are let go once the page's heartbeat is stale", () => {
+    const { c, asks, got, respond } = setup();
+    asks.heartbeat();
+    asks.hold("claude", claudeAsk, respond);
+    c.advance(20_000);
+    asks.expire();
+    expect(got).toEqual([]);
+    c.advance(6_000);
+    asks.expire();
+    expect(got).toEqual([""]);
+  });
+});

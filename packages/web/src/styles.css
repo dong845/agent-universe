@@ -479,7 +479,8 @@ canvas { display: block; }
 .g-tools .g-export, .g-tools .g-mini-btn { position: static; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
 .g-tools .g-mini-btn { color: var(--ink); background: var(--panel); border: 1px solid var(--line); backdrop-filter: none; }
 .g-search { top: 54px; right: 14px; }
-.g-empty { top: 100px; }
+/* the no-logs card sits bottom right, clear of 需要你 and the tools (D26) */
+.g-empty { top: auto; bottom: 96px; }
 .g-poster-dialog { bottom: auto; top: 52px; left: auto; right: 0; transform: none; width: 380px; }
 .g-poster-periods { display: flex; gap: 6px; }
 .g-poster-periods button { flex: 1; font: inherit; font-size: 12px; padding: 4px 0; border-radius: 7px; cursor: pointer; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
@@ -487,3 +488,28 @@ canvas { display: block; }
 .g-poster-preview { width: 100%; aspect-ratio: 1080 / 1350; border-radius: 8px; background: #070b16; }
 .g-mini-row { cursor: pointer; }
 .g-mini-row:hover { background: rgba(120, 160, 240, 0.12); }
+
+/* the decision panel (spec 2026-11-05 D26 B3): in the middle, above the scene */
+.g-decide {
+  position: absolute; left: 50%; top: 96px; transform: translateX(-50%); z-index: 60; width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 140px); overflow: auto;
+  display: grid; gap: 10px; padding: 16px 18px; font-size: 13px; color: #e6eefc; background: rgba(10, 16, 30, 0.96);
+  border: 1px solid rgba(255, 196, 92, 0.55); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.g-decide > small { color: #9fb0cc; }
+.g-decide > b { font-size: 16px; color: #ffd58a; }
+.g-decide .g-x { position: absolute; top: 8px; right: 10px; font: inherit; font-size: 16px; color: #8fa3c4; background: none; border: 0; cursor: pointer; }
+.g-decide fieldset { border: 1px solid rgba(130, 170, 240, 0.22); border-radius: 10px; padding: 10px 12px; margin: 0; display: grid; gap: 6px; }
+.g-decide legend { padding: 0 6px; font-weight: 600; color: #fff; }
+.g-decide legend em { font-style: normal; font-size: 11px; color: #ffd58a; margin-right: 8px; padding: 1px 6px; border: 1px solid rgba(255, 196, 92, 0.45); border-radius: 999px; }
+.g-decide fieldset label { display: flex; gap: 10px; align-items: flex-start; padding: 7px 9px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.g-decide fieldset label:hover { background: rgba(120, 160, 240, 0.1); }
+.g-decide fieldset label.on { background: rgba(255, 196, 92, 0.12); border-color: rgba(255, 196, 92, 0.45); }
+.g-decide fieldset label span { display: grid; gap: 2px; }
+.g-decide fieldset label small { color: #9fb0cc; line-height: 1.45; }
+.g-decide-other { font: inherit; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; color: #e6eefc; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(130, 170, 240, 0.25); }
+.g-decide-run { margin: 0; padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.35); white-space: pre-wrap; word-break: break-all; font-size: 12px; }
+.g-decide-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.g-decide-actions button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 8px; cursor: pointer; color: #e6eefc; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(130, 170, 240, 0.35); }
+.g-decide-actions button.primary { background: rgba(255, 196, 92, 0.22); border-color: rgba(255, 196, 92, 0.6); }
+.g-decide-actions button:disabled { opacity: 0.45; cursor: default; }
+.g-need-decide { background: rgba(255, 196, 92, 0.2) !important; border-color: rgba(255, 196, 92, 0.6) !important; }

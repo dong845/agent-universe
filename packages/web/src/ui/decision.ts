@@ -1,0 +1,85 @@
+// The decision panel's state and answers (spec 2026-11-05 D26 B3): what is pending (from the server's held
+// hooks), which session's decision is open, the page's token, and the answer for a question with options:
+// keyed by the question's text, several labels joined with ", ", one's own words replacing the options.
+import { create } from "zustand";
+import type { Attention } from "../../../schema/src/attention.ts";
+import type { AskQuestion } from "../../../schema/src/event.ts";
+
+export interface PendingAsk {
+  id: string;
+  src: "claude" | "codex";
+  session: string;
+  sessionId: string;
+  tool: string;
+  kind: "question" | "approval";
+  questions?: AskQuestion[];
+  summary?: string;
+  cwd?: string;
+  since: number;
+}
+/** 需要你's entries plus a row for each held question or approval whose session has none yet (a session
+ * whose log the server has not read, a project not yet a town) */
+export function withAsks(list: Attention[], asks: readonly PendingAsk[]): Attention[] {
+  const extra = asks
+    .filter((a) => !list.some((x) => x.session === a.session))
+    .map((a): Attention => ({
+      session: a.session, faction: a.src === "claude" ? "claude-code" : "codex", sessionId: a.sessionId, projectId: a.cwd ?? "", requestId: null,
+      state: "waiting", since: a.since, tool: a.tool, exact: true, ...(a.questions ? { ask: a.questions } : {}),
+    }));
+  return [...list, ...extra];
+}
+
+export type Picks = Record<string, { labels: string[]; other?: string }>;
+
+const said = (p: { labels: string[]; other?: string } | undefined) => p?.other?.trim() || (p?.labels.length ? p.labels.join(", ") : "");
+
+export function answerOf(questions: readonly Pick<AskQuestion, "question">[], picks: Picks): Record<string, string> {
+  return Object.fromEntries(questions.map((q) => [q.question, said(picks[q.question])]));
+}
+export const complete = (questions: readonly Pick<AskQuestion, "question">[], picks: Picks) => questions.every((q) => !!said(picks[q.question]));
+
+export const useDecision = create<{ asks: PendingAsk[]; open: string | null; token: string | null; setAsks(a: PendingAsk[]): void; show(session: string | null): void; setToken(t: string | null): void }>((set) => ({
+  asks: [],
+  open: null,
+  token: null,
+  setAsks: (asks) => set({ asks }),
+  show: (open) => set({ open }),
+  setToken: (token) => set({ token }),
+}));
+
+const post = (path: string, body: unknown) => {
+  const token = useDecision.getState().token;
+  return fetch(path, { method: "POST", headers: { "content-type": "application/json", ...(token ? { "x-agent-universe-token": token } : {}) }, body: JSON.stringify(body) });
+};
+/** send the page's choice to the waiting hook; false if it is no longer waiting */
+export async function sendAnswer(id: string, a: { answers?: Record<string, string>; behavior?: "allow" | "deny" }): Promise<boolean> {
+  const r = await post("/api/ask/answer", { id, ...a }).catch(() => null);
+  return !!r?.ok;
+}
+/** "answer in the terminal": let the hook go at once */
+export const releaseAsk = (id: string) => post("/api/ask/release", { id }).catch(() => null);
+
+/**
+ * The page's heartbeat (spec 2026-11-05 D26 B2): the server holds a hook only while a page is watching.
+ * It beats from a worker, whose timer keeps time while the page is busy drawing (a slow first frame
+ * delayed a main-thread timer by 15 s and the server let go). It beats while the page is visible or its
+ * mini window is open.
+ */
+export function startPresence() {
+  const code = `let on = true;
+const beat = () => { if (on) fetch(${JSON.stringify(location.origin)} + "/api/presence", { method: "POST" }).catch(() => {}); };
+onmessage = (e) => { on = !!e.data; beat(); };
+beat();
+setInterval(beat, 10000);`;
+  let worker: Worker;
+  try {
+    worker = new Worker(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
+  } catch {
+    return; // no workers: no answering from the page, the terminal asks
+  }
+  const pip = () => !!(window as unknown as { documentPictureInPicture?: { window: Window | null } }).documentPictureInPicture?.window;
+  const tell = () => worker.postMessage(document.visibilityState === "visible" || pip());
+  document.addEventListener("visibilitychange", tell);
+  window.addEventListener("agent-universe:mini", tell);
+  tell();
+}

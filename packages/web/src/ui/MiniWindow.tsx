@@ -10,6 +10,7 @@ import { absTime, useStore } from "../store.ts";
 import { miniRows, type MiniRow } from "./miniRows.ts";
 import { copyResume, STATE_TEXT } from "./NeedsYou.tsx";
 import { goFollow } from "../city/followMain.ts";
+import { useDecision } from "./decision.ts";
 
 interface PipApi { requestWindow(o: { width: number; height: number }): Promise<Window>; window: Window | null }
 const pip = (): PipApi | undefined => (window as unknown as { documentPictureInPicture?: PipApi }).documentPictureInPicture;
@@ -51,11 +52,11 @@ function Rows() {
     const req = r.attention?.requestId ? w?.requests.get(r.attention.requestId) : undefined;
     return (
       <div key={r.key} className={`g-mini-row${r.attention ? ` s-${r.state}` : ""}`} data-testid="mini-row" role="button" tabIndex={0} title={t("mini.go")}
-        onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; window.focus(); goFollow(r.townKey, r.sessionId); }}>
+        onClick={(e) => { if ((e.target as HTMLElement).closest("button")) return; window.focus(); if (r.attention && (r.attention.ask || useDecision.getState().asks.some((x) => x.session === r.attention!.session))) useDecision.getState().show(r.attention.session); else goFollow(r.townKey, r.sessionId); }}>
         <Face2D face={r.face} faction={r.faction} size={34} />
         <div className="g-mini-text">
           <b>{r.town}</b>
-          <span>{r.state ? STATE_TEXT[r.state] : r.doing ? [r.doing.role ? workName(r.doing.role) : null, r.doing.tool].filter(Boolean).join(" · ") : t("mini.thinking")}{` · ${duration(r.sinceMs)}`}</span>
+          <span>{r.attention?.ask ? t("state.question") : r.state ? STATE_TEXT[r.state] : r.doing ? [r.doing.role ? workName(r.doing.role) : null, r.doing.tool].filter(Boolean).join(" · ") : t("mini.thinking")}{` · ${duration(r.sinceMs)}`}</span>
         </div>
         {r.attention ? (
           <>
@@ -93,8 +94,10 @@ export function MiniWindow() {
     win.document.body.className = "g-mini-doc";
     const el = win.document.createElement("div");
     win.document.body.appendChild(el);
-    win.addEventListener("pagehide", () => setHost(null));
+    win.addEventListener("pagehide", () => { setHost(null); setTimeout(() => window.dispatchEvent(new Event("agent-universe:mini")), 0); });
     setHost(el);
+    // an open mini window counts as watching (the server holds questions for it)
+    window.dispatchEvent(new Event("agent-universe:mini"));
   };
   return (
     <>

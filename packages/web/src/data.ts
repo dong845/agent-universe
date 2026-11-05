@@ -87,7 +87,7 @@ const nextFrame = () => new Promise<void>((res) => {
   requestAnimationFrame(() => { clearTimeout(t); res(); });
 });
 
-export function subscribe(on: { world(p: WorldPayload): void; attention(a: Attention[]): void }): () => void {
+export function subscribe(on: { world(p: WorldPayload): void; attention(a: Attention[]): void; asks?(a: unknown[]): void }): () => void {
   const es = new EventSource("/api/stream");
   let busy = false;
   let again = false;
@@ -123,6 +123,13 @@ export function subscribe(on: { world(p: WorldPayload): void; attention(a: Atten
       on.attention(JSON.parse((e as MessageEvent).data) as Attention[]);
     } catch {
       // a damaged message is skipped; the next one replaces the list
+    }
+  });
+  es.addEventListener("asks", (e) => {
+    try {
+      on.asks?.(JSON.parse((e as MessageEvent).data) as unknown[]);
+    } catch {
+      // skipped; the next one replaces the list
     }
   });
   return () => es.close();

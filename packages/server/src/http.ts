@@ -196,7 +196,7 @@ export function createServer(o: ServerOptions) {
   };
   void reload();
   const stopWatch = o.watch?.(requestReload);
-  const tick = setInterval(recompute, ATTENTION_TICK_MS);
+  const tick = setInterval(() => { recompute(); asks.expire(); }, ATTENTION_TICK_MS);
   const ping = setInterval(() => { for (const r of streams) r.write(": ping\n\n"); }, PING_MS);
   tick.unref?.();
   ping.unref?.();
@@ -222,7 +222,7 @@ export function createServer(o: ServerOptions) {
   const handle = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
-    if (path === "/api/status") return json(res, 200, { ...state, token: askToken });
+    if (path === "/api/status") return json(res, 200, { ...state, token: askToken, watching: asks.watching() });
     if (path === "/api/world") return payload && state.phase === "ready" ? json(res, 200, payload) : json(res, 503, state);
     if (path.startsWith("/api/task/")) {
       let id: string;
