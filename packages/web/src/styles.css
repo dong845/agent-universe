@@ -430,3 +430,22 @@ canvas { display: block; }
 .g-search li { padding: 6px 8px; border-radius: 6px; cursor: pointer; color: #dbe6fb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g-search li.on, .g-search li:hover { background: rgba(120, 160, 240, 0.22); }
 .g-search li.none { color: #8fa3c4; cursor: default; background: none; }
+
+/* the followed agent's card (spec 2026-11-05 C1): bottom left, above the time bar */
+.g-follow {
+  position: absolute; left: 14px; bottom: 96px; width: 300px; padding: 12px 14px; z-index: 14; font-size: 12px;
+  background: rgba(10, 16, 30, 0.9); border: 1px solid rgba(130, 170, 240, 0.35); border-radius: 12px; color: #dbe6fb; backdrop-filter: blur(8px);
+}
+.g-follow .g-x { position: absolute; top: 6px; right: 8px; font: inherit; font-size: 15px; color: #8fa3c4; background: none; border: 0; cursor: pointer; }
+.g-follow-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.g-follow-head b { font-size: 14px; color: #fff; }
+.g-follow-task { display: block; color: #9fb0cc; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.g-follow-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid rgba(130, 170, 240, 0.12); }
+.g-follow-row span { color: #8fa3c4; white-space: nowrap; }
+.g-follow-row b { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.g-follow-kids { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.g-follow-kids span { width: 100%; color: #8fa3c4; }
+.g-follow button:not(.g-x) { font: inherit; font-size: 11.5px; padding: 3px 9px; border-radius: 999px; cursor: pointer; background: rgba(120, 160, 240, 0.16); color: #dbe6fb; border: 1px solid rgba(130, 170, 240, 0.3); }
+.g-follow button:disabled { opacity: 0.45; cursor: default; }
+.g-follow-parent { margin-top: 8px; }
+.face2d { display: inline-block; flex: none; line-height: 0; }

@@ -16,12 +16,17 @@ import { Emblem } from "../galaxy/Galaxy.tsx";
 import { FACTION_COLOR, WORK_COLOR } from "../galaxy/galaxyData.ts";
 import { activityOf } from "./cityData.ts";
 import { ROBOT_URL } from "./kit.tsx";
+import { useStore } from "../store.ts";
 
 const noRay = () => null;
 const GEO = {
   cube: new THREE.BoxGeometry(0.12, 0.12, 0.12),
+  /** what a click on a robot hits: an invisible capsule around the whole figure */
+  hit: new THREE.CapsuleGeometry(0.42, 0.5, 4, 12),
   dot: new THREE.SphereGeometry(0.025, 8, 6),
 };
+/** drawn into nothing (no colour, no depth) but still hit by the pointer */
+const HIT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, transparent: true, opacity: 0 });
 const glow = (hex: string, k = 1.8) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), toneMapped: false });
 /** the model is about 1.15 units tall; figures stand this many times bigger in the city (A5: ≥ 40 / 28 px) */
 export const SCALE = { main: 1.3, sub: 1.0 };
@@ -200,6 +205,12 @@ export function Robot({ id, actor, time, faction, end, label }: { id: string; ac
         {[0, 1, 2].map((i) => <mesh key={i} geometry={GEO.dot} material={mats.eye} position={[Math.cos((i * 2 * Math.PI) / 3) * 0.14, 0, Math.sin((i * 2 * Math.PI) / 3) * 0.14]} raycast={noRay} />)}
       </group>
       {!sub ? <Emblem faction={faction} use="badge" scale={0.1} position={[0, 1.42, 0]} speed={1} /> : null}
+      <mesh
+        geometry={GEO.hit} material={HIT} position={[0, 0.62, 0]}
+        onClick={(e) => { if (e.delta > 5) return; e.stopPropagation(); useStore.getState().setFollowAgent(id); }}
+        onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+        onPointerOut={() => { document.body.style.cursor = ""; }}
+      />
     </group>
   );
 }
@@ -210,7 +221,7 @@ export function RobotProbe() {
   useEffect(() => {
     const v = new THREE.Vector3();
     (window as unknown as { __robotSizes?: unknown }).__robotSizes = () => {
-      const out: { id: string; kind: "main" | "sub"; px: number; faces: number; props: number }[] = [];
+      const out: { id: string; kind: "main" | "sub"; px: number; faces: number; props: number; x: number; z: number }[] = [];
       for (const [id, { root, kind }] of robotRoots) {
         if (!root.visible) continue;
         // from the feet to the top of the head (not the antenna, a prop or the emblem)
@@ -223,7 +234,8 @@ export function RobotProbe() {
           if (o.name.startsWith("Face_") && o.visible) faces++;
           if (o.name.startsWith("Prop") && o.visible) props++;
         });
-        out.push({ id, kind, px: Math.round(hi - lo), faces, props });
+        root.getWorldPosition(v);
+        out.push({ id, kind, px: Math.round(hi - lo), faces, props, x: v.x, z: v.z });
       }
       return out;
     };

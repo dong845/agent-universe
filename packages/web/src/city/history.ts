@@ -38,7 +38,7 @@ export function duration(ms: number): string {
 }
 
 /** a tool call's kind of work in plain words; the main agent's spawning calls carry the role "commander" */
-const workName = (role: AgentTownEvent["role"] | undefined) => (!role ? "其他" : role === "commander" ? WORK_NAMES.spawn ?? "派子代理" : WORK_NAMES[role] ?? role);
+export const workName = (role: AgentTownEvent["role"] | undefined) => (!role ? "其他" : role === "commander" ? WORK_NAMES.spawn ?? "派子代理" : WORK_NAMES[role] ?? role);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 /** one formatter for every row: creating one per call made a long list stall the page (owner 2026-11-03: 抖动) */

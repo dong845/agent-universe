@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import { t, useLang } from "../i18n/index.ts";
 import { Search } from "../ui/Search.tsx";
+import { FollowCard } from "../city/FollowCard.tsx";
 import * as THREE from "three";
 import themes from "../../../../config/themes.json" with { type: "json" };
 import type { ThemesConfig } from "../../../schema/src/themes.ts";
@@ -473,6 +474,7 @@ export function GalaxyApp() {
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
       {cp ? <HistoryPanel /> : null}
+      {cp ? <FollowCard faction={cp.town.faction} /> : null}
       <div className={`g-fade${fade ? " on" : ""}`} />
       {Q.get("fps") === "1" ? <FpsMeter /> : null}
       <GalaxyHoverCard g={g} />

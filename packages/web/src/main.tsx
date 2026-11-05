@@ -130,6 +130,8 @@ window.__agentTown = {
   orbitSec: () => orbit.sec,
   /** open a town's city (null = back to space) */
   enterCity: (k: string | null) => useStore.getState().setCity(k),
+  /** test hook: what a click on a robot does (spec 2026-11-05 C1); robot ids as in __robotSizes */
+  clickRobot: (id: string | null) => useStore.getState().setFollowAgent(id),
   /** test hook: fetch the newest world and apply it now (real data) */
   reloadNow: async () => {
     // the same path the stream takes: download, parse and apply in separate frames
