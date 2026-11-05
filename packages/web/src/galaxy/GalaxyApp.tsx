@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { t, useLang } from "../i18n/index.ts";
 import { Search } from "../ui/Search.tsx";
 import { MiniWindow } from "../ui/MiniWindow.tsx";
+import { FrameGrab } from "../share/grab.ts";
+import { PosterButton } from "../share/PosterDialog.tsx";
+import { useRightPanel } from "../ui/rightPanel.ts";
 import { FollowCard } from "../city/FollowCard.tsx";
 import { TourHighlightCity, TourHighlightSpace } from "./TourHighlight.tsx";
 import * as THREE from "three";
@@ -388,6 +391,7 @@ function EmptyLogsCard({ where }: { where: { claude: string; codex: string } }) 
 
 export function GalaxyApp() {
   const source = useStore((s) => s.source);
+  const toolsSide = useRightPanel();
   const emptyLogs = useStore((s) => s.emptyLogs);
   const w = useStore((s) => s.w25);
   const city = useStore((s) => s.city);
@@ -462,11 +466,13 @@ export function GalaxyApp() {
             <CityProjector labels={cityLabels} />
             <TourHighlightCity />
             <RecordHost />
+            <FrameGrab />
           </>
         ) : (
           <>
             <GalaxyScene g={g} />
             <TourHighlightSpace g={g} />
+            <FrameGrab />
             <Projector labels={labels} g={g} />
           </>
         )}
@@ -488,9 +494,12 @@ export function GalaxyApp() {
       {source === "share" || historyOpen ? null : <TimelineBar />}
       <RecordDialog />
       <NeedsYou />
-      <MiniWindow />
       {source === "real" ? <Settings /> : null}
-      {source === "real" && !cp ? <ExportShare /> : null}
+      <div className={`g-tools${toolsSide ? " beside-diary" : ""}`}>
+        {source === "real" && !cp ? <ExportShare /> : null}
+        {source !== "share" && !cp ? <PosterButton /> : null}
+        <MiniWindow />
+      </div>
       {source === "share" ? <ShareReplays /> : null}
       <Toast />
     </div>

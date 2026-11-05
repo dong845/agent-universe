@@ -471,3 +471,17 @@ canvas { display: block; }
 .g-mini-text span { font-size: 11.5px; color: #9fb0cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g-mini-none { color: #8fa3c4; font-size: 12px; }
 .g-need-face { margin-right: 4px; vertical-align: middle; }
+
+/* the top-right tools in one row (spec 2026-11-05): export · poster · mini window, left of the gear;
+   the search box on the line below */
+.g-tools { position: absolute; top: 14px; right: 52px; z-index: 21; display: flex; flex-direction: row-reverse; gap: 8px; align-items: center; }
+.g-tools.beside-diary { right: 426px; }
+.g-tools .g-export, .g-tools .g-mini-btn { position: static; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+.g-tools .g-mini-btn { color: var(--ink); background: var(--panel); border: 1px solid var(--line); backdrop-filter: none; }
+.g-search { top: 54px; right: 14px; }
+.g-empty { top: 100px; }
+.g-poster-dialog { bottom: auto; top: 52px; left: auto; right: 0; transform: none; width: 380px; }
+.g-poster-periods { display: flex; gap: 6px; }
+.g-poster-periods button { flex: 1; font: inherit; font-size: 12px; padding: 4px 0; border-radius: 7px; cursor: pointer; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.g-poster-periods button.on { background: rgba(255, 196, 92, 0.18); border-color: rgba(255, 196, 92, 0.55); }
+.g-poster-preview { width: 100%; aspect-ratio: 1080 / 1350; border-radius: 8px; background: #070b16; }
