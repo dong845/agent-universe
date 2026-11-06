@@ -11,6 +11,8 @@ export interface MiniRow {
   /** the town's key and its shown name */
   townKey: string;
   town: string;
+  /** the session working (or waiting) here */
+  sessionId?: string;
   faction: Faction;
   face: Face;
   /** the open tool call (working rows), null when between calls */
@@ -23,7 +25,7 @@ export interface MiniRow {
 const FACE_OF: Record<AttentionState, Face> = { waiting: "wide", "maybe-waiting": "wide", error: "error", "turn-done": "happy" };
 
 export function miniRows(input: {
-  w: { live: Set<string>; requests: Map<string, Pick<RequestRow, "requestId" | "faction" | "projectId" | "taskIds">> };
+  w: { live: Set<string>; requests: Map<string, Pick<RequestRow, "requestId" | "faction" | "projectId" | "taskIds"> & { sessionId?: string }> };
   events: readonly AgentTownEvent[];
   attention: Attention[];
   closed: Record<string, string>;
@@ -38,7 +40,7 @@ export function miniRows(input: {
   const att = visibleAttention(input.attention, input.closed);
   const attention = att.map((a): MiniRow => {
     const townKey = `${a.faction}|${a.projectId}`;
-    return { key: a.session, townKey, town: input.names(townKey), faction: a.faction, face: FACE_OF[a.state], doing: a.tool ? { tool: a.tool } : null, state: a.state, sinceMs: Math.max(0, input.now - a.since), attention: a };
+    return { key: a.session, townKey, town: input.names(townKey), sessionId: a.sessionId, faction: a.faction, face: FACE_OF[a.state], doing: a.tool ? { tool: a.tool } : null, state: a.state, sinceMs: Math.max(0, input.now - a.since), attention: a };
   });
   const waiting = new Set(att.map((a) => a.requestId).filter(Boolean));
   // each live request's newest event, and its open tool call
@@ -65,7 +67,7 @@ export function miniRows(input: {
     let now: AgentTownEvent | undefined;
     for (const e of open.get(id)?.values() ?? []) if (!now || e.ts >= now.ts) now = e;
     const at = last.get(id)!;
-    return { key: id, townKey, town: input.names(townKey), faction: r.faction, face: now ? "focus" : "think", doing: now ? { ...(now.role ? { role: now.role } : {}), ...(now.tool ? { tool: now.tool } : {}) } : null, sinceMs: Math.max(0, clock - (now ? now.ts : at)), at };
+    return { key: id, townKey, town: input.names(townKey), ...(r.sessionId ? { sessionId: r.sessionId } : {}), faction: r.faction, face: now ? "focus" : "think", doing: now ? { ...(now.role ? { role: now.role } : {}), ...(now.tool ? { tool: now.tool } : {}) } : null, sinceMs: Math.max(0, clock - (now ? now.ts : at)), at };
   }).filter((r) => clock - r.at <= ATTENTION.liveWindowMs);
   live.sort((a, b) => b.at - a.at);
   return { attention, live: live.map(({ at: _, ...row }) => row) };

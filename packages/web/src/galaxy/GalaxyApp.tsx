@@ -36,6 +36,8 @@ import { Tour } from "../ui/Tour.tsx";
 import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
 import { historySteps, useHistory } from "../city/history.ts";
 import { themeName } from "../i18n/data.ts";
+import { DecisionPanel } from "../ui/Decision.tsx";
+import { OverviewPanel, useCityPanel } from "../city/OverviewPanel.tsx";
 
 
 const KIND_NAMES = { capital: t("kind.capital"), guild: t("kind.guild"), project: t("kind.project"), outpost: t("kind.outpost") } as const;
@@ -326,6 +328,7 @@ function ReplayBar() {
 
 /** top of a city: back to space, which town this is, and whether anyone is working */
 function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
+  const overviewOn = useCityPanel((s) => s.overview);
   const city = useStore((s) => s.city);
   const history = useHistory((s) => !!s.town);
   const w = useStore((s) => s.w25);
@@ -338,6 +341,7 @@ function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
       <button onClick={onLeave} data-testid="leave-city">{t("city.leave")}</button>
       <span><Badge f={p.town.faction} />{p.town.name}<small>{themeName(p.town.theme)} · {p.town.faction === "codex" ? "Codex" : "Claude Code"}</small></span>
       <em>{live ? t("city.liveN", { n: live }) : history ? t("city.historyHint") : t("city.idleHint")}</em>
+      {!history && !overviewOn ? <button className="g-history-btn" data-testid="overview-open" onClick={() => useCityPanel.getState().setOverview(true)}>{t("overview.open")}</button> : null}
       {!history && steps.length ? <button className="g-history-btn" data-testid="history-open" onClick={() => { useHistory.getState().open(p.key, steps.length); goToStep(steps, steps.length); }}>{t("city.history")}</button> : null}
     </div>
   );
@@ -439,18 +443,10 @@ export function GalaxyApp() {
     const r = useReplay.getState().r;
     if (r && r.district !== city) useReplay.getState().stop();
   }, [city]);
-  // a city with nothing running opens on its history, at the latest step; leaving closes it
+  // a city opens on its overview (spec 2026-11-05 D26 C), the world as it is now; History is one tab away
   useEffect(() => {
-    if (!city) return closeHistory();
-    const st = useStore.getState();
-    const w25 = st.w25;
-    if (!w25 || useReplay.getState().r) return;
-    const live = [...w25.requests.values()].some((r) => `${r.faction}|${r.projectId}` === city && w25.live.has(r.requestId));
-    const steps = historySteps(w25, city);
-    if (!live && steps.length) {
-      useHistory.getState().open(city, steps.length);
-      goToStep(steps, steps.length);
-    } else closeHistory();
+    closeHistory();
+    if (city) useCityPanel.getState().setOverview(true);
   }, [city]);
   // a replay and the history do not run together
   const replaying = useReplay((s) => !!s.r);
@@ -507,6 +503,7 @@ export function GalaxyApp() {
       {cp ? <CityLegend /> : <Legend />}
       <ReplayBar />
       {cp ? <HistoryPanel /> : null}
+      {cp ? <OverviewPanel /> : null}
       {cp ? <FollowCard faction={cp.town.faction} /> : null}
       <div className={`g-fade${fade ? " on" : ""}`} />
       {Q.get("fps") === "1" ? <FpsMeter /> : null}
@@ -515,6 +512,7 @@ export function GalaxyApp() {
       {source === "share" || historyOpen ? null : <TimelineBar />}
       <RecordDialog />
       <NeedsYou />
+      <DecisionPanel />
       {source === "real" ? <Settings /> : null}
       <div className={`g-tools${toolsSide ? " beside-diary" : ""}`}>
         {source === "real" && !cp ? <ExportShare /> : null}

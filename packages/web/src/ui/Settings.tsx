@@ -8,7 +8,7 @@ import { t } from "../i18n/index.ts";
 import { replayTour } from "./Tour.tsx";
 import { setSoundsOn, soundsOn } from "./sounds.ts";
 
-interface ServerSettings { notify: boolean; notifyTurnDone: boolean; hooks: { claude: boolean; codex: boolean }; hookFiles?: { claude: string; codex: string } }
+interface ServerSettings { notify: boolean; notifyTurnDone: boolean; hooks: { claude: boolean; codex: boolean }; askHooks?: { claude: boolean; codex: boolean }; hookFiles?: { claude: string; codex: string } }
 
 const post = async (path: string, body: unknown) => {
   const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -46,10 +46,10 @@ export function Settings() {
     if (!s) return;
     setS(await post("/api/settings", { [k]: !s[k] }));
   };
-  const hooks = async (agent: "claude" | "codex") => {
+  const hooks = async (agent: "claude" | "codex", set: "alerts" | "ask" = "alerts") => {
     if (!s) return;
     try {
-      const r = await post("/api/hooks", { agent, on: !s.hooks[agent] });
+      const r = await post("/api/hooks", { agent, on: set === "ask" ? !s.askHooks?.[agent] : !s.hooks[agent], set });
       setNote(r.on
         ? (r.added?.length ? t("settings.hooksAdded", { file: r.file, added: r.added.join(", ") }) + (r.backup ? t("settings.hooksBackup", { backup: r.backup }) : "") : t("settings.hooksThere", { file: r.file }))
         : t("settings.hooksRemoved", { file: r.file, n: r.removed }));
@@ -69,6 +69,10 @@ export function Settings() {
           <p className="muted">{t("settings.hooksHint")}</p>
           <label><input type="checkbox" checked={s.hooks.claude} onChange={() => void hooks("claude")} /> {t("settings.hooks")} · Claude Code<small>{s.hookFiles?.claude}</small></label>
           <label><input type="checkbox" checked={s.hooks.codex} onChange={() => void hooks("codex")} /> {t("settings.hooks")} · Codex<small>{s.hookFiles?.codex}</small></label>
+          <hr />
+          <p className="muted">{t("settings.askHint")}</p>
+          <label><input type="checkbox" checked={!!s.askHooks?.claude} onChange={() => void hooks("claude", "ask")} data-testid="ask-hook-claude" /> {t("settings.askHooks")} · Claude Code<small>{s.hookFiles?.claude}</small></label>
+          <label><input type="checkbox" checked={!!s.askHooks?.codex} onChange={() => void hooks("codex", "ask")} data-testid="ask-hook-codex" /> {t("settings.askHooks")} · Codex<small>{s.hookFiles?.codex}</small></label>
           <hr />
           <label><input type="checkbox" checked={logosOn} disabled={busy} onChange={() => void logos()} data-testid="logos" /> {t("settings.logos")}<small>{t("settings.logosHint")}</small></label>
           <hr />

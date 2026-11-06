@@ -6,7 +6,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { FACTION_COLOR, type Block, type Planet } from "../galaxy/galaxyData.ts";
-import { hash, type TownLayout } from "../v3/townLayout.ts";
+import { hash, streetOf, type TownLayout } from "../v3/townLayout.ts";
+import { absTime, useStore } from "../store.ts";
+import { useReplay } from "./cityReplay.ts";
+import { deliveriesAt } from "./deliveries.ts";
 import { kitMaterial, KitInstances, useKit, type Kit, type Placement } from "./kit.tsx";
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -96,62 +99,75 @@ export function KitBuildings({ p, vis }: { p: Planet; vis: Block[] }) {
   return <KitInstances kit={kit} placements={placements} town={p.key} />;
 }
 
-/** hover cars gliding out and back along each street */
-export function HoverCars({ p, layout }: { p: Planet; layout: TownLayout }) {
+/** cars are deliveries (spec 2026-11-05 D26 A2): a request that just finished with a product drives from
+ * the task hall to its house (or its street) on the scene clock — live, or the replayed request at its end */
+const MAX_CARS = 8;
+export function Deliveries({ p, layout }: { p: Planet; layout: TownLayout }) {
   const kit = useKit();
-  const routes = useMemo(() => {
-    // a street is the line of street cells in one wedge: group by direction from the square
-    const cells = layout.cells.filter((c) => c.kind === "street").map((c) => ({ ...cellXZ(c.q, c.r) }));
-    const groups = new Map<number, { x: number; z: number }[]>();
-    for (const c of cells) {
-      const k = Math.round(Math.atan2(c.z, c.x) / (Math.PI / 12));
-      groups.set(k, [...(groups.get(k) ?? []), c]);
-    }
-    return [...groups.values()].filter((g) => g.length >= 2).map((g) => g.sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z)));
-  }, [layout]);
-  const cars = useMemo(() => routes.flatMap((r, i) => [0, 1].map((k) => ({ r, phase: hash(`${p.key}|car${i}|${k}`, 41), speed: 0.06 + hash(`${p.key}|car${i}|${k}`, 42) * 0.05 }))), [routes, p.key]);
   const parts = kit.get("hovercar") ?? [];
   const refs = useRef<(THREE.InstancedMesh | null)[]>([]);
+  const w = useStore((s) => s.w25);
+  const mine = useMemo(() => [...(w?.requests.values() ?? [])].filter((r) => `${r.faction}|${r.projectId}` === p.key && r.class === "produced"), [w, p.key]);
+  const hall = p.blocks.find((b) => b.type === "hall");
+  const houseOf = useMemo(() => new Map(p.blocks.filter((b) => b.spot.info.kind === "house").map((b) => [(b.spot.info as { requestId: string }).requestId, b] as const)), [p.blocks]);
   const tint = useMemo(() => new THREE.Color(FACTION_COLOR[p.town.faction]), [p]);
   useLayoutEffect(() => {
     refs.current.forEach((m, j) => {
       if (!m || parts[j]?.material !== "Accent") return;
-      cars.forEach((_, i) => m.setColorAt(i, tint));
+      for (let i = 0; i < MAX_CARS; i++) m.setColorAt(i, tint);
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     });
-  }, [cars, parts, tint]);
-  const mx = useMemo(() => new THREE.Matrix4(), []);
+  }, [parts, tint]);
+  const roofSeen = useRef<{ id: string; at: number } | null>(null);
+  const tmp = useMemo(() => ({ base: new THREE.Matrix4(), out: new THREE.Matrix4(), q: new THREE.Quaternion(), v: new THREE.Vector3(), s: new THREE.Vector3() }), []);
+  const targetOf = (requestId: string, topDir: string | null) => {
+    const h = houseOf.get(requestId);
+    if (h) return { x: h.spot.x, z: h.spot.z };
+    const st = layout.streets.find((x) => x.name === streetOf(topDir));
+    return st ? { x: st.x, z: st.z } : null;
+  };
   useFrame(({ clock }) => {
-    cars.forEach((c, i) => {
-      // out along the street and back, easing at the ends
-      const u = (clock.elapsedTime * c.speed + c.phase) % 2;
-      const f = u < 1 ? u : 2 - u;
-      const e = f * f * (3 - 2 * f);
-      const pts = c.r;
-      const pos = e * (pts.length - 1);
-      const k = Math.min(pts.length - 2, Math.floor(pos));
-      const t = pos - k;
-      const a = pts[k], b = pts[k + 1];
-      const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
-      const dir = u < 1 ? 1 : -1;
-      const yaw = Math.atan2((b.x - a.x) * dir, (b.z - a.z) * dir);
-      // keep to the right of the street's middle
-      const side = 0.35 * dir;
-      const nx = (b.z - a.z), nz = -(b.x - a.x);
-      const l = Math.hypot(nx, nz) || 1;
-      const base = new THREE.Matrix4().compose(new THREE.Vector3(x + (nx / l) * side, 0.35 + Math.sin(clock.elapsedTime * 3 + i) * 0.03, z + (nz / l) * side), new THREE.Quaternion().setFromAxisAngle(UP, yaw), new THREE.Vector3(1.6, 1.6, 1.6));
-      refs.current.forEach((m, j) => {
-        if (!m) return;
-        m.setMatrixAt(i, mx.multiplyMatrices(base, parts[j].local));
-        m.instanceMatrix.needsUpdate = true;
-      });
+    if (!hall) return;
+    const st = useStore.getState();
+    const r = useReplay.getState().r;
+    let list: { requestId: string; k: number; fade: number; topDir: string | null }[] = [];
+    if (r && r.district === p.key) {
+      // a replay: its own request, once its roof is on — timed from that moment on the wall clock, since the
+      // replay's clock stops at its end
+      const roofed = r.tl.roofAt !== null && r.t >= r.tl.roofAt;
+      if (!roofed) roofSeen.current = null;
+      else {
+        if (roofSeen.current?.id !== r.requestId) roofSeen.current = { id: r.requestId, at: performance.now() };
+        const req = w?.requests.get(r.requestId);
+        list = deliveriesAt([{ requestId: r.requestId, endTs: roofSeen.current.at, class: req?.class ?? "produced" }], performance.now()).map((d) => ({ ...d, topDir: req?.topDir ?? null }));
+      }
+    } else if (st.historyAt === null) {
+      const now = absTime(st.t);
+      list = deliveriesAt(mine, now).map((d) => ({ ...d, topDir: w?.requests.get(d.requestId)?.topDir ?? null }));
+    }
+    let n = 0;
+    for (const d of list.slice(-MAX_CARS)) {
+      const to = targetOf(d.requestId, d.topDir);
+      if (!to) continue;
+      const e = d.k * d.k * (3 - 2 * d.k);
+      const x = hall.spot.x + (to.x - hall.spot.x) * e, z = hall.spot.z + (to.z - hall.spot.z) * e;
+      const y = 0.35 + Math.sin(Math.PI * d.k) * 1.2 + Math.sin(clock.elapsedTime * 3 + n) * 0.03;
+      tmp.q.setFromAxisAngle(UP, Math.atan2(to.x - hall.spot.x, to.z - hall.spot.z));
+      tmp.base.compose(tmp.v.set(x, y, z), tmp.q, tmp.s.setScalar(1.6 * Math.max(0.05, d.fade)));
+      refs.current.forEach((m, j) => m && m.setMatrixAt(n, tmp.out.multiplyMatrices(tmp.base, parts[j].local)));
+      n++;
+    }
+    refs.current.forEach((m) => {
+      if (!m) return;
+      m.count = n;
+      m.instanceMatrix.needsUpdate = true;
     });
   });
-  if (!cars.length || !parts.length) return null;
+  if (!parts.length || !hall) return null;
   return (
     <>
       {parts.map((part, j) => (
-        <instancedMesh key={`${j}|${cars.length}`} ref={(m) => { refs.current[j] = m; }} args={[part.geometry, kitMaterial(part.material), cars.length]} castShadow frustumCulled={false} raycast={() => null} />
+        <instancedMesh key={j} ref={(m) => { refs.current[j] = m; }} args={[part.geometry, kitMaterial(part.material), MAX_CARS]} castShadow frustumCulled={false} raycast={() => null} />
       ))}
     </>
   );

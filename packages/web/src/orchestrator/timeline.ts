@@ -315,7 +315,8 @@ export function buildTimeline(input: AgentTownEvent[], places: Places = DEFAULT_
       continue;
     }
     if (e.kind === "agent_return") {
-      const parent = states.get("main");
+      // its own main agent: "main", or "main@<session>" once the page keys main agents by session (D26)
+      const parent = states.get(e.parentAgentId ?? "") ?? states.get(`main@${e.sessionId}`) ?? states.get("main");
       const { start, scale } = begin(s, et);
       const to = parent ? parent.pos : COMMANDER_POST;
       const arrive = walk(s, { x: to.x + 0.9, z: to.z + 0.9 }, start, scale, "report", role, e.id, et);

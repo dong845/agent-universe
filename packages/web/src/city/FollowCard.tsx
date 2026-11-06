@@ -10,6 +10,7 @@ import { duration, useHistory, workName } from "./history.ts";
 import { robotInfo } from "./Robot.tsx";
 import { useReplay } from "./cityReplay.ts";
 import { WORK_COLOR } from "../galaxy/galaxyData.ts";
+import { uniqueAgents } from "../orchestrator/sessionAgents.ts";
 
 /** the robot that shows an agent, in the same group (live, history step or replay) as `like` */
 function robotOf(agentId: string, like: string): string | undefined {
@@ -36,9 +37,10 @@ export function FollowCard({ faction }: { faction: "claude-code" | "codex" }) {
   const st = useStore.getState();
   const hist = id?.startsWith("hist|");
   // live: the requests in progress only (a main agent's session can span hundreds of requests)
-  const liveEvents = useMemo(() => events.filter((e) => e.taskId && live.has(e.taskId)), [events, live]);
+  const liveEvents = useMemo(() => uniqueAgents(events.filter((e) => e.taskId && live.has(e.taskId))), [events, live]);
+  const histEvents = useMemo(() => uniqueAgents(historyEvents ?? []), [historyEvents]);
   const replay = useReplay((s) => (id?.startsWith("rp|") ? s.r : null));
-  const evs = hist ? historyEvents ?? [] : replay ? replay.events : liveEvents;
+  const evs = hist ? histEvents : replay ? replay.events : liveEvents;
   // a history step stands at its end; a replay at its own clock; live is now
   const now = hist ? (st.historyAt ?? Infinity) : replay ? replay.tl.t0 + replay.t : absTime(st.t);
   const agentId = id ? agentIdOf(id) : null;

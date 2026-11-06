@@ -2,6 +2,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { AgentTownEvent, Tokens, ToolFile } from "../../schema/src/event.ts";
+import { askQuestionsOf } from "../../schema/src/ask.ts";
 import type { RoleMatcher } from "../../schema/src/roles.ts";
 import { titleOf } from "../../schema/src/title.ts";
 import { clip, countUnknown, hashId, headOf, readJsonl, readJsonlFrom, toMs, type Line, type ReadStats } from "../../schema/src/util.ts";
@@ -84,6 +85,9 @@ function toolFiles(name: string, input: Record<string, any> | undefined): ToolFi
   if (EDIT_TOOLS.has(name)) return [{ path: p, access: "edit" }];
   return undefined;
 }
+
+/** the questions of an AskUserQuestion call, kept as logged */
+const askOf = (name: string, input: Record<string, any> | undefined) => (name === "AskUserQuestion" ? askQuestionsOf(input) : undefined);
 
 function toolTarget(name: string, input: Record<string, any> | undefined): { target?: string; command?: string } {
   if (!input) return {};
@@ -252,7 +256,7 @@ export class ClaudeSessionParser {
           st.toolStarts.set(b.id, ts!);
           push({
             ...base, projectId: projectId(), taskId, id: hashId(FACTION, b.id, "start"), ts: ts!, kind: "tool_start",
-            tool: b.name, toolUseId: b.id, target, ...(toolFiles(b.name, b.input) ? { files: toolFiles(b.name, b.input) } : {}),
+            tool: b.name, toolUseId: b.id, target, ...(toolFiles(b.name, b.input) ? { files: toolFiles(b.name, b.input) } : {}), ...(askOf(b.name, b.input) ? { ask: askOf(b.name, b.input) } : {}),
             role: roles.isDispatch(b.name) ? "commander" : roles.forTool(b.name, command), raw,
           });
         }

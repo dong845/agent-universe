@@ -42,6 +42,14 @@ export interface Tokens {
   reasoning?: number;
 }
 
+/** one question of a question-with-options call (Claude's AskUserQuestion), as logged */
+export interface AskQuestion {
+  question: string;
+  header?: string;
+  multiSelect: boolean;
+  options: { label: string; description?: string }[];
+}
+
 export interface AgentTownEvent {
   id: string;
   ts: number;
@@ -64,6 +72,8 @@ export interface AgentTownEvent {
   target?: string;
   /** tool_start only: every file the call names exactly, untruncated (Claude file tools, Codex patch headers) */
   files?: ToolFile[];
+  /** tool_start of a question with options (AskUserQuestion): its questions (spec 2026-11-05 D26 B1); this machine only */
+  ask?: AskQuestion[];
   tokens?: Tokens;
   contextUsed?: number;
   contextMax?: number;

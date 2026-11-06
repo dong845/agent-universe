@@ -92,7 +92,7 @@ export function hash(s: string, salt = 0): number {
   return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
 }
 const work = (r: RequestRow) => r.tokens.input + r.tokens.output + r.tokens.cacheWrite;
-const streetOf = (d: string | null) => (d === null ? t("street.other") : d === "." ? t("street.root") : d);
+export const streetOf = (d: string | null) => (d === null ? t("street.other") : d === "." ? t("street.root") : d);
 
 export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutConfig): TownLayout {
   const cells = new Map<string, { q: number; r: number; kind: TownLayout["cells"][number]["kind"] }>();

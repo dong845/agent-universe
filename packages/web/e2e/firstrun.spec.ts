@@ -32,7 +32,8 @@ test("the guided tour: each step goes where it explains, and ends inviting a cli
   const key: string = await page.evaluate(() => (window as any).__galaxyKeys[0]);
   const tour = () => page.evaluate(() => (window as any).__agentTown.tour());
   const st = () => page.evaluate(() => (window as any).__agentTown.state());
-  const next = () => page.getByTestId("tour-next").click();
+  // clicked from inside the page: the software renderer draws too few frames for Playwright's "stable" check
+  const next = () => page.getByTestId("tour-next").evaluate((b) => (b as HTMLButtonElement).click());
   await expect(page.getByTestId("tour")).toHaveAttribute("data-step", "welcome");
   await expect(page.getByTestId("tour")).toContainText("演示世界");
   await next();
@@ -51,12 +52,19 @@ test("the guided tour: each step goes where it explains, and ends inviting a cli
   expect((await tour()).follow).toBeNull();
   await next();
   await expect.poll(async () => (await st()).city).toBeNull();
-  await page.getByTestId("tour-done").click();
+  // clicked from inside the page: the software renderer draws too few frames for Playwright's "stable" check
+  await page.getByTestId("tour-done").evaluate((b) => (b as HTMLButtonElement).click());
   await expect(page.getByTestId("tour")).toHaveCount(0);
   expect((await tour()).invite).toBe(true);
   // entering any city answers the invitation
   await page.evaluate((k) => (window as any).__agentTown.enterCity(k), key);
-  await expect.poll(async () => (await tour()).invite).toBe(false);
+  let seen = "";
+  for (let i = 0; i < 25; i++) {
+    seen = JSON.stringify({ invite: (await tour()).invite, city: (await st()).city });
+    if (seen === JSON.stringify({ invite: false, city: key })) break;
+    await page.waitForTimeout(200);
+  }
+  expect(seen).toBe(JSON.stringify({ invite: false, city: key }));
   // the settings' replay starts it over
   await page.evaluate(() => (window as any).__agentTown.enterCity(null));
   await page.evaluate(() => (window as any).__agentTown.startTour());

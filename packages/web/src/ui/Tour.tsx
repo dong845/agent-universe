@@ -4,7 +4,7 @@
 // the settings.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEnter } from "../city/cityReplay.ts";
-import { mainRobot } from "../city/Robot.tsx";
+import { followMainWhenReady } from "../city/followMain.ts";
 import { t, useLang } from "../i18n/index.ts";
 import { useStore } from "../store.ts";
 import { tourDone, useTour } from "./tourStore.ts";
@@ -38,14 +38,8 @@ function carryOut(go: TourGo, key: string | null) {
       useEnter.getState().request(key);
     }
   } else if (go === "follow") {
-    // the robots appear once the city has loaded: try for a while
-    let n = 0;
-    const tryFollow = () => {
-      const id = mainRobot();
-      if (id) useStore.getState().setFollowAgent(id);
-      else if (n++ < 40 && useTour.getState().steps[useTour.getState().step]?.go === "follow") setTimeout(tryFollow, 250);
-    };
-    tryFollow();
+    // the robots appear once the city has loaded: try for a while, while this step is still showing
+    followMainWhenReady(undefined, () => useTour.getState().steps[useTour.getState().step]?.go === "follow");
   } else if (go === "stay") st.setFollowAgent(null);
 }
 

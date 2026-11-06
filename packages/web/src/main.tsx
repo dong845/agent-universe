@@ -24,6 +24,7 @@ import { useCelebrations } from "./galaxy/Celebration.tsx";
 import type { Milestone } from "./ui/milestones.ts";
 import { attentionSounds, makeChimer, playSound, soundsOn } from "./ui/sounds.ts";
 import { t, useLang } from "./i18n/index.ts";
+import { refreshToken, startPresence, useDecision, type PendingAsk } from "./ui/decision.ts";
 
 // sounds (spec 2026-11-05 C4, off by default): what newly happened in 需要你, never the first snapshot
 const chime = makeChimer(playSound);
@@ -84,7 +85,11 @@ if (fromServer) {
     prepareAndApply(p);
   };
   const world = latestEvery<WorldPayload>(apply, WORLD_EVERY_MS, () => !!useRecorder.getState().session);
-  subscribe({ world, attention: (a) => useStore.getState().setAttention(a) });
+  subscribe({ world, attention: (a) => useStore.getState().setAttention(a), asks: (a) => useDecision.getState().setAsks(a as PendingAsk[]) });
+  // answering from the page (spec 2026-11-05 D26 B): the token the server gives only its own page, and a
+  // heartbeat while the page is in front, so the server holds hooks only for a page someone looks at
+  void refreshToken().catch(() => undefined);
+  startPresence();
 }
 
 // ?t=<ms>&paused=1&speed=<n> open the replay at a fixed moment (screenshots, links)
@@ -147,6 +152,8 @@ window.__agentTown = {
   enterCity: (k: string | null) => useStore.getState().setCity(k),
   /** test hook: what a click on a robot does (spec 2026-11-05 C1); robot ids as in __robotSizes */
   clickRobot: (id: string | null) => useStore.getState().setFollowAgent(id),
+  /** test hook: the held questions and approvals the page knows of (spec D26 B) */
+  asks: () => useDecision.getState().asks,
   /** test hook: show a milestone's burst (spec 2026-11-05 C4) */
   celebrate: (m: Milestone) => useCelebrations.getState().add(m),
   /** test hook: the tour from its first step, as the settings button does */

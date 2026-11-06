@@ -10,6 +10,7 @@ import { useStore } from "../store.ts";
 import { useRightPanel } from "./rightPanel.ts";
 import { Face2D } from "../character/Face2D.tsx";
 import { t } from "../i18n/index.ts";
+import { useDecision, withAsks } from "./decision.ts";
 
 export const STATE_TEXT: Record<AttentionState, string> = { "maybe-waiting": t("state.maybe-waiting"), waiting: t("state.waiting"), "turn-done": t("state.turn-done"), error: t("state.error") };
 
@@ -47,7 +48,8 @@ const ago = (ms: number) => (ms < 60_000 ? t("ago.s", { n: Math.max(1, Math.roun
 export function NeedsYou() {
   const all = useStore((s) => s.attention);
   const closed = useStore((s) => s.closedAttention);
-  const list = useMemo(() => visibleAttention(all, closed), [all, closed]);
+  const asks = useDecision((s) => s.asks);
+  const list = useMemo(() => withAsks(visibleAttention(all, closed), asks), [all, closed, asks]);
   const w = useStore((s) => s.w25);
   const diaryOpen = useRightPanel();
   const [, tick] = useState(0);
@@ -76,10 +78,12 @@ export function NeedsYou() {
               <Face2D face={a.state === "error" ? "error" : a.state === "turn-done" ? "happy" : "wide"} faction={a.faction} size={30} className="g-need-face" />
               <Badge f={a.faction} />
               <b>{town?.name ?? a.projectId.split("/").filter(Boolean).pop() ?? a.projectId}</b>
-              <span className="g-need-state">{STATE_TEXT[a.state]}{a.tool ? ` · ${a.tool}` : ""}</span>
+              <span className="g-need-state">{a.ask ? t("state.question") : STATE_TEXT[a.state]}{a.tool ? ` · ${a.tool}` : ""}</span>
               <span className="g-need-ago">{ago(now - a.since)}</span>
             </button>
-            <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>{t("needs.copy")}</button>
+            {a.ask || asks.some((x) => x.session === a.session)
+              ? <button className="g-need-copy g-need-decide" onClick={() => useDecision.getState().show(a.session)} data-testid="needs-decide">{t("needs.decide")}</button>
+              : <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>{t("needs.copy")}</button>}
             <button className="g-need-close" aria-label={t("needs.close")} title={t("needs.closeHint")} data-testid="needs-close" onClick={() => useStore.getState().closeAttention(a)}>×</button>
           </div>
         );

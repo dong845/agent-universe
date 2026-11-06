@@ -30,6 +30,11 @@ describe("server language", () => {
     createNotifier((_, body) => zh.push(body), () => ({ ...DEFAULT_SETTINGS, lang: "zh" }), () => "web-shop")([a]);
     expect(zh).toEqual(["web-shop · 在等你授权"]);
   });
+  it("a question with options says it waits for a choice", () => {
+    const sent: string[] = [];
+    createNotifier((_, body) => sent.push(body), () => ({ ...DEFAULT_SETTINGS, lang: "en" }), () => "slides")([{ ...a, ask: [{ question: "q", multiSelect: false, options: [] }] }]);
+    expect(sent).toEqual(["slides · waiting for your choice"]);
+  });
   it("settings keep a valid lang and drop a bad one", () => {
     const f = join(mkdtempSync(join(tmpdir(), "at-lang-")), "settings.json");
     writeSettings(f, { ...DEFAULT_SETTINGS, lang: "en" });

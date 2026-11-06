@@ -4,7 +4,7 @@
 // The logs cannot say "waiting for your approval" while it happens: Claude writes the decision only
 // after the owner made it. An open call that could need approval and has had no result for a while is
 // therefore a guess ("maybe-waiting"); a hook, when the owner installed one, makes it exact.
-import type { AgentTownEvent, Faction } from "./event.ts";
+import type { AgentTownEvent, AskQuestion, Faction } from "./event.ts";
 
 export type AttentionState = "maybe-waiting" | "waiting" | "turn-done" | "error";
 
@@ -27,6 +27,8 @@ export interface Attention {
   since: number;
   tool?: string;
   exact: boolean;
+  /** waiting on a question with options: its questions (spec 2026-11-05 D26 B1) */
+  ask?: AskQuestion[];
 }
 
 export const ATTENTION = { waitMs: 20_000, errorSettleMs: 10_000, liveWindowMs: 600_000 };
@@ -76,7 +78,13 @@ export function attentionOf(events: AgentTownEvent[], now: number, hooks: HookSi
     const hook = lastHook.get(session);
     if (hook && hook.ts >= last.ts && hook.kind === "permission") {
       const open = openCalls(cur).at(-1);
-      out.push({ ...base, state: "waiting", since: hook.ts, tool: open?.tool, exact: true });
+      out.push({ ...base, state: "waiting", since: hook.ts, tool: open?.tool, exact: true, ...(open?.ask ? { ask: open.ask } : {}) });
+      continue;
+    }
+    // a question with options always waits for the owner, in any permission mode, from its first moment
+    const question = openCalls(cur).filter((c) => c.tool === "AskUserQuestion").at(-1);
+    if (question && last.kind !== "task_end") {
+      out.push({ ...base, state: "waiting", since: question.ts, tool: question.tool, exact: true, ...(question.ask ? { ask: question.ask } : {}) });
       continue;
     }
     if (last.kind === "task_end") {

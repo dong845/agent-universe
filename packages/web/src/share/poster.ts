@@ -114,11 +114,21 @@ export function drawPoster(ctx: CanvasRenderingContext2D, s: ReviewStats, o: { b
     y += 30;
     text(L("poster.work"), 72, y, 26, "#9fb0cc");
     const wmax = s.work[0].n;
+    // the label column is as wide as the widest label (D26 A3); labels shrink so bars keep 40 % of the width
+    const labels = s.work.map((wk) => L(`work.${wk.role}` as Key));
+    let size = 28;
+    const widest = () => {
+      ctx.font = `600 ${size}px ${FONT}`;
+      return Math.max(...labels.map((l) => ctx.measureText(l).width));
+    };
+    while (size > 18 && widest() > (W - 144) * 0.4) size -= 2;
+    const barX = 72 + widest() + 24;
+    const barRoom = W - 72 - 130 - barX;
     s.work.forEach((wk, i) => {
       const yy = y + 26 + i * 52;
-      const bar = ((W - 144 - 220 - 150) * wk.n) / wmax;
-      round(72 + 220, yy, Math.max(10, bar), 30, 10, WORK_COLOR[wk.role] ?? "#888");
-      text(L(`work.${wk.role}` as Key), 72, yy + 25, 28, "#e6eefc", 600);
+      const bar = (barRoom * wk.n) / wmax;
+      round(barX, yy, Math.max(10, bar), 30, 10, WORK_COLOR[wk.role] ?? "#888");
+      text(labels[i], 72, yy + 25, size, "#e6eefc", 600);
       text(wk.n.toLocaleString("en-US"), W - 72, yy + 25, 26, "#9fb0cc", 400, "right");
     });
     y += 26 + s.work.length * 52;

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import type { Places } from "../orchestrator/layout.ts";
 import { buildTimeline, type Timeline } from "../orchestrator/timeline.ts";
+import { uniqueAgents } from "../orchestrator/sessionAgents.ts";
 
 export const REPLAY_SPEEDS = [1, 2, 4, 16] as const;
 /** in a replay, a quiet stretch longer than this is shortened to it (the model or the user was idle) */
@@ -60,7 +61,7 @@ export const useReplay = create<ReplayStore>((set, get) => ({
   r: null,
   start(district, requestId, title, events, places) {
     if (!events.length) throw new Error(`request ${requestId} has no events to replay`);
-    const c = compressGaps(events);
+    const c = compressGaps(uniqueAgents(events));
     set({ r: { district, requestId, title, tl: buildTimeline(c.events, places), events: c.events, t: 0, speed: 2, playing: true, cut: c.cut, follow: true } });
   },
   stop: () => set({ r: null }),

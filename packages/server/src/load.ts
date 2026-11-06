@@ -18,7 +18,7 @@ import { assignProjects, defaultTempRoots, defaultToolRoots, type AssignOptions 
 const LIVE_KEEP_MS = 30 * 60_000;
 
 /** the cache entry format; the parser sources and role rules are hashed into every key as well (producerHash) */
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 export interface LoadOptions {
   claudeRoot: string;

@@ -15,6 +15,8 @@ import { Robot, SCALE } from "./Robot.tsx";
 import { t, useLang } from "../i18n/index.ts";
 import { formatGist } from "../i18n/gist.ts";
 import type { Actor } from "../orchestrator/timeline.ts";
+import { uniqueAgents } from "../orchestrator/sessionAgents.ts";
+import { CityTabs, useCityPanel } from "./OverviewPanel.tsx";
 
 /** at most this many subagents stand in the city for one step (the rest are listed) */
 const MAX_SUBS = 12;
@@ -51,7 +53,7 @@ export function HistoryPanel() {
   const cur = step ? steps[step - 1] : undefined;
   const loaded = useHistory((s) => s.events);
   const events = { id: loaded?.requestId ?? "", ev: loaded?.ev ?? null };
-  const agents = useMemo(() => stepAgents(events.ev), [events.ev]);
+  const agents = useMemo(() => stepAgents(events.ev ? uniqueAgents(events.ev) : null), [events.ev]);
   const list = useRef<HTMLOListElement>(null);
   // the rows change only with the steps' content and the chosen one: a newer world with the same steps
   // (new objects, same values) does not rebuild them
@@ -100,8 +102,9 @@ export function HistoryPanel() {
     <aside className="g-history" data-testid="history">
       <header>
         <b>{t("history.title", { n: steps.length })}</b>
-        <button onClick={closeHistory} title={t("history.now")} data-testid="history-close">{t("history.now")} ✕</button>
+        <button onClick={() => { closeHistory(); useCityPanel.getState().setOverview(true); }} title={t("history.now")} data-testid="history-close">{t("history.now")} ✕</button>
       </header>
+      {town ? <CityTabs town={town} on="history" /> : null}
       <p className="muted">{t("history.hint")}</p>
       <ol ref={list} className="g-history-list">
         {rows}
@@ -196,7 +199,7 @@ export function HistoryFocus({ p }: { p: Planet }) {
 export function StandingAgents({ p }: { p: Planet }) {
   const on = useHistory((s) => s.town === p.key && s.step !== null);
   const loaded = useHistory((s) => s.events);
-  const agents = useMemo(() => (on ? stepAgents(loaded?.ev ?? null) : []), [on, loaded]);
+  const agents = useMemo(() => (on ? stepAgents(loaded?.ev ? uniqueAgents(loaded.ev) : null) : []), [on, loaded]);
   const hall = p.blocks.find((b) => b.type === "hall");
   const actors = useMemo(() => {
     if (!hall || !agents.length) return [];
