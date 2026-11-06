@@ -530,3 +530,5 @@ canvas { display: block; }
 .g-bar span { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g-bar i { display: block; height: 8px; border-radius: 4px; min-width: 4px; }
 .g-bar b { font-weight: 500; color: var(--mute); }
+/* the tour card stays above the city's panels (the overview covered its buttons; D26) */
+.g-tour { z-index: 55; }

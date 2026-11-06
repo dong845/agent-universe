@@ -10,6 +10,7 @@ import { absTime, useStore } from "../store.ts";
 import { historySteps, useHistory } from "./history.ts";
 import { closeHistory, goToStep } from "./HistoryPanel.tsx";
 import { townOverview } from "./overview.ts";
+import { useReplay } from "./cityReplay.ts";
 
 /** whether the Overview tab shows (History shows while a step is open) */
 export const useCityPanel = create<{ overview: boolean; setOverview(o: boolean): void }>((set) => ({ overview: true, setOverview: (overview) => set({ overview }) }));
@@ -45,8 +46,10 @@ export function OverviewPanel() {
   const on = useCityPanel((s) => s.overview);
   const history = useHistory((s) => !!s.town);
   const w = useStore((s) => s.w25);
+  // a replay has the city to itself, as it does with the history (the panel covered the replay bar's end button)
+  const replaying = useReplay((s) => !!s.r);
   const o = useMemo(() => (city && w ? townOverview(w, city, absTime(useStore.getState().t)) : null), [city, w]);
-  if (!city || !on || history || !o || !w) return null;
+  if (!city || !on || history || replaying || !o || !w) return null;
   const town = w.towns.get(city);
   const row = (k: Key, v: React.ReactNode, testid?: string) => <div className="row" data-testid={testid}><span>{t(k)}</span><b>{v}</b></div>;
   return (
