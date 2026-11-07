@@ -75,6 +75,8 @@ export interface StarSystem {
   planets: Planet[];
   /** towns of this faction not drawn as planets (too little made there; still counted in `panels`) */
   hidden: number;
+  /** towns the owner hid from space (D27 A3); also still counted in `panels` */
+  ownerHidden: number;
 }
 
 export interface Route {
@@ -87,9 +89,15 @@ export interface Route {
 
 export interface Galaxy {
   systems: StarSystem[];
+  /** the planets drawn in space */
   planets: Map<string, Planet>;
+  /** towns the owner hid (D27 A3): no planet in space, but a city that search can still open */
+  hiddenPlanets: Map<string, Planet>;
   routes: Route[];
 }
+
+/** a town's planet, drawn or hidden: what a city is built from */
+export const planetOf = (g: Galaxy, key: string): Planet | undefined => g.planets.get(key) ?? g.hiddenPlanets.get(key);
 
 export const FACTION_COLOR: Record<Faction, string> = { "claude-code": "#ff9a5c", codex: "#6cc3ff" };
 export const PRODUCT_COLOR: Record<string, string> = { code: "#4fe3ff", docs: "#ffc857", slides: "#ff7ab6", image: "#b98cff", video: "#ff5e5e", data: "#5ef2a0" };
@@ -196,11 +204,14 @@ const systemCache = new Map<string, StarSystem>();
 export function buildGalaxy(w: World25): Galaxy {
   const systems: StarSystem[] = [];
   const planets = new Map<string, Planet>();
+  const hiddenPlanets = new Map<string, Planet>();
   const sides: StarSystem[] = [];
   const busy = new Set([...w.requests.values()].filter((r) => w.live.has(r.requestId)).map((r) => `${r.faction}|${r.projectId}`));
   for (const faction of ["claude-code", "codex"] as const) {
     const all = [...w.towns.values()].filter((t) => t.faction === faction);
-    const towns = all.filter((t) => t.counts.produced >= MIN_PRODUCED || busy.has(t.key)).sort((a, b) => RANK[a.kind] - RANK[b.kind] || b.counts.produced - a.counts.produced || (a.key < b.key ? -1 : 1));
+    const qualifies = (t: TownRow) => t.counts.produced >= MIN_PRODUCED || busy.has(t.key);
+    const mine = all.filter((t) => qualifies(t) && t.hidden);
+    const towns = all.filter((t) => qualifies(t) && !t.hidden).sort((a, b) => RANK[a.kind] - RANK[b.kind] || b.counts.produced - a.counts.produced || (a.key < b.key ? -1 : 1));
     if (!all.length) continue;
     const produced = [...w.requests.values()].filter((r) => r.faction === faction && r.class === "produced").map((r) => r.endTs).sort((a, b) => a - b);
     const radius = 5 + 0.55 * Math.log2(1 + produced.length);
@@ -232,9 +243,18 @@ export function buildGalaxy(w: World25): Galaxy {
       });
       planetCache.set(t.key, { sig, layout, planet: list[list.length - 1] });
     });
+    for (const t of mine) {
+      const r = planetRadius(t.counts.produced);
+      const { blocks, belts } = blocksOf(w, t, r);
+      hiddenPlanets.set(t.key, {
+        key: t.key, town: t, radius: r, orbit: 0, phase: 0, period: 240, incline: 0,
+        look: lookOf(t.kind === "capital" ? "capital" : t.kind === "outpost" ? "outpost" : t.theme),
+        ring: false, blocks, belts, live: blocks.some((b) => b.live), seed: hash(t.key) * 100, unit: (CAP * r) / w.layouts.get(t.key)!.radius,
+      });
+    }
     const prevSys = systemCache.get(faction);
-    const same = prevSys && prevSys.radius === radius && prevSys.hidden === all.length - towns.length && prevSys.planets.length === list.length && prevSys.planets.every((q, j) => q === list[j]) && prevSys.panels.length === produced.length && prevSys.panels.every((v, j) => v === produced[j]);
-    const sys: StarSystem = same ? prevSys : { faction, x: 0, z: 0, radius, shellRadius, color: FACTION_COLOR[faction], panels: produced, planets: list, hidden: all.length - towns.length };
+    const same = prevSys && prevSys.radius === radius && prevSys.hidden === all.length - towns.length - mine.length && prevSys.ownerHidden === mine.length && prevSys.planets.length === list.length && prevSys.planets.every((q, j) => q === list[j]) && prevSys.panels.length === produced.length && prevSys.panels.every((v, j) => v === produced[j]);
+    const sys: StarSystem = same ? prevSys : { faction, x: 0, z: 0, radius, shellRadius, color: FACTION_COLOR[faction], panels: produced, planets: list, hidden: all.length - towns.length - mine.length, ownerHidden: mine.length };
     systemCache.set(faction, sys);
     for (const p of list) planets.set(p.key, p);
     sides.push(sys);
@@ -246,7 +266,7 @@ export function buildGalaxy(w: World25): Galaxy {
     sides[1].x = reach(sides[1]) + 18;
   }
   systems.push(...sides);
-  return { systems, planets, routes: routesOf(w.requests.values()).filter((r) => planets.has(r.a) && planets.has(r.b)) };
+  return { systems, planets, hiddenPlanets, routes: routesOf(w.requests.values()).filter((r) => planets.has(r.a) && planets.has(r.b)) };
 }
 
 /** where a planet is at time `sec` (seconds of the orbit clock) */

@@ -7,6 +7,8 @@ import { officialMarks } from "../galaxy/emblem.ts";
 import { t } from "../i18n/index.ts";
 import { replayTour } from "./Tour.tsx";
 import { setSoundsOn, soundsOn } from "./sounds.ts";
+import { fetchTownPrefs, keyName, postTown, type TownPrefs } from "./townPrefs.ts";
+import { townName } from "../i18n/data.ts";
 
 interface ServerSettings { notify: boolean; notifyTurnDone: boolean; hooks: { claude: boolean; codex: boolean }; askHooks?: { claude: boolean; codex: boolean }; hookFiles?: { claude: string; codex: string } }
 
@@ -38,7 +40,18 @@ export function Settings() {
       setBusy(false);
     }
   };
-  const refresh = () => fetch("/api/settings").then((r) => r.json()).then(setS).catch(() => setNote(t("settings.noServer")));
+  const [towns, setTowns] = useState<TownPrefs | null>(null);
+  const w = useStore((st) => st.w25);
+  const nameOf = (key: string) => { const x = w?.towns.get(key); return x ? townName(x) : keyName(key); };
+  const refresh = () => {
+    void fetchTownPrefs().then(setTowns);
+    return fetch("/api/settings").then((r) => r.json()).then(setS).catch(() => setNote(t("settings.noServer")));
+  };
+  const undo = async (key: string, change: { hidden: false } | { merge: null }) => {
+    const err = await postTown(key, change);
+    if (err) setNote(t("town.failed", { why: err }));
+    setTowns(await fetchTownPrefs());
+  };
   useEffect(() => {
     if (open) void refresh();
   }, [open]);
@@ -77,6 +90,14 @@ export function Settings() {
           <label><input type="checkbox" checked={logosOn} disabled={busy} onChange={() => void logos()} data-testid="logos" /> {t("settings.logos")}<small>{t("settings.logosHint")}</small></label>
           <hr />
           <label><input type="checkbox" checked={sounds} onChange={() => { setSoundsOn(!sounds); setSounds(!sounds); }} data-testid="sounds" /> {t("settings.sounds")}<small>{t("settings.soundsHint")}</small></label>
+          <hr />
+          <p className="muted">{t("settings.towns")} · {t("settings.townsHint")}</p>
+          {towns && (towns.hidden.length || Object.keys(towns.merge).length) ? (
+            <ul className="g-settings-towns" data-testid="settings-towns">
+              {towns.hidden.map((k) => <li key={`h|${k}`}><span>{nameOf(k)} <small>{t("town.hiddenTag")}</small></span><button onClick={() => void undo(k, { hidden: false })} data-testid="town-show">{t("settings.show")}</button></li>)}
+              {Object.entries(towns.merge).map(([k, to]) => <li key={`m|${k}`}><span>{keyName(k)} → {nameOf(to)}</span><button onClick={() => void undo(k, { merge: null })} data-testid="town-unmerge">{t("settings.unmerge")}</button></li>)}
+            </ul>
+          ) : null}
           <hr />
           <button className="g-settings-btn" onClick={() => { setOpen(false); replayTour(); }} data-testid="tour-replay">{t("tour.replay")}</button>
           {note ? <p className="g-settings-note">{note}</p> : null}

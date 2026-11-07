@@ -7,7 +7,7 @@ import { searchTowns } from "../galaxy/search.ts";
 import { t, useLang } from "../i18n/index.ts";
 import { useStore } from "../store.ts";
 
-export interface SearchTown { key: string; name: string; faction: Faction; badge: React.ReactNode }
+export interface SearchTown { key: string; name: string; faction: Faction; badge: React.ReactNode; hidden?: boolean }
 
 export function Search({ towns }: { towns: SearchTown[] }) {
   useLang();
@@ -28,7 +28,8 @@ export function Search({ towns }: { towns: SearchTown[] }) {
   }, []);
   const go = (key: string) => {
     const st = useStore.getState();
-    if (st.focus === key) {
+    // a town the owner hid has no planet to fly to: straight into its city (D27 A3)
+    if (st.focus === key || towns.find((x) => x.key === key)?.hidden) {
       // already there: into the city, as a click on the planet does
       st.select({ kind: "town", district: key });
       useEnter.getState().request(key);
@@ -59,7 +60,7 @@ export function Search({ towns }: { towns: SearchTown[] }) {
         <ul role="listbox">
           {hits.map((h, i) => (
             <li key={h.key} role="option" aria-selected={i === sel} className={i === sel ? "on" : ""} data-testid="search-hit" onMouseDown={(e) => { e.preventDefault(); setSel(i); go(h.key); }}>
-              {h.badge}{h.name}
+              {h.badge}{h.name}{h.hidden ? <small className="g-search-tag">{t("town.hiddenTag")}</small> : null}
             </li>
           ))}
         </ul>
