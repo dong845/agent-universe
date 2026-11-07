@@ -469,3 +469,11 @@ The owner did not see what "野外营地 / field camp" was for: it looked like a
 - Real data: the field camp's 876 requests went to slides-to-video 274, the capitals 365, topic-to-video 91, career_product 50, Explore App 22, slides_maker 28, …; 179 more moved from the capital to their projects (panda-tok +22). Planets with ≥ 2 finished: 29 → 43 (many one-off deck folders; hide or merge them from Overview).
 - Not done: reading paths inside Codex's `exec` tool (its requests now fall back to their working folder, which was right in every case sampled).
 - Lesson: a world.spec step timed out three times in a row only on a cold dev server (space's modules built on the first way back under SwiftShader); warm it passed — the wait now matches the test's other slow-renderer waits.
+
+## D29 One-off folders draw no planet (2026-11-07)
+
+After D28 the Codex system grew to 35 planets, most of them folders worked on once (a deck or a talk made in an afternoon). The owner: don't show one-off small folders. On the real data the line was clear: every such folder had all its activity on one calendar day (chengdu-travel 9 finished, slidemaker_tutorial 7, tokyo_city 3 …), every real project several (lifeos 7 days, career_product 21).
+
+- A planet needs `MIN_PRODUCED` finished pieces **and** activity on `MIN_DAYS` = 2 local calendar days, or work going on now (so today's new project shows while it runs). Others are counted in the shells and the "not shown" line, which now says "small or one-off".
+- Real data: 43 planets → 21 (Claude 8, Codex 13); 53 projects counted, not drawn. Two-day folders (slidemaker-pitch, medical-ai-agents) still show; hide or merge them from Overview.
+- Lesson: two e2e failures right after a build with a real-data server and screenshots running were load, not code — they passed on a quiet rerun; judge e2e on a quiet machine.
