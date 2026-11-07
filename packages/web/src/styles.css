@@ -304,6 +304,8 @@ canvas { display: block; }
 .g-need .g-need-open { order: 1; flex: 1 1 calc(100% - 34px); }
 .g-need .g-need-close { order: 2; }
 .g-need .g-need-copy { order: 3; flex: 1 1 100%; padding: 4px 8px; text-align: center; }
+.g-need .g-need-open { grid-template-columns: auto auto 1fr; }
+.g-need .g-need-open b { text-align: left; }
 .g-need .g-need-terminal { cursor: default; color: var(--mute); background: none; border-style: dashed; }
 .g-need-open {
   flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 4px;
