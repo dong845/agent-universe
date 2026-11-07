@@ -31,21 +31,54 @@ export function withAsks(list: Attention[], asks: readonly PendingAsk[]): Attent
 
 export type Picks = Record<string, { labels: string[]; other?: string }>;
 
-const said = (p: { labels: string[]; other?: string } | undefined) => p?.other?.trim() || (p?.labels.length ? p.labels.join(", ") : "");
+type Q = Pick<AskQuestion, "question"> & { multiSelect?: boolean };
+/** one question's answer: a single choice or the Other text; for multi-select every label and the text (D27 D1) */
+const said = (q: Q, p: { labels: string[]; other?: string } | undefined) => {
+  const other = p?.other?.trim() ?? "";
+  const labels = p?.labels ?? [];
+  if (q.multiSelect) return [...labels, ...(other ? [other] : [])].join(", ");
+  return other || labels.join(", ");
+};
 
-export function answerOf(questions: readonly Pick<AskQuestion, "question">[], picks: Picks): Record<string, string> {
-  return Object.fromEntries(questions.map((q) => [q.question, said(picks[q.question])]));
+export function answerOf(questions: readonly Q[], picks: Picks): Record<string, string> {
+  return Object.fromEntries(questions.map((q) => [q.question, said(q, picks[q.question])]));
 }
-export const complete = (questions: readonly Pick<AskQuestion, "question">[], picks: Picks) => questions.every((q) => !!said(picks[q.question]));
+export const complete = (questions: readonly Q[], picks: Picks) => questions.every((q) => !!said(q, picks[q.question]));
 
-export const useDecision = create<{ asks: PendingAsk[]; open: string | null; token: string | null; setAsks(a: PendingAsk[]): void; show(session: string | null): void; setToken(t: string | null): void }>((set) => ({
+type HookSides = { "claude-code": boolean; codex: boolean };
+export const useDecision = create<{ asks: PendingAsk[]; open: string | null; token: string | null; askHooks: HookSides | null; setAsks(a: PendingAsk[]): void; show(session: string | null): void; setToken(t: string | null): void; setAskHooks(h: HookSides | null): void }>((set) => ({
   asks: [],
   open: null,
   token: null,
+  askHooks: null,
   setAsks: (asks) => set({ asks }),
   show: (open) => set({ open }),
   setToken: (token) => set({ token }),
+  setAskHooks: (askHooks) => set({ askHooks }),
 }));
+
+/** whether each side's ask hook is installed (D27 B4); null when there is no server to ask */
+export async function refreshAskHooks() {
+  try {
+    const r = await fetch("/api/settings");
+    const s = (await r.json()) as { askHooks?: { claude?: boolean; codex?: boolean } };
+    useDecision.getState().setAskHooks(r.ok && s.askHooks ? { "claude-code": !!s.askHooks.claude, codex: !!s.askHooks.codex } : null);
+  } catch {
+    useDecision.getState().setAskHooks(null);
+  }
+}
+
+/** turns on the ask hook of one side, as the settings switch does; the error, or null */
+export async function enableAskHook(faction: "claude-code" | "codex"): Promise<string | null> {
+  try {
+    const r = await fetch("/api/hooks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent: faction === "codex" ? "codex" : "claude", on: true, set: "ask" }) });
+    if (!r.ok) return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`;
+    await refreshAskHooks();
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
 
 /** the page's token, from the server (it changes when the server restarts) */
 export async function refreshToken() {

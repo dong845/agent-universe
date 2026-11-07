@@ -3,8 +3,25 @@ import { demoPayload } from "../packages/mock/src/world.ts";
 import manifest from "../art/manifest.json" with { type: "json" };
 import type { Manifest } from "../packages/web/src/v3/art.ts";
 import { buildWorld25 } from "../packages/web/src/v3/world25Data.ts";
-import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, routesOf } from "../packages/web/src/galaxy/galaxyData.ts";
+import { buildGalaxy, MIN_PRODUCED, panelsAt, planetOf, planetPos, routesOf } from "../packages/web/src/galaxy/galaxyData.ts";
 import type { RequestRow } from "../packages/schema/src/payload.ts";
+
+describe("towns the owner hid (D27 A3)", () => {
+  it("draw no planet and take no orbit, still have a city to open, and are counted apart", () => {
+    const p = demoPayload();
+    const target = [...p.towns].filter((t) => t.kind === "project").sort((a, b) => b.counts.produced - a.counts.produced)[0];
+    const towns = p.towns.map((t) => (t.key === target.key ? { ...t, hidden: true } : t));
+    const w = buildWorld25(towns, p.requests, manifest as Manifest);
+    const g = buildGalaxy(w);
+    expect(g.planets.has(target.key)).toBe(false);
+    expect(g.hiddenPlanets.get(target.key)?.town.key).toBe(target.key);
+    expect(planetOf(g, target.key)?.key).toBe(target.key);
+    const sys = g.systems.find((s) => s.faction === target.faction)!;
+    expect(sys.planets.some((x) => x.key === target.key)).toBe(false);
+    expect(sys.ownerHidden).toBe(1);
+    expect(g.routes.every((r) => r.a !== target.key && r.b !== target.key)).toBe(true);
+  });
+});
 
 describe("the star-system view on the demo", () => {
   const p = demoPayload();

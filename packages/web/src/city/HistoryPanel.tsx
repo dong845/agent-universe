@@ -117,6 +117,7 @@ export function HistoryPanel() {
       <section className="g-history-facts" data-testid="history-facts">
         <h4 className={facts.gist ? "gist" : ""} title={facts.gist ? t("history.gistHint") : undefined}>{facts.title}</h4>
         {facts.rows.map(([k, v]) => <div key={k} className="row"><span>{k}</span><b>{v}</b></div>)}
+        {cur.suburb ? <p className="muted">{t("history.suburbHouse")}</p> : null}
         {!cur.drawn ? <p className="muted">{r.class === "chat" ? t("history.chatNoHouse") : r.class === "produced" ? t("history.ghostHouse") : t("history.noTent")}</p> : null}
         {facts.work.length ? (<><h5>{t("history.did")}</h5><div className="chips">{facts.work.map((x) => <span key={x.name}>{x.name} <b>{x.n}</b></span>)}</div></>) : null}
         {agents.length ? (
@@ -153,15 +154,18 @@ export function HistoryFocus({ p }: { p: Planet }) {
   const req = step ? steps[step - 1]?.request : undefined;
   const layout = useStore((s) => s.w25?.layouts.get(p.key));
   // the step's own house when the city does not draw it (20-house cap): by its street, for this step only
+  // a tiny house in the suburbs: the ring goes round it, nothing extra is drawn (D27 C2)
+  const sub = rid ? layout?.suburbs.find((x) => x.requestId === rid) : undefined;
+  const subBlock = useMemo<Block | undefined>(() => (sub ? { spot: { x: sub.x, z: sub.z, size: 0.4, info: { kind: "house", requestId: sub.requestId } } as Block["spot"], type: "house", dir: [0, 1, 0], foot: p.unit * 0.55, height: p.unit * 0.5, turn: 0, color: PRODUCT_COLOR[sub.kind] ?? PRODUCT_COLOR.code, live: false } : undefined), [sub, p]);
   const ghost = useMemo<Block | undefined>(() => {
-    if (drawn || !req || req.class !== "produced" || !layout) return undefined;
+    if (drawn || sub || !req || req.class !== "produced" || !layout) return undefined;
     const house = p.blocks.find((b) => b.type === "house");
     const street = layout.streets.find((s) => s.name === (req.topDir === null ? t("street.other") : req.topDir === "." ? t("street.root") : req.topDir)) ?? layout.streets.find((s) => s.name === t("street.other")) ?? layout.streets[0];
     const hall = p.blocks.find((b) => b.type === "hall");
     const at = street ? { x: street.x * 0.82, z: street.z * 0.82 } : hall ? { x: hall.spot.x + 2, z: hall.spot.z + 2 } : { x: 2, z: 2 };
     return { spot: { ...(house?.spot ?? {}), x: at.x, z: at.z, size: 1.2, info: { kind: "house", requestId: req.requestId } } as Block["spot"], type: "house", dir: house?.dir ?? [0, 1, 0], foot: house?.foot ?? p.unit, height: house?.height ?? p.unit, turn: 0, color: PRODUCT_COLOR[req.productKind ?? "code"] ?? PRODUCT_COLOR.code, live: false };
-  }, [drawn, req, layout, p]);
-  const block = drawn ?? ghost;
+  }, [drawn, sub, req, layout, p]);
+  const block = drawn ?? subBlock ?? ghost;
   const ring = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3 } | null;

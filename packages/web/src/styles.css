@@ -299,7 +299,14 @@ canvas { display: block; }
   backdrop-filter: blur(10px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 }
 .g-needs header { font-size: 11.5px; color: #ffd58a; padding: 2px 6px 6px; letter-spacing: 0.06em; }
-.g-need { display: flex; align-items: stretch; gap: 4px; border-radius: 8px; margin-top: 2px; }
+/* the name has the row; the action sits under it (D27 B3) */
+.g-need { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; border-radius: 8px; margin-top: 2px; }
+.g-need .g-need-open { order: 1; flex: 1 1 calc(100% - 34px); }
+.g-need .g-need-close { order: 2; }
+.g-need .g-need-copy { order: 3; flex: 1 1 100%; padding: 4px 8px; text-align: center; }
+.g-need .g-need-open { grid-template-columns: auto auto 1fr; }
+.g-need .g-need-open b { text-align: left; }
+.g-need .g-need-terminal { cursor: default; color: var(--mute); background: none; border-style: dashed; }
 .g-need-open {
   flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 4px;
   text-align: left; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; cursor: pointer;
@@ -532,3 +539,23 @@ canvas { display: block; }
 .g-bar b { font-weight: 500; color: var(--mute); }
 /* the tour card stays above the city's panels (the overview covered its buttons; D26) */
 .g-tour { z-index: 55; }
+
+/* town names, hide and merge (spec 2026-11-07 D27 A) */
+.g-town-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-history header .g-town-edit { padding: 0 6px; font-size: 11px; line-height: 18px; opacity: 0.75; }
+.g-history header .g-town-edit:hover { opacity: 1; }
+.g-town-name { flex: 1; min-width: 0; margin-right: 8px; font: inherit; font-weight: 600; color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(130, 170, 240, 0.55); border-radius: 6px; padding: 2px 6px; outline: none; }
+.g-town-note { margin: 2px 0 6px; font-size: 11.5px; }
+.g-town-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.g-town-actions button, .g-town-actions select { font: inherit; font-size: 11.5px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; cursor: pointer; }
+.g-town-actions select { max-width: 100%; }
+.g-settings-towns { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 4px; }
+.g-settings-towns li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.g-settings-towns li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-settings-towns button { font: inherit; font-size: 11.5px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; cursor: pointer; flex: none; }
+.g-search-tag { margin-left: 6px; font-size: 10.5px; color: #8fa3c4; }
+
+/* the city bar keeps its buttons on one line (D27 B5) */
+.g-citybar button { white-space: nowrap; }
+.g-citybar em { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 32vw; }
+.g-citybar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

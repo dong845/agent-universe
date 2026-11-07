@@ -2,28 +2,30 @@
 // stops the world clock at the moment that request finished, so the city stands as it was then. The
 // explanation is assembled only from what the logs record — nothing is summarised or guessed.
 import { create } from "zustand";
-import { formatCount } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent, Role } from "../../../schema/src/event.ts";
 import type { RequestRow } from "../../../schema/src/payload.ts";
 import { WORK_NAMES } from "../v3/townLayout.ts";
 import type { World25 } from "../v3/world25Data.ts";
-import { t, useLang } from "../i18n/index.ts";
+import { t, useLang, count } from "../i18n/index.ts";
 import { formatGist } from "../i18n/gist.ts";
 
 export interface HistoryStep {
   index: number;
   request: RequestRow;
-  /** the city draws a building for it (a city draws at most 20 houses and 6 tents) */
+  /** the city draws a building for it: a house, a tent, or a tiny house in the suburbs (D27 C) */
   drawn: boolean;
+  /** it is a tiny house in the suburbs */
+  suburb?: boolean;
 }
 
 export function historySteps(w: World25, town: string): HistoryStep[] {
   const layout = w.layouts.get(town);
   const drawn = new Set(layout?.spots.flatMap((s) => (s.info.kind === "house" || s.info.kind === "tent" ? [s.info.requestId] : [])) ?? []);
+  const subs = new Set(layout?.suburbs.map((s) => s.requestId) ?? []);
   return [...w.requests.values()]
     .filter((r) => `${r.faction}|${r.projectId}` === town && r.class !== "empty")
     .sort((a, b) => a.endTs - b.endTs || a.startTs - b.startTs || (a.requestId < b.requestId ? -1 : 1))
-    .map((request, i) => ({ index: i + 1, request, drawn: drawn.has(request.requestId) }));
+    .map((request, i) => (subs.has(request.requestId) ? { index: i + 1, request, drawn: true, suburb: true } : { index: i + 1, request, drawn: drawn.has(request.requestId) }));
 }
 
 const CLASS_NAMES: Record<RequestRow["class"], string> = { produced: t("class.produced"), investigation: t("class.investigation"), chat: t("class.chat"), empty: t("class.empty") };
@@ -67,7 +69,7 @@ export function stepFacts(r: RequestRow, events: AgentTownEvent[] | null): StepF
   const agents = events ? new Set(events.map((e) => e.agentId)).size : null;
   rows.push([t("facts.turns"), t("facts.turnsN", { n: r.turns }) + (agents !== null ? t("facts.agentsN", { n: agents }) : "") + (r.spawns ? t("facts.spawnsN", { n: r.spawns }) : "")]);
   rows.push([t("facts.calls"), t("facts.callsN", { n: r.calls }) + (r.fails ? t("facts.failsN", { n: r.fails }) : "")]);
-  rows.push(["token", formatCount(r.tokens.input + r.tokens.output + r.tokens.cacheRead + r.tokens.cacheWrite) + t("facts.outputN", { n: formatCount(r.tokens.output) })]);
+  rows.push(["token", count(r.tokens.input + r.tokens.output + r.tokens.cacheRead + r.tokens.cacheWrite) + t("facts.outputN", { n: count(r.tokens.output) })]);
   if (r.skills.length) rows.push([t("facts.skills"), r.skills.join(t("gist.sep"))]);
   if (r.topDir) rows.push([t("facts.topDir"), r.topDir === "." ? t("street.root") : r.topDir]);
 

@@ -1,9 +1,8 @@
 // The followed agent's card (spec 2026-11-05 C1): its face, who it is, what it is doing now and for how
 // long, its tokens so far, and the subagents it sent (click one to follow it instead) and its parent.
 import { useEffect, useMemo, useState } from "react";
-import { formatCount } from "../../../schema/src/aggregate.ts";
 import { Face2D } from "../character/Face2D.tsx";
-import { t, useLang } from "../i18n/index.ts";
+import { t, useLang, count } from "../i18n/index.ts";
 import { absTime, useStore } from "../store.ts";
 import { agentFacts, agentIdOf } from "./agentFacts.ts";
 import { duration, useHistory, workName } from "./history.ts";
@@ -68,7 +67,7 @@ export function FollowCard({ faction }: { faction: "claude-code" | "codex" }) {
         <b>{facts.doing ? [workName(facts.doing.role), facts.doing.tool, facts.doing.target].filter(Boolean).join(" · ") : t("follow.idle")}</b>
       </div>
       <div className="g-follow-row"><span>{t("follow.since")}</span><b>{duration(facts.sinceMs)}</b></div>
-      <div className="g-follow-row"><span>token</span><b>{formatCount(facts.tokens)}</b></div>
+      <div className="g-follow-row"><span>token</span><b>{count(facts.tokens)}</b></div>
       {facts.children.length ? (
         <div className="g-follow-kids">
           <span>{t("follow.children", { n: facts.children.length })}</span>

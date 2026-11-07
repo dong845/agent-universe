@@ -4,6 +4,7 @@ import type { AgentTownEvent, Faction } from "../../schema/src/event.ts";
 import type { WorldPayload } from "../../schema/src/payload.ts";
 import type { BuildingId } from "../../schema/src/world.ts";
 import { buildTimeline, type Timeline } from "./orchestrator/timeline.ts";
+import { uniqueAgents } from "./orchestrator/sessionAgents.ts";
 import { buildWorld, districtKey, type District, type World } from "./orchestrator/worldgen.ts";
 import type { Selection } from "./selection.ts";
 import type { Attention } from "../../schema/src/attention.ts";
@@ -150,7 +151,7 @@ function runtimesOf(events: AgentTownEvent[], world: World, liveTasks: Set<strin
   const runtimes = world.districts.map((d) => {
     const mine = live.filter((e) => districtKey(e) === d.key);
     if (!mine.length) return { district: d, timeline: null, offset: 0 };
-    const timeline = buildTimeline(mine);
+    const timeline = buildTimeline(uniqueAgents(mine));
     const offset = timeline.t0 - t0;
     duration = Math.max(duration, offset + timeline.duration);
     return { district: d, timeline, offset };
@@ -208,7 +209,7 @@ export const useStore = create<Store>((set, get) => ({
     const taskId = events.find((e) => e.taskId)?.taskId;
     if (i < 0 || !taskId) throw new Error(`cannot replay ${taskId ?? "?"} in ${district}`);
     // the town's site rebuilds the task from now on; the original runtime comes back on stop
-    const timeline = buildTimeline(events);
+    const timeline = buildTimeline(uniqueAgents(events));
     const rt: Runtime = { district: runtimes[i].district, timeline, offset: t };
     saved = { runtime: runtimes[i], duration };
     const next = runtimes.map((r, k) => (k === i ? rt : r));

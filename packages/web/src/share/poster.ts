@@ -9,7 +9,7 @@ import type { Period, ReviewStats } from "./review.ts";
 
 export const POSTER = { w: 1080, h: 1350 };
 /** 35,810,700,000 → 35.8B: short enough for a tile */
-const compact = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(n >= 1e11 ? 0 : 1)}B` : formatCount(n));
+
 const FONT = `-apple-system, "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", system-ui, sans-serif`;
 
 export function drawPoster(ctx: CanvasRenderingContext2D, s: ReviewStats, o: { bg: CanvasImageSource | null; face: CanvasImageSource | null; lang: Lang; period: Period; names: (key: string) => string }): string[] {
@@ -55,7 +55,7 @@ export function drawPoster(ctx: CanvasRenderingContext2D, s: ReviewStats, o: { b
   if (o.face) ctx.drawImage(o.face, W - 72 - 170, 64, 170, 170);
 
   // the three numbers
-  const tiles: [string, Key][] = [[s.requests.toLocaleString("en-US"), "poster.requests"], [s.products.toLocaleString("en-US"), "poster.products"], [compact(s.tokens), "poster.tokens"]];
+  const tiles: [string, Key][] = [[s.requests.toLocaleString("en-US"), "poster.requests"], [s.products.toLocaleString("en-US"), "poster.products"], [formatCount(s.tokens, o.lang), "poster.tokens"]];
   const tw = (W - 144 - 2 * 24) / 3;
   tiles.forEach(([v, k], i) => {
     const x = 72 + i * (tw + 24);

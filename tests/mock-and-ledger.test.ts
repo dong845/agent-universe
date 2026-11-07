@@ -87,4 +87,19 @@ describe("ledger", () => {
     expect(formatCount(12_400)).toBe("12.4k");
     expect(formatCount(1_300_000)).toBe("1.3M");
   });
+
+  it("formats big counts with B in English and 万 / 亿 in Chinese (D27 B1)", () => {
+    expect(formatCount(999_949_999)).toBe("999.9M");
+    expect(formatCount(36_811_700_000)).toBe("36.8B");
+    expect(formatCount(1_000_000_000, "en")).toBe("1.0B");
+    expect(formatCount(9999, "zh")).toBe("9999");
+    expect(formatCount(10_000, "zh")).toBe("1.0万");
+    expect(formatCount(27_400, "zh")).toBe("2.7万");
+    expect(formatCount(99_999_999, "zh")).toBe("1.0亿");
+    expect(formatCount(999_999)).toBe("1.0M");
+    expect(formatCount(999_999_999)).toBe("1.0B");
+    expect(formatCount(140_000_000, "zh")).toBe("1.4亿");
+    expect(formatCount(36_811_700_000, "zh")).toBe("368.1亿");
+    expect(formatCount(0, "zh")).toBe("0");
+  });
 });

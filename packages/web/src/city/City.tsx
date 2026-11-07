@@ -3,6 +3,8 @@
 // — the live ones, and a replayed request when one is playing.
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
+import { useRightPanel } from "../ui/rightPanel.ts";
+import { Suburbs } from "./Suburbs.tsx";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
@@ -259,6 +261,34 @@ function ReplayAgents({ p }: { p: Planet }) {
   return <>{tl.actors.map((a) => <Robot key={`rp|${r!.requestId}|${a.id}`} id={`rp|${a.id}`} actor={a} time={time} faction={p.town.faction} end={tl.roofAt ?? Infinity} />)}</>;
 }
 
+/** px the right panels take (360 wide, 14 from the edge, plus a gutter): the city's middle moves left by half (D27 B2) */
+export const PANEL_PX = 388;
+
+/**
+ * While a right panel is open the picture shifts left by half the panel (a camera view offset, eased),
+ * so the middle of the city is the middle of what is still visible. Labels and clicks use the same
+ * projection; the offset is cleared when the city closes (the galaxy shares this camera).
+ */
+function PanelShift() {
+  const panel = useRightPanel();
+  const { camera, size } = useThree();
+  const cur = useRef(0);
+  useFrame((_, dt) => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const want = panel ? Math.min(PANEL_PX / 2, size.width * 0.25) : 0;
+    const k = 1 - Math.exp(-dt * 6);
+    const next = Math.abs(want - cur.current) < 0.5 ? want : cur.current + (want - cur.current) * k;
+    const v = cam.view;
+    if (next === cur.current && (next === 0 ? !v?.enabled : v?.enabled && v.fullWidth === size.width && v.fullHeight === size.height)) return;
+    cur.current = next;
+    if (next === 0) cam.clearViewOffset();
+    else cam.setViewOffset(size.width, size.height, next, 0, size.width, size.height);
+  });
+  useEffect(() => () => (camera as THREE.PerspectiveCamera).clearViewOffset(), [camera]);
+  (window as unknown as { __cityShift?: () => number }).__cityShift = () => cur.current;
+  return null;
+}
+
 function CityCamera({ layout }: { layout: TownLayout }) {
   const { camera } = useThree();
   const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3; update(): void } | null;
@@ -351,11 +381,13 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
       <Haze p={p} layout={layout} />
       <Suspense fallback={null}><Deliveries p={p} layout={layout} /></Suspense>
       <Buildings p={p} w={w} />
+      <Suburbs town={p.key} layout={layout} />
       <Suspense fallback={null}>
         <LiveAgents p={p} layout={layout} w={w} />
         <ReplayAgents p={p} />
       </Suspense>
       <CityCamera layout={layout} />
+      <PanelShift />
       <RobotProbe />
       <HistoryFocus p={p} />
       <Suspense fallback={null}><StandingAgents p={p} /></Suspense>

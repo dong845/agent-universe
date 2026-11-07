@@ -1,9 +1,9 @@
 // HUD (plan "顶部 HUD 常驻") and the replay bar (plan "回放").
-import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
+import { keys, totalOf } from "../../../schema/src/aggregate.ts";
 import { absTime, SPEEDS, useStore } from "../store.ts";
 import { openTasks } from "./counts.ts";
 import { clockLabel, replayClock } from "./format.ts";
-import { t as tx } from "../i18n/index.ts";
+import { t as tx, count } from "../i18n/index.ts";
 
 
 export function Hud() {
@@ -25,9 +25,9 @@ export function Hud() {
   const openCount = shared ? 0 : openTasks(events, abs, unended);
   return (
     <div className="hud" data-testid="hud">
-      <div><span>{tx("hud.total")}</span><b data-testid="hud-total">{formatCount(all)}</b></div>
-      <div><span>Claude Code</span><b>{formatCount(claude)}</b></div>
-      <div><span>Codex</span><b>{formatCount(codex)}</b></div>
+      <div><span>{tx("hud.total")}</span><b data-testid="hud-total">{count(all)}</b></div>
+      <div><span>Claude Code</span><b>{count(claude)}</b></div>
+      <div><span>Codex</span><b>{count(codex)}</b></div>
       <div><span>{tx("hud.open")}</span><b data-testid="hud-open">{openCount}</b></div>
     </div>
   );

@@ -1,7 +1,6 @@
 // The task diary (spec 4): opens beside the world when a house, site or figure is selected and
 // tells that task's whole story — every step, its tokens, rework, and a replay on the town's site.
 import { useEffect, useMemo, useState } from "react";
-import { formatCount } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import { roleName } from "../i18n/data.ts";
 import { fetchTask } from "../data.ts";
@@ -10,7 +9,7 @@ import { districtKey } from "../orchestrator/worldgen.ts";
 import { diaryOf, taskOfSelection, type Diary as DiaryT, type DiaryStep } from "./diaryModel.ts";
 import { TokenRows } from "./HoverCard.tsx";
 import { RequestDiary, TownPanel } from "../v3/Cards25.tsx";
-import { t } from "../i18n/index.ts";
+import { t, count } from "../i18n/index.ts";
 
 /** steps rendered at once; the rest behind a "还有 N 步" button */
 const FIRST_STEPS = 200;
@@ -40,7 +39,7 @@ function Step({ s }: { s: DiaryStep }) {
       <span className="when">{hms(s.ts)}</span>
       <span className="role">{s.role ? roleName(s.role) : "—"}</span>
       <span className="tool">{s.tool}{s.status === "denied" ? t("step.denied") : s.status === "error" ? t("step.error") : s.status === "running" ? t("step.running") : ""}</span>
-      <span className="tk">{s.tokens ? formatCount(s.tokens) : "—"}</span>
+      <span className="tk">{s.tokens ? count(s.tokens) : "—"}</span>
       {s.target ? <span className="target" title={s.target}>{s.target}</span> : null}
     </div>
   );
@@ -118,7 +117,7 @@ function TaskDiary() {
           <div className="row"><span>{t("diary.took")}</span><b>{d.end !== null ? dur(d.end - d.start) : "—"}</b></div>
           <div className={`row outcome-${d.outcome}`}><span>{t("diary.result")}</span><b>{OUTCOME[d.outcome]}</b></div>
           <TokenRows t={d.tokens} label={t("diary.tokens")} />
-          <div className="row"><span>{t("diary.subTokens")}</span><b>{formatCount(d.subagentTokens)}</b></div>
+          <div className="row"><span>{t("diary.subTokens")}</span><b>{count(d.subagentTokens)}</b></div>
           <button
             className="replay"
             disabled={!d.replayable || replay?.taskId === d.taskId}
@@ -140,7 +139,7 @@ function TaskDiary() {
           </section>
           {d.agents.map((a) => (
             <details key={a.agentId} className="agent">
-              <summary>{t("diary.subSummary", { who: a.agentType ?? a.agentId, n: a.steps.length, tokens: formatCount(a.tokens) })}</summary>
+              <summary>{t("diary.subSummary", { who: a.agentType ?? a.agentId, n: a.steps.length, tokens: count(a.tokens) })}</summary>
               {a.agentTask ? <div className="task">{a.agentTask}</div> : null}
               <Steps steps={a.steps} />
             </details>

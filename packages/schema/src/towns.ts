@@ -27,6 +27,10 @@ export interface TownRow {
   lastEditTs: number | null;
   /** a repository that is also a skill's guild: "<skill> 公会" */
   skillNote?: string;
+  /** the name the folder gives, kept when the owner named the town (D27 A2) */
+  folderName?: string;
+  /** the owner hid it from space (D27 A3): no planet, still counted */
+  hidden?: boolean;
 }
 
 export interface TownOptions {
@@ -37,6 +41,10 @@ export interface TownOptions {
   guildSkillsOf: (projectId: string) => string[];
   /** a skill's one-line description, if known on this machine */
   describe: (skillKey: string) => string | undefined;
+  /** the owner's names, by town key (D27 A2) */
+  names?: Record<string, string>;
+  /** towns the owner hid from space (D27 A3) */
+  hidden?: readonly string[];
 }
 
 const parts = (p: string) => p.split(/[\\/]/).filter(Boolean);
@@ -68,6 +76,12 @@ export function buildTowns(requests: RequestRow[], events: AgentTownEvent[], o: 
     else if ((seen.get(`${t.faction}|${b}`) ?? 0) > 1 && (t.kind === "project" || t.kind === "guild")) t.name = parts(t.projectId).slice(-2).join("/");
     else t.name = b;
     if (t.kind === "guild" && !SKILL_FOLDER.test(t.projectId)) t.skillNote = `${t.guildOf.join("、")} 公会`;
+    const own = o.names?.[t.key];
+    if (own) {
+      t.folderName = t.name;
+      t.name = own;
+    }
+    if (o.hidden?.includes(t.key)) t.hidden = true;
     const over = o.overrides[t.key];
     if (t.kind === "capital") t.theme = o.themes.fixed.capital.id;
     else if (t.kind === "outpost") t.theme = o.themes.fixed.outpost.id;

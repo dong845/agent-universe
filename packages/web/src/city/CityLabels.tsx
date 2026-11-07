@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import { declutter, type LabelBox } from "../ui/format.ts";
 import type { Planet } from "../galaxy/galaxyData.ts";
-import { LAYOUT_DEFAULTS, WORK_NAMES, type TownLayout } from "../v3/townLayout.ts";
+import { LAYOUT_DEFAULTS, WORK_NAMES, type TownLayout, streetTitle } from "../v3/townLayout.ts";
 import { robotInfo } from "./Robot.tsx";
 import { t } from "../i18n/index.ts";
 
@@ -33,7 +33,7 @@ export function cityLabelsOf(p: Planet, layout: TownLayout): CL[] {
     if (i.kind === "hall") out.push({ id: "c-hall", cls: "g-tag", title: t("city.hall"), at: new THREE.Vector3(b.spot.x, top + 1.3, b.spot.z), priority: 1e6 });
     if (i.kind === "notice") out.push({ id: "c-notice", cls: "g-tag", title: t("city.qa"), sub: String(i.chats), at: new THREE.Vector3(b.spot.x, top + 0.2, b.spot.z), priority: 500 });
   }
-  for (const s of layout.streets) out.push({ id: `c-street|${s.name}`, cls: "g-street", title: t("city.street", { name: s.name }), sub: t("city.streetSub", { n: s.drawn }) + (s.minor ? t("city.streetMinor", { n: s.minor }) : ""), at: new THREE.Vector3(s.x, 0.2, s.z), priority: 100 });
+  for (const s of layout.streets) out.push({ id: `c-street|${s.name}`, cls: "g-street", title: streetTitle(s.name), sub: t("city.streetSub", { n: s.drawn }) + (s.minor ? t("city.streetMinor", { n: s.minor }) : ""), at: new THREE.Vector3(s.x, 0.2, s.z), priority: 100 });
   return out;
 }
 

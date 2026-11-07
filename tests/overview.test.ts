@@ -41,7 +41,7 @@ describe("townOverview", () => {
     expect(o.streak).toBe(3);
   });
   it("what the city has built", () => {
-    expect(o.built).toEqual({ houses: 2, tents: 1, streets: 1, public: [{ work: "smith", n: 10 }, { work: "scout", n: 6 }] });
+    expect(o.built).toEqual({ houses: 2, suburbs: 0, more: 0, tents: 1, streets: 1, public: [{ work: "smith", n: 10 }, { work: "scout", n: 6 }] });
   });
   it("the work done most, subagents, skills, and what runs now", () => {
     expect(o.work.map((x) => x.role)).toEqual(["smith", "scout", "engineer"]);
@@ -50,4 +50,13 @@ describe("townOverview", () => {
     expect(o.liveNow).toBe(1);
   });
   it("an unknown town: nothing", () => expect(townOverview(w, "codex|/nope", 0, TZ)).toBeNull());
+});
+
+describe("suburbs in the overview (D27 C4)", () => {
+  it("tiny houses and the ones over the cap are counted", async () => {
+    const { suburbsAt } = await import("../packages/web/src/city/Suburbs.tsx");
+    expect(suburbsAt([{ from: 1 }, { from: 5 }, { from: 5 }, { from: 9 }], 5)).toBe(3);
+    expect(suburbsAt([], 5)).toBe(0);
+    expect(suburbsAt([{ from: 1 }], 0)).toBe(0);
+  });
 });

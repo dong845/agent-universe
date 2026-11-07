@@ -10,7 +10,8 @@ import { useStore } from "../store.ts";
 import { useRightPanel } from "./rightPanel.ts";
 import { Face2D } from "../character/Face2D.tsx";
 import { t } from "../i18n/index.ts";
-import { useDecision, withAsks } from "./decision.ts";
+import { enableAskHook, useDecision, withAsks } from "./decision.ts";
+import { needAction } from "./needAction.ts";
 
 export const STATE_TEXT: Record<AttentionState, string> = { "maybe-waiting": t("state.maybe-waiting"), waiting: t("state.waiting"), "turn-done": t("state.turn-done"), error: t("state.error") };
 
@@ -49,6 +50,7 @@ export function NeedsYou() {
   const all = useStore((s) => s.attention);
   const closed = useStore((s) => s.closedAttention);
   const asks = useDecision((s) => s.asks);
+  const askHooks = useDecision((s) => s.askHooks);
   const list = useMemo(() => withAsks(visibleAttention(all, closed), asks), [all, closed, asks]);
   const w = useStore((s) => s.w25);
   const diaryOpen = useRightPanel();
@@ -81,9 +83,13 @@ export function NeedsYou() {
               <span className="g-need-state">{a.ask ? t("state.question") : STATE_TEXT[a.state]}{a.tool ? ` · ${a.tool}` : ""}</span>
               <span className="g-need-ago">{ago(now - a.since)}</span>
             </button>
-            {a.ask || asks.some((x) => x.session === a.session)
-              ? <button className="g-need-copy g-need-decide" onClick={() => useDecision.getState().show(a.session)} data-testid="needs-decide">{t("needs.decide")}</button>
-              : <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>{t("needs.copy")}</button>}
+            {(() => {
+              const act = needAction(a, asks.some((x) => x.session === a.session), askHooks ? askHooks[a.faction] : null);
+              if (act === "decide") return <button className="g-need-copy g-need-decide" onClick={() => useDecision.getState().show(a.session)} data-testid="needs-decide">{t("needs.decide")}</button>;
+              if (act === "terminal") return <span className="g-need-copy g-need-terminal" data-testid="needs-terminal">{t("needs.terminal")}</span>;
+              if (act === "enable") return <button className="g-need-copy" title={t("needs.enableHint")} data-testid="needs-enable" onClick={async () => { const err = await enableAskHook(a.faction); toast(err ? t("town.failed", { why: err }) : t("needs.enabled")); }}>{t("needs.terminal")} · {t("needs.enable")}</button>;
+              return <button className="g-need-copy" onClick={() => void copyResume(a.faction, a.sessionId, req?.cwd)}>{t("needs.copy")}</button>;
+            })()}
             <button className="g-need-close" aria-label={t("needs.close")} title={t("needs.closeHint")} data-testid="needs-close" onClick={() => useStore.getState().closeAttention(a)}>×</button>
           </div>
         );

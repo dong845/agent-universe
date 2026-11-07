@@ -20,7 +20,9 @@ describe("historySteps", () => {
     for (let i = 1; i < steps.length; i++) expect(steps[i].request.endTs).toBeGreaterThanOrEqual(steps[i - 1].request.endTs);
   });
   it("says which steps the city draws a building for", () => {
-    const drawn = new Set(w.layouts.get(town)!.spots.flatMap((s) => (s.info.kind === "house" || s.info.kind === "tent" ? [s.info.requestId] : [])));
+    // a house, a tent, or a tiny house in the suburbs (D27 C)
+    const l = w.layouts.get(town)!;
+    const drawn = new Set([...l.spots.flatMap((s) => (s.info.kind === "house" || s.info.kind === "tent" ? [s.info.requestId] : [])), ...l.suburbs.map((s) => s.requestId)]);
     expect(steps.every((s) => s.drawn === drawn.has(s.request.requestId))).toBe(true);
     expect(steps.some((s) => s.drawn)).toBe(true);
   });

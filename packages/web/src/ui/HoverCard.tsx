@@ -2,7 +2,7 @@
 // the pointer settles. Every number comes from the ledger as of the playback clock.
 import { SpotCard } from "../v3/Cards25.tsx";
 import { useEffect, useState } from "react";
-import { formatCount, keys, totalOf } from "../../../schema/src/aggregate.ts";
+import { keys, totalOf } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent, Tokens } from "../../../schema/src/event.ts";
 import { BUILDINGS } from "../../../schema/src/world.ts";
 import { roleName } from "../i18n/data.ts";
@@ -10,7 +10,7 @@ import { activeAt, floorsAt, sampleActor } from "../orchestrator/timeline.ts";
 import { TIER_NAMES, TIER_TOKENS } from "../orchestrator/worldgen.ts";
 import { absTime, runtimeOf, useStore, type HoverTarget } from "../store.ts";
 import { openSessions } from "./counts.ts";
-import { t as tx } from "../i18n/index.ts";
+import { t as tx, count } from "../i18n/index.ts";
 
 const SHOW_AFTER_MS = 150;
 
@@ -26,12 +26,12 @@ function Row({ k, v }: { k: string; v: string }) {
 export function TokenRows({ t, label = tx("tok.total") }: { t: Tokens; label?: string }) {
   return (
     <>
-      <Row k={label} v={formatCount(totalOf(t))} />
+      <Row k={label} v={count(totalOf(t))} />
       <div className="split">
-        <span className="c-input">{tx("tok.input", { n: formatCount(t.input) })}</span>
-        <span className="c-output">{tx("tok.output", { n: formatCount(t.output) })}</span>
-        <span className="c-cache">{tx("tok.cacheRead", { n: formatCount(t.cacheRead) })}</span>
-        <span>{tx("tok.cacheWrite", { n: formatCount(t.cacheWrite) })}</span>
+        <span className="c-input">{tx("tok.input", { n: count(t.input) })}</span>
+        <span className="c-output">{tx("tok.output", { n: count(t.output) })}</span>
+        <span className="c-cache">{tx("tok.cacheRead", { n: count(t.cacheRead) })}</span>
+        <span>{tx("tok.cacheWrite", { n: count(t.cacheWrite) })}</span>
       </div>
     </>
   );
@@ -97,8 +97,8 @@ export function CardBody({ target }: { target: HoverTarget }) {
         <div className="target">{d.projectId}</div>
         <TokenRows t={tk} />
         <Row k={tx("hover.tasksDone")} v={tx("hover.nItems", { n: d.houses.length + d.olderTasks })} />
-        {biggest ? <Row k={tx("hover.priciest")} v={`${biggest.title ?? "—"} · ${formatCount(biggest.tokens)}`} /> : null}
-        <Row k={tx("hover.nextTier")} v={next !== undefined ? tx("hover.atTotal", { n: formatCount(next) }) : tx("hover.topTier")} />
+        {biggest ? <Row k={tx("hover.priciest")} v={`${biggest.title ?? "—"} · ${count(biggest.tokens)}`} /> : null}
+        <Row k={tx("hover.nextTier")} v={next !== undefined ? tx("hover.atTotal", { n: count(next) }) : tx("hover.topTier")} />
         <div className="fresh">{tx("hover.dblClick")}</div>
       </>
     );
@@ -126,7 +126,7 @@ export function CardBody({ target }: { target: HoverTarget }) {
         <h4>{b.name}<small>{d.name} · {b.what}</small></h4>
         <Row k={tx("hover.calls")} v={String(st.calls)} />
         <Row k={tx("hover.totalTime")} v={fmtDur(st.durationMs)} />
-        <Row k={tx("hover.attributed")} v={formatCount(st.attributedInput)} />
+        <Row k={tx("hover.attributed")} v={count(st.attributedInput)} />
         <div className="fresh">{tx("hover.attributedHint")}</div>
       </>
     );
@@ -153,7 +153,7 @@ export function CardBody({ target }: { target: HoverTarget }) {
         {actor.agentTask ? <div className="task">{actor.agentTask}</div> : null}
         <Row k={tx("hover.now")} v={tool ? `${tool.tool} · ${roleName(s.outfit)}` : s.pose === "think" ? tx("hover.thinking") : tx("hover.standby")} />
         {tool?.target ? <div className="target">{tool.target}</div> : null}
-        <Row k={tx("hover.stepTokens")} v={s.pose === "think" && lastCall ? formatCount(totalOf(lastCall.tokens!)) : "—"} />
+        <Row k={tx("hover.stepTokens")} v={s.pose === "think" && lastCall ? count(totalOf(lastCall.tokens!)) : "—"} />
         <TokenRows t={ledger.tokensAt(key, abs)} />
         <Row k={tx("hover.context")} v={`${Math.round(s.backpack * 100)}%`} />
         <Freshness abs={abs} last={lastCall} />
@@ -174,7 +174,7 @@ export function CardBody({ target }: { target: HoverTarget }) {
         <Row k={tx("hover.elapsed")} v={fmtDur((ended ? tl.roofAt! : lt) - (task.ts - tl.t0))} />
         <Row k={tx("hover.floorsLabel")} v={String(floorsAt(tl, lt).length)} />
         <TokenRows t={ledger.tokensAt(keys.task(taskId), abs)} label={tx("diary.tokens")} />
-        <Row k={tx("diary.subTokens")} v={formatCount(totalOf(ledger.tokensAt(keys.taskSubagents(taskId), abs)))} />
+        <Row k={tx("diary.subTokens")} v={count(totalOf(ledger.tokensAt(keys.taskSubagents(taskId), abs)))} />
         <Row k={tx("hover.roles")} v={[...roles].join(tx("gist.sep")) || "—"} />
         <Freshness abs={abs} last={lastCall} />
       </>

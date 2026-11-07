@@ -14,7 +14,7 @@ export interface TownOverview {
   first: number | null;
   last: number | null;
   streak: number;
-  built: { houses: number; tents: number; streets: number; public: { work: string; n: number }[] };
+  built: { houses: number; suburbs: number; more: number; tents: number; streets: number; public: { work: string; n: number }[] };
   work: { role: Role; n: number }[];
   spawns: number;
   skills: { name: string; n: number }[];
@@ -52,6 +52,8 @@ export function townOverview(w: Pick<World25, "towns" | "requests" | "layouts" |
     streak: s.streak,
     built: {
       houses: spots.filter((p) => p.info.kind === "house").length,
+      suburbs: layout?.suburbs?.length ?? 0,
+      more: layout?.suburbsMore ?? 0,
       tents: spots.filter((p) => p.info.kind === "tent").length,
       streets: layout?.streets.length ?? 0,
       public: desc(spots.flatMap((p) => (p.info.kind === "public" ? [{ work: p.info.work, n: p.info.count }] : []))),

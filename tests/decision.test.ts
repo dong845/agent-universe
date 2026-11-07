@@ -8,6 +8,11 @@ const qs = [
 ];
 
 describe("answerOf", () => {
+  it("a multi-select answer with Other text sends the picked labels and the text (D27 D1)", () => {
+    const multi = [{ question: "Which sizes?", multiSelect: true }];
+    expect(answerOf(multi, { "Which sizes?": { labels: ["S", "L"], other: " XXL " } })).toEqual({ "Which sizes?": "S, L, XXL" });
+    expect(answerOf(multi, { "Which sizes?": { labels: [], other: "XXL" } })).toEqual({ "Which sizes?": "XXL" });
+  });
   it("one label for a single choice, labels joined for several, keyed by the question", () => {
     expect(answerOf(qs, { "Pick a color": { labels: ["Blue"] }, "Which sizes?": { labels: ["S", "L"] } })).toEqual({ "Pick a color": "Blue", "Which sizes?": "S, L" });
   });

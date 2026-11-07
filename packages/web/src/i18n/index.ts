@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import { en } from "./en.ts";
 import { zh, type Key } from "./zh.ts";
+import { formatCount } from "../../../schema/src/aggregate.ts";
 
 export type Lang = "zh" | "en";
 export type { Key };
@@ -44,6 +45,9 @@ export function tl(lang: Lang, key: Key, vars?: Record<string, string | number>)
   const s = DICT[lang][key];
   return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
 }
+
+/** a count in the page's language: 36.8B / 368.1亿 (D27 B1) */
+export const count = (n: number): string => formatCount(n, useLang.getState().lang);
 
 /** the text for a key in the current language */
 export const t = (key: Key, vars?: Record<string, string | number>): string => tl(useLang.getState().lang, key, vars);

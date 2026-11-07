@@ -20,7 +20,7 @@ import { Hud, TimelineBar } from "../ui/Chrome.tsx";
 import { declutter, type LabelBox } from "../ui/format.ts";
 import { SpotCard } from "../v3/Cards25.tsx";
 import { WORK_NAMES } from "../v3/townLayout.ts";
-import { buildGalaxy, MIN_PRODUCED, panelsAt, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
+import { buildGalaxy, MIN_PRODUCED, panelsAt, planetOf, planetPos, FACTION_COLOR, PRODUCT_COLOR, WORK_COLOR, type Galaxy } from "./galaxyData.ts";
 import { NEUTRAL_MARKS } from "./emblem.ts";
 import { CityScene } from "../city/City.tsx";
 import { CityLabels, CityProjector, cityLabelsOf } from "../city/CityLabels.tsx";
@@ -35,7 +35,8 @@ import { ShareReplays } from "../share/ShareReplays.tsx";
 import { Tour } from "../ui/Tour.tsx";
 import { closeHistory, goToStep, HistoryPanel } from "../city/HistoryPanel.tsx";
 import { historySteps, useHistory } from "../city/history.ts";
-import { themeName } from "../i18n/data.ts";
+import { themeName, townName } from "../i18n/data.ts";
+import { townNote } from "../ui/townPrefs.ts";
 import { DecisionPanel } from "../ui/Decision.tsx";
 import { OverviewPanel, useCityPanel } from "../city/OverviewPanel.tsx";
 
@@ -110,6 +111,9 @@ function spotsOnScreen(g: Galaxy, town?: string) {
 const sizes = new Map<string, { w: number; h: number }>();
 const RESERVED = (w: number, h: number) => [{ x: w / 2 - 300, y: 0, w: 600, h: 70 }, { x: w / 2 - 470, y: h - 70, w: 940, h: 70 }];
 
+/** px kept between a label and the screen edge */
+const EDGE = 12;
+
 function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
   const { camera, size, scene } = useThree();
   (window as unknown as { __galaxyScene?: unknown }).__galaxyScene = scene;
@@ -151,10 +155,12 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
       const x = ((w.x + 1) / 2) * size.width, y = ((1 - w.y) / 2) * size.height;
       if (x < -150 || x > size.width + 150 || y < -60 || y > size.height + 60) { el.style.visibility = "hidden"; continue; }
       el.style.visibility = "visible";
-      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       let sz = sizes.get(l.id);
       if (!sz) sizes.set(l.id, (sz = { w: el.offsetWidth, h: el.offsetHeight }));
-      crowd.push({ id: l.id, rect: { x: x - sz.w / 2 - 3, y: y - sz.h - 2, w: sz.w + 6, h: sz.h + 4 }, priority: l.near ? l.priority + 2e9 : l.priority });
+      // a label whose point is on screen stays whole on screen (D27 B5): it slides in from the edge
+      const lx = x >= 0 && x <= size.width ? Math.min(Math.max(x, sz.w / 2 + EDGE), size.width - sz.w / 2 - EDGE) : x;
+      el.style.transform = `translate(${lx.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      crowd.push({ id: l.id, rect: { x: lx - sz.w / 2 - 3, y: y - sz.h - 2, w: sz.w + 6, h: sz.h + 4 }, priority: l.near ? l.priority + 2e9 : l.priority });
     }
     const keep = declutter(crowd);
     lastCamera = camera;
@@ -210,6 +216,7 @@ function PlanetCard({ district, g }: { district: string; g: Galaxy }) {
     <div data-testid="planet-card">
       <h4>{town.name}<small>{KIND_NAMES[town.kind]}</small></h4>
       {town.skillNote ? <div className="muted">{town.skillNote}</div> : null}
+      {townNote(town) ? <div className="muted">{townNote(town)}</div> : null}
       <div className="row"><span>{t("card.theme")}</span><b>{themeName(town.theme)}</b></div>
       <div className="row"><span>{t("card.produced")}</span><b>{t("card.producedN", { n: town.counts.produced })}</b></div>
       <div className="row"><span>{t("card.investigation")}</span><b>{t("card.timesN", { n: town.counts.investigation })}</b></div>
@@ -250,7 +257,7 @@ function ShellMeter({ g }: { g: Galaxy }) {
           </div>
         );
       })}
-      {g.systems.some((s) => s.hidden) ? <small data-testid="hidden-note">{t("meter.hidden", { n: g.systems.reduce((a, s) => a + s.hidden, 0), min: MIN_PRODUCED })}</small> : null}
+      {g.systems.some((s) => s.hidden || s.ownerHidden) ? <small data-testid="hidden-note">{t("meter.hidden", { n: g.systems.reduce((a, s) => a + s.hidden, 0), min: MIN_PRODUCED })}{g.systems.some((s) => s.ownerHidden) ? t("meter.ownerHidden", { n: g.systems.reduce((a, s) => a + s.ownerHidden, 0) }) : ""}</small> : null}
     </div>
   );
 }
@@ -332,14 +339,16 @@ function CityBar({ g, onLeave }: { g: Galaxy; onLeave: () => void }) {
   const city = useStore((s) => s.city);
   const history = useHistory((s) => !!s.town);
   const w = useStore((s) => s.w25);
-  const p = city ? g.planets.get(city) : undefined;
+  const p = city ? planetOf(g, city) : undefined;
   if (!p || !w) return null;
+  const note = townNote(p.town);
+  const theme = themeName(p.town.theme);
   const live = [...w.requests.values()].filter((r) => `${r.faction}|${r.projectId}` === p.key && w.live.has(r.requestId)).length;
   const steps = historySteps(w, p.key);
   return (
     <div className="g-focus g-citybar">
       <button onClick={onLeave} data-testid="leave-city">{t("city.leave")}</button>
-      <span><Badge f={p.town.faction} />{p.town.name}<small>{themeName(p.town.theme)} · {p.town.faction === "codex" ? "Codex" : "Claude Code"}</small></span>
+      <span title={note ?? undefined}><Badge f={p.town.faction} />{townName(p.town)}<small>{theme !== townName(p.town) && !note ? `${theme} · ` : ""}{p.town.faction === "codex" ? "Codex" : "Claude Code"}{note ? ` · ${note}` : ""}</small></span>
       <em>{live ? t("city.liveN", { n: live }) : history ? t("city.historyHint") : t("city.idleHint")}</em>
       {!history && !overviewOn ? <button className="g-history-btn" data-testid="overview-open" onClick={() => useCityPanel.getState().setOverview(true)}>{t("overview.open")}</button> : null}
       {!history && steps.length ? <button className="g-history-btn" data-testid="history-open" onClick={() => { useHistory.getState().open(p.key, steps.length); goToStep(steps, steps.length); }}>{t("city.history")}</button> : null}
@@ -405,7 +414,7 @@ export function GalaxyApp() {
   const g = useMemo(() => (w ? buildGalaxy(w) : null), [w]);
   const labels = useMemo(() => (g ? labelsOf(g) : []), [g]);
   const ov = useMemo(() => (g ? overviewOf(g) : null), [g]);
-  const cp = city && g ? g.planets.get(city) : undefined;
+  const cp = city && g ? planetOf(g, city) : undefined;
   const cityLayout = cp && w ? w.layouts.get(cp.key) : undefined;
   const cityLabels = useMemo(() => (cp && cityLayout ? cityLabelsOf(cp, cityLayout) : []), [cp, cityLayout]);
   // milestones reached while the page is open (spec 2026-11-05 C4): a toast and a burst of light
@@ -465,6 +474,7 @@ export function GalaxyApp() {
   if (!g || !ov) return null;
   cityTowns.clear();
   for (const k of g.planets.keys()) cityTowns.add(k);
+  for (const k of g.hiddenPlanets.keys()) cityTowns.add(k);
   (window as unknown as { __agentTownSpots?: unknown }).__agentTownSpots = (town?: string) => spotsOnScreen(g, town);
   // test hooks: planets with work in progress; planet keys, biggest first
   (window as unknown as { __galaxyLive?: string[] }).__galaxyLive = [...g.planets.values()].filter((p) => p.live).map((p) => p.key);
@@ -472,7 +482,7 @@ export function GalaxyApp() {
   const cam = ov.center.clone().addScaledVector(VIEW_DIR, ov.dist);
   // the tour visits the planet with the most finished work
   const tourBiggest = [...g.planets.values()].sort((a, b) => b.town.counts.produced - a.town.counts.produced)[0]?.key ?? null;
-  const searchList = [...g.planets.values()].map((p) => ({ key: p.key, name: p.town.name, faction: p.town.faction, badge: <Badge f={p.town.faction} /> }));
+  const searchList = [...g.planets.values(), ...g.hiddenPlanets.values()].map((p) => ({ key: p.key, name: townName(p.town), faction: p.town.faction, badge: <Badge f={p.town.faction} />, ...(p.town.hidden ? { hidden: true } : {}) }));
   return (
     <div className="app galaxy" onPointerMove={(e) => useStore.getState().setPointer(e.clientX, e.clientY)}>
       <Canvas flat shadows dpr={DPR} gl={{ antialias: false, powerPreference: "high-performance" }} camera={{ position: [cam.x, cam.y, cam.z], fov: 38, near: 0.05, far: 12000 }}>
