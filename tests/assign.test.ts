@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { assignProjects, CAPITAL, OUTPOST, TEMP_PROJECT } from "../packages/server/src/assign.ts";
+import { assignProjects, CAPITAL } from "../packages/server/src/assign.ts";
+import { OUTPOST } from "../packages/schema/src/towns.ts";
 import type { AgentTownEvent } from "../packages/schema/src/event.ts";
 
 function world() {
@@ -43,20 +44,62 @@ describe("assignProjects", () => {
     expect(startOf(evs).projectId).toBe(join(h, "code/repoA"));
   });
 
-  it("sends temp-directory work, by file or by cwd, to the one temp site", () => {
+  it("temp-folder work belongs to no town of its own: started at home or in a temp folder, it is the capital's (D28)", () => {
     const { h, opts } = world();
     const byFile = task(h, [{ tool: "Write", target: join(h, "scratch/run1/out.md") }], "t1");
     const byCwd = task(join(h, "scratch/run2"), [], "t2");
     assignProjects([...byFile, ...byCwd], opts);
-    expect(startOf(byFile).projectId).toBe(TEMP_PROJECT);
-    expect(startOf(byCwd, "t2").projectId).toBe(TEMP_PROJECT);
+    expect(startOf(byFile).projectId).toBe(CAPITAL);
+    expect(startOf(byCwd, "t2").projectId).toBe(CAPITAL);
   });
 
-  it("sends unmarked folders outside any repo to the outpost", () => {
+  it("temp files written from a project count for that project, not a field camp (D28)", () => {
+    const { h, opts } = world();
+    const evs = task(join(h, "work/app"), [{ tool: "Write", target: join(h, "scratch/render/frame.png") }, { tool: "Write", target: join(h, "scratch/render/frame2.png") }]);
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(join(h, "work/app"));
+    expect(new Set(evs.map((e) => e.projectId))).toEqual(new Set([join(h, "work/app")]));
+  });
+
+  it("a session started in a project stays there when its only other files are the tools' (memory, settings) (D28)", () => {
+    const { h, opts } = world();
+    mkdirSync(join(h, ".claude/projects/m/memory"), { recursive: true });
+    const evs = task(join(h, "work/app"), [{ tool: "Write", target: join(h, ".claude/projects/m/memory/note.md") }, { tool: "Read", target: join(h, ".claude/settings.json") }, { tool: "Write", target: join(h, "scratch/x.png") }]);
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(join(h, "work/app"));
+    expect(startOf(evs).projectBy).toBe("cwd");
+  });
+  it("a turn's own working folder counts, not where the session first started (D28)", () => {
+    const { h, opts } = world();
+    // a session started at home, whose shell moved into the project before this request
+    const evs = task(h, [{ tool: "Bash", target: "ls" }, { tool: "Write", target: join(h, "scratch/x.md") }]);
+    startOf(evs).cwd = join(h, "work/app");
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(join(h, "work/app"));
+  });
+  it("tool-folder work started at home is still the capital's", () => {
+    const { h, opts } = world();
+    const evs = task(h, [{ tool: "Write", target: join(h, ".claude/settings.json") }]);
+    assignProjects(evs, opts);
+    expect(startOf(evs).projectId).toBe(CAPITAL);
+  });
+
+  it("no request lands in the field camp any more (D28)", () => {
+    const { h, opts } = world();
+    const evs = [
+      ...task(h, [{ tool: "Write", target: join(h, "scratch/a.md") }], "t1"),
+      ...task(join(h, "scratch/x"), [{ tool: "Bash", target: "ls" }], "t2"),
+      ...task(join(h, "Downloads"), [{ tool: "Edit", target: join(h, "Downloads/deck/b.md") }], "t3"),
+    ];
+    assignProjects(evs, opts);
+    expect(evs.some((e) => e.projectId === OUTPOST)).toBe(false);
+  });
+
+  it("unmarked loose folders outside any repo, started at home: the capital (D28)", () => {
     const { h, opts } = world();
     const evs = task(h, [{ tool: "Write", target: join(h, "Downloads/deck/a/b.md") }]);
     assignProjects(evs, opts);
-    expect(startOf(evs).projectId).toBe(OUTPOST);
+    expect(startOf(evs).projectId).toBe(CAPITAL);
   });
 
   it("a plain skill dir is its own guild town", () => {
@@ -95,14 +138,14 @@ describe("assignProjects", () => {
     const b = task(join(h, "Documents"), [{ tool: "Edit", target: join(h, "Documents/loose/sub/y.md") }], "t2");
     assignProjects([...a, ...b], opts);
     expect(startOf(a).projectId).toBe(join(h, "work/app"));
-    expect(startOf(b, "t2").projectId).toBe(OUTPOST);
+    expect(startOf(b, "t2").projectId).toBe(CAPITAL);
   });
 
-  it("a request with no file votes started in home goes to the outpost", () => {
+  it("a request with no file votes started in home goes to the capital (D28)", () => {
     const { h, opts } = world();
     const evs = task(h, [{ tool: "Bash", target: "echo hi" }]);
     assignProjects(evs, opts);
-    expect(startOf(evs).projectId).toBe(OUTPOST);
+    expect(startOf(evs).projectId).toBe(CAPITAL);
   });
 
   it("every turn of a request lands in the same town", () => {
@@ -122,7 +165,6 @@ describe("assignProjects", () => {
     expect(startOf(evs).projectId).toBe(join(h, "code/repoB"));
   });
 
-  it("keeps TEMP_PROJECT as the outpost's old name", () => expect(TEMP_PROJECT).toBe(OUTPOST));
 
   it("falls back to the cwd's repo when the task touched no files", () => {
     const { h, opts } = world();
@@ -183,7 +225,7 @@ describe("assignProjects", () => {
     const { h, opts } = world();
     const evs = task(h, [{ tool: "Bash", target: "cat /usr/bin/env" }, { tool: "exec_command", target: `ls ${join(h, "nope/x")}` }, { tool: "Bash", target: "cd ~ && ls" }]);
     assignProjects(evs, opts);
-    expect(startOf(evs).projectId).toBe(OUTPOST);
+    expect(startOf(evs).projectId).toBe(CAPITAL);
     expect(startOf(evs).projectBy).toBe("cwd");
   });
 
@@ -211,15 +253,15 @@ describe("assignProjects, real-data fixes", () => {
     const bad = join(h, "code/repoA/x.ts") + String.raw`\n@@\n-a\n+ skills/zz/SKILL.md`;
     const evs = task(h, [{ tool: "apply_patch", target: "…", files: [{ path: bad, access: "edit" }] }], "t1", "codex");
     assignProjects(evs, opts);
-    expect(startOf(evs).projectId).toBe(OUTPOST);
+    expect(startOf(evs).projectId).toBe(CAPITAL);
   });
 
-  it("a skill copied into a temp folder is outpost work", () => {
+  it("a skill copied into a temp folder is no town: the capital's when started at home (D28)", () => {
     const { h, opts } = world();
     mkdirSync(join(h, "scratch/up/skills/alpha"), { recursive: true });
     const evs = task(h, [{ tool: "Edit", target: join(h, "scratch/up/skills/alpha/SKILL.md") }]);
     assignProjects(evs, opts);
-    expect(startOf(evs).projectId).toBe(OUTPOST);
+    expect(startOf(evs).projectId).toBe(CAPITAL);
   });
 
   it("every copy of one skill joins the repository that holds it, per faction", () => {
@@ -297,12 +339,12 @@ describe("assignProjects, output folders", () => {
     expect(startOf(c, "t3").projectId).toBe(join(h, "work/site"));
   });
 
-  it("an output folder directly in a loose folder still goes to the outpost", () => {
+  it("an output folder directly in a loose folder is no town: the capital (D28)", () => {
     const { h, opts } = world();
     mkdirSync(join(h, "Downloads/assets"), { recursive: true });
     const a = task(join(h, "Downloads/assets"), [{ tool: "Write", target: join(h, "Downloads/assets/x.png") }], "t1", "codex");
     assignProjects(a, opts);
-    expect(startOf(a).projectId).toBe(OUTPOST);
+    expect(startOf(a).projectId).toBe(CAPITAL);
   });
 });
 

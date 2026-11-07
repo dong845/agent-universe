@@ -167,7 +167,7 @@ export const zh = {
   "kind.guild": "技能公会",
   "kind.project": "项目",
   "kind.outpost": "野外营地",
-  "town.capitalNote": "在 ~/.claude、~/.codex 等工具目录里做的事",
+  "town.capitalNote": "不属于任何项目的事：在 ~/.claude、~/.codex 等工具目录、主目录或临时目录里做的",
   "town.outpostNote": "在临时目录（如 /tmp）里做的事",
   "town.rename": "重命名",
   "town.renameHint": "回车保存 · 留空恢复文件夹名 · Esc 取消",
