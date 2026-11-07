@@ -6,6 +6,28 @@ import { buildWorld25 } from "../packages/web/src/v3/world25Data.ts";
 import { buildGalaxy, MIN_PRODUCED, panelsAt, planetOf, planetPos, routesOf } from "../packages/web/src/galaxy/galaxyData.ts";
 import type { RequestRow } from "../packages/schema/src/payload.ts";
 
+describe("one-off folders (D29): a project active on one day only draws no planet", () => {
+  const DAY = 86_400_000, T0 = Date.UTC(2026, 9, 1, 10);
+  const town = (name: string, produced: number) => ({ key: `codex|/w/${name}`, faction: "codex", projectId: `/w/${name}`, name, kind: "project", guildOf: [], theme: "craftsmen", counts: { produced, investigation: 0, chat: 0, empty: 0 }, workCounts: {}, lastEditTs: null }) as never;
+  const req = (name: string, i: number, at: number, live = false): RequestRow => ({ requestId: `${name}-${i}`, faction: "codex", projectId: `/w/${name}`, sessionId: `s-${name}`, startTs: at - 60_000, endTs: at, ok: live ? null : true, class: "produced", productKind: "code", tokens: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }, calls: 1, fails: 0, spawns: 0, skills: [], topDir: "src", turns: 1, taskIds: [`T-${name}-${i}`] });
+  const requests = [
+    ...Array.from({ length: 9 }, (_, i) => req("deck", i, T0 + i * 600_000)),
+    req("app", 0, T0), req("app", 1, T0 + 3 * DAY),
+    req("today", 0, T0 + 5 * DAY), req("today", 1, T0 + 5 * DAY + 600_000, true),
+  ];
+  const w = buildWorld25([town("deck", 9), town("app", 2), town("today", 2)], requests, manifest as Manifest, new Set(["T-today-1"]));
+  const g = buildGalaxy(w);
+  it("nine finished pieces made in one day: no planet, still counted as not shown", () => {
+    expect(g.planets.has("codex|/w/deck")).toBe(false);
+    expect(g.systems[0].hidden).toBe(1);
+    expect(g.systems[0].panels.length).toBe(9 + 2 + 2);
+  });
+  it("two finished pieces on two days: a planet; one day but work in progress: a planet", () => {
+    expect(g.planets.has("codex|/w/app")).toBe(true);
+    expect(g.planets.has("codex|/w/today")).toBe(true);
+  });
+});
+
 describe("towns the owner hid (D27 A3)", () => {
   it("draw no planet and take no orbit, still have a city to open, and are counted apart", () => {
     const p = demoPayload();

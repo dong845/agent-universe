@@ -204,7 +204,7 @@ export const en: Record<Key, string> = {
   "meter.shell": "{name} Dyson shell",
   "meter.panels": "{n} / {total} panels",
   "meter.full": " (full)",
-  "meter.hidden": "{n} small projects not shown (fewer than {min} finished), still counted in the shells",
+  "meter.hidden": "{n} small or one-off projects not shown (fewer than {min} finished, or worked on for one day only), still counted in the shells",
   "legend.open": "How to read ▸",
   "legend.title": "How to read",
   "legend.fold": "Fold",

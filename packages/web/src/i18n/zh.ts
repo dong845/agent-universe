@@ -202,7 +202,7 @@ export const zh = {
   "meter.shell": "{name} 戴森壳",
   "meter.panels": "{n} / {total} 片",
   "meter.full": "（已满）",
-  "meter.hidden": "另有 {n} 个小项目未显示（成品不到 {min} 件），仍计入戴森壳",
+  "meter.hidden": "另有 {n} 个小项目或一次性项目未显示（成品不到 {min} 件，或只在一天里做过），仍计入戴森壳",
   "legend.open": "怎么看 ▸",
   "legend.title": "怎么看",
   "legend.fold": "收起",
