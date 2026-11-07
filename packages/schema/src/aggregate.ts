@@ -136,9 +136,23 @@ export function totalOf(t: Tokens): number {
   return t.input + t.output + t.cacheRead + t.cacheWrite;
 }
 
-/** Plan "数字格式": below 1,000 the raw value, above it k / M with one decimal. */
-export function formatCount(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
-  return `${(n / 1_000_000).toFixed(1)}M`;
+const UNITS = {
+  en: { raw: 1000, steps: [[1e3, "k"], [1e6, "M"], [1e9, "B"]] },
+  zh: { raw: 10_000, steps: [[1e4, "万"], [1e8, "亿"]] },
+} as const;
+
+/**
+ * Plan "数字格式" (D27 B1): below 1,000 the raw value, then k / M / B with one decimal; in Chinese below
+ * 10,000 raw, then 万 / 亿. A value that would round up to the next unit ("1000.0k") takes that unit.
+ */
+export function formatCount(n: number, units: "en" | "zh" = "en"): string {
+  const u = UNITS[units];
+  if (Math.abs(n) < u.raw) return String(n);
+  const steps = u.steps;
+  for (let i = 0; i < steps.length; i++) {
+    const [size, name] = steps[i];
+    const v = Number((n / size).toFixed(1));
+    if (i === steps.length - 1 || Math.abs(v) < steps[i + 1][0] / size) return `${v.toFixed(1)}${name}`;
+  }
+  return String(n);
 }

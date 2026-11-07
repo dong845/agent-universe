@@ -2,10 +2,9 @@
 // Overview — how big the project is — and History is one click away (the step list, D23).
 import { useMemo } from "react";
 import { create } from "zustand";
-import { formatCount } from "../../../schema/src/aggregate.ts";
 import { WORK_COLOR, PRODUCT_COLOR } from "../galaxy/galaxyData.ts";
 import { townName } from "../i18n/data.ts";
-import { t, useLang, type Key } from "../i18n/index.ts";
+import { t, useLang, type Key, count } from "../i18n/index.ts";
 import { absTime, useStore } from "../store.ts";
 import { historySteps, useHistory } from "./history.ts";
 import { closeHistory, goToStep } from "./HistoryPanel.tsx";
@@ -62,7 +61,7 @@ export function OverviewPanel() {
       <div className="g-overview-body">
         <h5>{t("overview.scale")}</h5>
         {row("overview.requests", t("overview.requestsN", { n: o.requests.total, p: o.requests.produced, i: o.requests.investigation, c: o.requests.chat }), "overview-requests")}
-        {row("overview.tokens", formatCount(o.tokens))}
+        {row("overview.tokens", count(o.tokens))}
         {row("overview.active", t("overview.activeN", { n: o.activeDays, s: o.streak }))}
         {row("overview.span", `${day(o.first)} → ${day(o.last)}`)}
         {o.liveNow ? row("overview.live", String(o.liveNow)) : null}

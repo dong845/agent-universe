@@ -1,7 +1,6 @@
 // What a hovered building says, and the diary of a selected request or town (spec v3 5; owner after
 // the 2026-10-29 demo: the hover card shows the details).
 import { useEffect, useMemo, useState } from "react";
-import { formatCount } from "../../../schema/src/aggregate.ts";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
 import type { RequestRow } from "../../../schema/src/payload.ts";
 import { roleName } from "../i18n/data.ts";
@@ -13,7 +12,7 @@ import { requestDiaries, type Diary, type DiaryStep } from "../ui/diaryModel.ts"
 import { TokenRows } from "../ui/HoverCard.tsx";
 import { copyResume } from "../ui/NeedsYou.tsx";
 import { WORK_NAMES, type Spot } from "./townLayout.ts";
-import { t as tx } from "../i18n/index.ts";
+import { t as tx, count } from "../i18n/index.ts";
 import { themeName } from "../i18n/data.ts";
 
 const KIND_NAMES: Record<string, string> = { code: tx("product.code"), docs: tx("product.docs"), slides: tx("product.slides"), image: tx("product.image"), video: tx("product.video"), data: tx("product.data") };
@@ -131,7 +130,7 @@ export function RequestDiary({ district, requestId }: { district: string; reques
           <h4>{tx("cards.course", { turns: ds.length, steps })}</h4>
           {ds.map((d, i) => (
             <details key={d.taskId} open={i === 0} className="turn">
-              <summary>{tx("cards.turn", { n: i + 1 })} · {i === 0 ? tx("cards.yourRequest") : d.triggerBy === "peer" ? tx("opened.peer") : d.triggerBy === "compact" ? tx("opened.compact") : tx("opened.meta")} · {hms(d.start)} · {formatCount(d.tokens.input + d.tokens.output + d.tokens.cacheRead + d.tokens.cacheWrite)} token</summary>
+              <summary>{tx("cards.turn", { n: i + 1 })} · {i === 0 ? tx("cards.yourRequest") : d.triggerBy === "peer" ? tx("opened.peer") : d.triggerBy === "compact" ? tx("opened.compact") : tx("opened.meta")} · {hms(d.start)} · {count(d.tokens.input + d.tokens.output + d.tokens.cacheRead + d.tokens.cacheWrite)} token</summary>
               <Steps steps={d.main} />
               {d.agents.map((a) => (
                 <details key={a.agentId} className="agent">
