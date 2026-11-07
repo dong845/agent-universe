@@ -135,8 +135,9 @@ test("clicking a planet enters its city: buildings named, back to space works", 
   if (works) expect((await visibleBoxes(page, ".g-tag")).length).toBeGreaterThan(0);
   expect(await brightShare(page)).toBeGreaterThan(0.01);
   await page.getByTestId("leave-city").click();
-  await expect(page.getByTestId("leave-city")).toBeHidden();
-  await expect(page.locator(".g-meter")).toBeVisible();
+  // a cold dev server builds space's modules on the first way back: under the software renderer that can pass 5 s
+  await expect(page.getByTestId("leave-city")).toBeHidden({ timeout: 20_000 });
+  await expect(page.locator(".g-meter")).toBeVisible({ timeout: 20_000 });
   expect(errors).toEqual([]);
 });
 

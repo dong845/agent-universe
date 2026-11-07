@@ -169,7 +169,7 @@ export const en: Record<Key, string> = {
   "kind.guild": "skill guild",
   "kind.project": "project",
   "kind.outpost": "field camp",
-  "town.capitalNote": "Work done in tool folders such as ~/.claude and ~/.codex",
+  "town.capitalNote": "Work that belongs to no project: in tool folders such as ~/.claude and ~/.codex, your home folder or temp folders",
   "town.outpostNote": "Work done in temporary folders (such as /tmp)",
   "town.rename": "Rename",
   "town.renameHint": "Enter saves · empty restores the folder name · Esc cancels",
