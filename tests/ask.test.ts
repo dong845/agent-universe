@@ -29,6 +29,13 @@ const setup = () => {
 };
 
 describe("holding a hook", () => {
+  it("an AskUserQuestion whose questions do not parse is not held: the terminal asks (D27 D2)", () => {
+    const { asks, got, respond } = setup();
+    asks.heartbeat();
+    expect(asks.hold("claude", { ...claudeAsk, tool_input: { questions: "?" } }, respond)).toBeNull();
+    expect(got).toEqual([""]);
+    expect(asks.pending()).toEqual([]);
+  });
   it("nobody watching: answered at once with nothing (the terminal asks)", () => {
     const { asks, got, respond } = setup();
     asks.hold("claude", claudeAsk, respond);

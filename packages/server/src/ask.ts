@@ -72,6 +72,11 @@ export function createAsks(o: { now?: () => number; setTimer?: (ms: number, f: (
       }
       const tool = typeof input.tool_name === "string" ? input.tool_name : "";
       const questions = src === "claude" && tool === "AskUserQuestion" ? askQuestionsOf(input.tool_input) : undefined;
+      // a question the page cannot show is not an approval (Claude Code would ignore an Allow): the terminal asks
+      if (tool === "AskUserQuestion" && !questions) {
+        respond("");
+        return null;
+      }
       const id = `ask-${++seq}-${now().toString(36)}`;
       const p: PendingAsk = {
         id, src, session: `${src === "claude" ? "claude-code" : "codex"}|${sessionId}`, sessionId, tool,

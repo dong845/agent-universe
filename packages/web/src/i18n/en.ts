@@ -374,7 +374,7 @@ export const en: Record<Key, string> = {
   "decide.howTo": "For now this can only be answered in the terminal. Switch on \"Answer from the page\" in ⚙ settings: questions that come while this page is open can then be answered here.",
   "needs.decide": "Decide",
   "settings.askHooks": "Answer from the page (install hook)",
-  "settings.askHint": "While this page is open, a question or approval request waits here for up to 2 minutes; the terminal can still answer as usual, and the first answer counts.",
+  "settings.askHint": "While this page is open, a question or approval request waits here for up to 2 minutes; the terminal can still answer as usual, and the first answer counts. Allow approves the action on this computer.",
   "state.question": "waiting for your choice",
   "overview.tab": "Overview",
   "overview.historyTab": "History · {n}",

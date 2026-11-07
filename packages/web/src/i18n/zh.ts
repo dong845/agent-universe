@@ -372,7 +372,7 @@ export const zh = {
   "decide.howTo": "这个问题现在只能在终端里回答。在 ⚙ 设置里打开「在页面上回答」，之后页面开着时来的问题就能在这里直接选。",
   "needs.decide": "选择",
   "settings.askHooks": "在页面上回答（安装 hook）",
-  "settings.askHint": "页面开着时，代理问你问题或请求批准，会在这里等你最多 2 分钟；终端里同时照常可以回答，先回答的算数。",
+  "settings.askHint": "页面开着时，代理问你问题或请求批准，会在这里等你最多 2 分钟；终端里同时照常可以回答，先回答的算数。「允许」= 在这台电脑上批准执行该操作。",
   "state.question": "在等你选择",
   "overview.tab": "概况",
   "overview.historyTab": "历史 · {n}",

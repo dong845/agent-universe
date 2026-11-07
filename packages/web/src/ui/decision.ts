@@ -31,12 +31,19 @@ export function withAsks(list: Attention[], asks: readonly PendingAsk[]): Attent
 
 export type Picks = Record<string, { labels: string[]; other?: string }>;
 
-const said = (p: { labels: string[]; other?: string } | undefined) => p?.other?.trim() || (p?.labels.length ? p.labels.join(", ") : "");
+type Q = Pick<AskQuestion, "question"> & { multiSelect?: boolean };
+/** one question's answer: a single choice or the Other text; for multi-select every label and the text (D27 D1) */
+const said = (q: Q, p: { labels: string[]; other?: string } | undefined) => {
+  const other = p?.other?.trim() ?? "";
+  const labels = p?.labels ?? [];
+  if (q.multiSelect) return [...labels, ...(other ? [other] : [])].join(", ");
+  return other || labels.join(", ");
+};
 
-export function answerOf(questions: readonly Pick<AskQuestion, "question">[], picks: Picks): Record<string, string> {
-  return Object.fromEntries(questions.map((q) => [q.question, said(picks[q.question])]));
+export function answerOf(questions: readonly Q[], picks: Picks): Record<string, string> {
+  return Object.fromEntries(questions.map((q) => [q.question, said(q, picks[q.question])]));
 }
-export const complete = (questions: readonly Pick<AskQuestion, "question">[], picks: Picks) => questions.every((q) => !!said(picks[q.question]));
+export const complete = (questions: readonly Q[], picks: Picks) => questions.every((q) => !!said(q, picks[q.question]));
 
 export const useDecision = create<{ asks: PendingAsk[]; open: string | null; token: string | null; setAsks(a: PendingAsk[]): void; show(session: string | null): void; setToken(t: string | null): void }>((set) => ({
   asks: [],
