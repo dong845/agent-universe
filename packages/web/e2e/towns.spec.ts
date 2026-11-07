@@ -24,9 +24,10 @@ test("rename, hide and show a town; the city steps aside for its panel", async (
     writeFileSync(join(cwd, "package.json"), "{}");
     // its own repository, so it is a project of its own (not part of the repository it sits in)
     execFileSync("git", ["init", "-q", cwd]);
-    writeClaudeSession(join(tmp, "claude"), {
-      sessionId: `s-${name}`, cwd, t0: Date.now() - 86_400_000 * (3 - i),
-      turns: Array.from({ length: 5 }, (_, k) => ({ prompt: `make part ${k}`, tools: [{ name: "Write", input: { file_path: join(cwd, "src", `f${k}.ts`), content: "x" } }], tokens: tk })),
+    // worked on over two days: a one-off folder (one day only) draws no planet (D29)
+    for (const day of [0, 1]) writeClaudeSession(join(tmp, "claude"), {
+      sessionId: `s-${name}-${day}`, cwd, t0: Date.now() - 86_400_000 * (4 - i - day * 2),
+      turns: Array.from({ length: 3 }, (_, k) => ({ prompt: `make part ${day}-${k}`, tools: [{ name: "Write", input: { file_path: join(cwd, "src", `f${day}${k}.ts`), content: "x" } }], tokens: tk })),
     });
   }
   const port = 5197;

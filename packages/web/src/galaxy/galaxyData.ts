@@ -127,6 +127,8 @@ export const CAP = 1.0;
 const RANK = { capital: 0, guild: 1, project: 2, outpost: 3 } as const;
 /** owner 2026-11-01: a town with fewer finished products than this is not drawn, unless work is going on there */
 export const MIN_PRODUCED = 2;
+/** days a project must have been worked on to be a planet (D29: one-off folders are not drawn) */
+export const MIN_DAYS = 2;
 
 const toDir = (x: number, z: number, layoutR: number): V3 => {
   const d = Math.hypot(x, z);
@@ -207,9 +209,18 @@ export function buildGalaxy(w: World25): Galaxy {
   const hiddenPlanets = new Map<string, Planet>();
   const sides: StarSystem[] = [];
   const busy = new Set([...w.requests.values()].filter((r) => w.live.has(r.requestId)).map((r) => `${r.faction}|${r.projectId}`));
+  const days = new Map<string, Set<string>>();
+  for (const r of w.requests.values()) {
+    const k = `${r.faction}|${r.projectId}`;
+    let d = days.get(k);
+    if (!d) days.set(k, (d = new Set()));
+    d.add(new Date(r.endTs).toDateString());
+  }
   for (const faction of ["claude-code", "codex"] as const) {
     const all = [...w.towns.values()].filter((t) => t.faction === faction);
-    const qualifies = (t: TownRow) => t.counts.produced >= MIN_PRODUCED || busy.has(t.key);
+    // a planet for a project worked on over at least two days with MIN_PRODUCED finished pieces (D29: a
+    // one-off folder — a deck made in an afternoon — is counted, not drawn), or one with work going on now
+    const qualifies = (t: TownRow) => busy.has(t.key) || (t.counts.produced >= MIN_PRODUCED && (days.get(t.key)?.size ?? 0) >= MIN_DAYS);
     const mine = all.filter((t) => qualifies(t) && t.hidden);
     const towns = all.filter((t) => qualifies(t) && !t.hidden).sort((a, b) => RANK[a.kind] - RANK[b.kind] || b.counts.produced - a.counts.produced || (a.key < b.key ? -1 : 1));
     if (!all.length) continue;
