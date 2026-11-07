@@ -12,6 +12,7 @@ import { buildTowns } from "../../schema/src/towns.ts";
 import type { Loaded } from "./load.ts";
 import { compactPayload, townOptions, type WorldPayload } from "./payload.ts";
 import { readOverrides } from "./townsFs.ts";
+import { applyMerge, cleanName, readTownPrefs, resolveMerge, writeTownPrefs } from "./townPrefs.ts";
 import { readSettings, writeSettings, type Settings } from "./settings.ts";
 import { hooksInstalled, installHooks, uninstallHooks, type HookAgent } from "./hooks.ts";
 import { makeShareIds, shareSecret } from "./shareKeys.ts";
@@ -41,6 +42,8 @@ export interface ServerOptions {
   home?: string;
   /** the owner's theme choices (default ~/.agent-town/themes.json); never in the repository */
   themesFile?: string;
+  /** the owner's town names, hidden towns and merges (default ~/.agent-town/towns.json; D27) */
+  townsFile?: string;
   /** starts watching the logs; calls back when they changed; returns a stop function */
   watch?: (onChange: () => void) => () => void;
   /** a watched change reloads no sooner than this after the last reload ended, or twice that reload's duration if longer */
@@ -118,7 +121,11 @@ export function createServer(o: ServerOptions) {
   const secretFile = o.shareSecretFile ?? join(homedir(), ".agent-town", "share-secret");
   const shareIds = () => makeShareIds(shareSecret(secretFile));
   const hookFiles = o.hookFiles ?? { claude: join(homedir(), ".claude", "settings.json"), codex: join(homedir(), ".codex", "hooks.json") };
-  const towns = () => townOptions({ overrides: readOverrides(themesFile) }, o.home);
+  const townsFile = o.townsFile ?? join(homedir(), ".agent-town", "towns.json");
+  const towns = () => {
+    const p = readTownPrefs(townsFile);
+    return townOptions({ overrides: readOverrides(themesFile), names: p.names, hidden: p.hidden }, o.home);
+  };
 
   let lastEnd = 0;
   let lastDur = 0;
@@ -149,6 +156,9 @@ export function createServer(o: ServerOptions) {
         state.total = total;
       })
       .then((r) => {
+        // the owner's merges (D27 A4): a merged town's requests belong to its target from here on
+        const keys = new Set(r.events.map((e) => `${e.faction}|${e.projectId}`));
+        applyMerge(r.events, resolveMerge(readTownPrefs(townsFile).merge, (k) => keys.has(k)));
         const m = new Map<string, AgentTownEvent[]>();
         const q = new Map<string, AgentTownEvent[]>();
         const push = (map: Map<string, AgentTownEvent[]>, k: string, e: AgentTownEvent) => {
@@ -245,6 +255,8 @@ export function createServer(o: ServerOptions) {
       return evs ? json(res, 200, { requestId: id, events: evs }) : json(res, 404, { error: "no such request" });
     }
     if (path === "/api/theme" && req.method === "POST") return saveTheme(req, res);
+    if (path === "/api/towns" && req.method === "GET") return json(res, 200, readTownPrefs(townsFile));
+    if (path === "/api/towns" && req.method === "POST") return saveTowns(req, res);
     if (path === "/api/stream") {
       res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
       res.write(`event: attention\ndata: ${JSON.stringify(attention)}\n\n`);
@@ -294,6 +306,69 @@ export function createServer(o: ServerOptions) {
     const target = existsSync(file) && statSync(file).isFile() ? file : join(o.staticDir, "index.html");
     res.writeHead(200, { "content-type": TYPES[extname(target)] ?? "application/octet-stream" });
     res.end(readFileSync(target));
+  };
+
+  /**
+   * POST /api/towns {key, name | hidden | merge} (D27 A2-A5): one change per call. A name (empty or null
+   * gives the folder's name back) and hidden apply at once; a merge (null undoes it) on a reload.
+   */
+  const saveTowns = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    let body = "";
+    let tooBig = false;
+    req.on("data", (c: Buffer) => {
+      if (body.length <= 4096) body += c;
+      else tooBig = true;
+    });
+    req.on("end", () => {
+      try {
+        if (tooBig) return json(res, 413, { error: "too large" });
+        if (!payload) return json(res, 503, state);
+        let b: Record<string, unknown>;
+        try {
+          b = JSON.parse(body);
+        } catch {
+          return json(res, 400, { error: "bad json" });
+        }
+        if (!b || typeof b !== "object" || Array.isArray(b) || typeof b.key !== "string") return json(res, 400, { error: "need {key, …}" });
+        const key = b.key;
+        const prefs = readTownPrefs(townsFile);
+        const town = payload.towns.find((t) => t.key === key);
+        const fixedTown = (k: string) => { const t = payload!.towns.find((x) => x.key === k); return !t || t.kind === "capital" || t.kind === "outpost"; };
+        let reloadAfter = false;
+        if ("name" in b) {
+          if (!town) return json(res, 400, { error: "unknown town" });
+          if (b.name !== null && typeof b.name !== "string") return json(res, 400, { error: "bad name" });
+          const n = cleanName(b.name);
+          if (n) prefs.names[key] = n;
+          else delete prefs.names[key];
+        } else if ("hidden" in b) {
+          if (typeof b.hidden !== "boolean") return json(res, 400, { error: "bad hidden" });
+          if (!town && !prefs.hidden.includes(key)) return json(res, 400, { error: "unknown town" });
+          prefs.hidden = b.hidden ? [...new Set([...prefs.hidden, key])] : prefs.hidden.filter((k) => k !== key);
+        } else if ("merge" in b) {
+          if (b.merge === null) {
+            delete prefs.merge[key];
+          } else {
+            const to = b.merge;
+            if (typeof to !== "string" || !town || to === key || fixedTown(key) || fixedTown(to) || to.slice(0, to.indexOf("|")) !== key.slice(0, key.indexOf("|"))) return json(res, 400, { error: "cannot merge these towns" });
+            prefs.merge[key] = to;
+          }
+          reloadAfter = true;
+        } else {
+          return json(res, 400, { error: "need name, hidden or merge" });
+        }
+        writeTownPrefs(townsFile, prefs);
+        if (reloadAfter) void reload();
+        else {
+          payload = { ...payload, towns: buildTowns(payload.requests, all, towns()) };
+          send("world", { generatedAt: payload.generatedAt });
+        }
+        res.writeHead(204, { "cache-control": "no-store" });
+        res.end();
+      } catch (e) {
+        if (!res.headersSent) json(res, 500, { error: e instanceof Error ? e.message : String(e) });
+      }
+    });
   };
 
   /** POST /api/theme {key, theme}: the owner picks a town's theme; saved to their own file */
@@ -540,6 +615,8 @@ export function createServer(o: ServerOptions) {
   return {
     server,
     state: () => ({ ...state }),
+    /** a load is under way (tests wait for a merge's reload) */
+    loading: () => !!loading,
     reload,
     attention: () => attention,
     settingsFile,

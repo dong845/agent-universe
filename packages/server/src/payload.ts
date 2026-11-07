@@ -34,6 +34,8 @@ export function townOptions(o: Partial<TownOptions> = {}, home?: string): TownOp
     overrides: o.overrides ?? {},
     guildSkillsOf: o.guildSkillsOf ?? guildSkillsOf,
     describe: o.describe ?? ((k) => (home ? skillDescription(skillDirs(home, k)) : undefined)),
+    ...(o.names ? { names: o.names } : {}),
+    ...(o.hidden ? { hidden: o.hidden } : {}),
   };
 }
 
