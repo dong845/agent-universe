@@ -7,6 +7,7 @@ import { officialMarks } from "../galaxy/emblem.ts";
 import { t } from "../i18n/index.ts";
 import { replayTour } from "./Tour.tsx";
 import { setSoundsOn, soundsOn } from "./sounds.ts";
+import { refreshAskHooks } from "./decision.ts";
 import { fetchTownPrefs, keyName, postTown, type TownPrefs } from "./townPrefs.ts";
 import { townName } from "../i18n/data.ts";
 
@@ -70,6 +71,7 @@ export function Settings() {
       setNote(e instanceof Error ? e.message : String(e));
     }
     await refresh();
+    void refreshAskHooks();
   };
   return (
     <>

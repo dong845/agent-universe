@@ -299,7 +299,12 @@ canvas { display: block; }
   backdrop-filter: blur(10px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 }
 .g-needs header { font-size: 11.5px; color: #ffd58a; padding: 2px 6px 6px; letter-spacing: 0.06em; }
-.g-need { display: flex; align-items: stretch; gap: 4px; border-radius: 8px; margin-top: 2px; }
+/* the name has the row; the action sits under it (D27 B3) */
+.g-need { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; border-radius: 8px; margin-top: 2px; }
+.g-need .g-need-open { order: 1; flex: 1 1 calc(100% - 34px); }
+.g-need .g-need-close { order: 2; }
+.g-need .g-need-copy { order: 3; flex: 1 1 100%; padding: 4px 8px; text-align: center; }
+.g-need .g-need-terminal { cursor: default; color: var(--mute); background: none; border-style: dashed; }
 .g-need-open {
   flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 4px;
   text-align: left; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; cursor: pointer;
@@ -547,3 +552,8 @@ canvas { display: block; }
 .g-settings-towns li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-settings-towns button { font: inherit; font-size: 11.5px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; cursor: pointer; flex: none; }
 .g-search-tag { margin-left: 6px; font-size: 10.5px; color: #8fa3c4; }
+
+/* the city bar keeps its buttons on one line (D27 B5) */
+.g-citybar button { white-space: nowrap; }
+.g-citybar em { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 32vw; }
+.g-citybar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

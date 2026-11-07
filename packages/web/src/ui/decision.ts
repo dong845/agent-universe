@@ -45,14 +45,40 @@ export function answerOf(questions: readonly Q[], picks: Picks): Record<string, 
 }
 export const complete = (questions: readonly Q[], picks: Picks) => questions.every((q) => !!said(q, picks[q.question]));
 
-export const useDecision = create<{ asks: PendingAsk[]; open: string | null; token: string | null; setAsks(a: PendingAsk[]): void; show(session: string | null): void; setToken(t: string | null): void }>((set) => ({
+type HookSides = { "claude-code": boolean; codex: boolean };
+export const useDecision = create<{ asks: PendingAsk[]; open: string | null; token: string | null; askHooks: HookSides | null; setAsks(a: PendingAsk[]): void; show(session: string | null): void; setToken(t: string | null): void; setAskHooks(h: HookSides | null): void }>((set) => ({
   asks: [],
   open: null,
   token: null,
+  askHooks: null,
   setAsks: (asks) => set({ asks }),
   show: (open) => set({ open }),
   setToken: (token) => set({ token }),
+  setAskHooks: (askHooks) => set({ askHooks }),
 }));
+
+/** whether each side's ask hook is installed (D27 B4); null when there is no server to ask */
+export async function refreshAskHooks() {
+  try {
+    const r = await fetch("/api/settings");
+    const s = (await r.json()) as { askHooks?: { claude?: boolean; codex?: boolean } };
+    useDecision.getState().setAskHooks(r.ok && s.askHooks ? { "claude-code": !!s.askHooks.claude, codex: !!s.askHooks.codex } : null);
+  } catch {
+    useDecision.getState().setAskHooks(null);
+  }
+}
+
+/** turns on the ask hook of one side, as the settings switch does; the error, or null */
+export async function enableAskHook(faction: "claude-code" | "codex"): Promise<string | null> {
+  try {
+    const r = await fetch("/api/hooks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent: faction === "codex" ? "codex" : "claude", on: true, set: "ask" }) });
+    if (!r.ok) return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`;
+    await refreshAskHooks();
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
 
 /** the page's token, from the server (it changes when the server restarts) */
 export async function refreshToken() {

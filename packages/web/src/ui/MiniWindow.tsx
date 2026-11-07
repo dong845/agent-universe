@@ -9,6 +9,8 @@ import { t, useLang } from "../i18n/index.ts";
 import { absTime, useStore } from "../store.ts";
 import { miniRows, type MiniRow } from "./miniRows.ts";
 import { copyResume, STATE_TEXT } from "./NeedsYou.tsx";
+import { needAction } from "./needAction.ts";
+import { townName } from "../i18n/data.ts";
 import { goFollow } from "../city/followMain.ts";
 import { useDecision } from "./decision.ts";
 
@@ -47,7 +49,7 @@ function Rows() {
   }, []);
   // the working rows go by the scene's clock (live: now; the demo: its own time)
   const clock = absTime(useStore.getState().t);
-  const rows = useMemo(() => (w ? miniRows({ w, events, attention, closed, now, clock, names: (k) => w.towns.get(k)?.name ?? k.split("/").filter(Boolean).pop() ?? k }) : { attention: [], live: [] }), [w, events, attention, closed, now]);
+  const rows = useMemo(() => (w ? miniRows({ w, events, attention, closed, now, clock, names: (k) => { const x = w.towns.get(k); return x ? townName(x) : k.split("/").filter(Boolean).pop() ?? k; } }) : { attention: [], live: [] }), [w, events, attention, closed, now]);
   const row = (r: MiniRow) => {
     const req = r.attention?.requestId ? w?.requests.get(r.attention.requestId) : undefined;
     return (
@@ -60,7 +62,9 @@ function Rows() {
         </div>
         {r.attention ? (
           <>
-            <button onClick={() => void copyResume(r.attention!.faction, r.attention!.sessionId, req?.cwd)} title={t("mini.copy")}>⧉</button>
+            {needAction(r.attention, useDecision.getState().asks.some((x) => x.session === r.attention!.session), useDecision.getState().askHooks?.[r.attention.faction] ?? null) === "resume"
+              ? <button onClick={() => void copyResume(r.attention!.faction, r.attention!.sessionId, req?.cwd)} title={t("mini.copy")}>⧉</button>
+              : null}
             <button onClick={() => useStore.getState().closeAttention(r.attention!)} aria-label={t("common.close")}>×</button>
           </>
         ) : null}

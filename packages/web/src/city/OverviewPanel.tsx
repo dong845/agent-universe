@@ -76,7 +76,7 @@ export function OverviewPanel() {
         {row("overview.houses", t("overview.housesN", { n: o.built.houses, of: o.requests.produced }))}
         {row("overview.tents", t("overview.housesN", { n: o.built.tents, of: o.requests.investigation }))}
         {row("overview.streets", String(o.built.streets))}
-        {o.built.public.length ? <div className="chips">{o.built.public.map((p) => <span key={p.work}>{sw(WORK_COLOR[p.work])}{t(`work.${p.work}` as Key)} <b>{p.n.toLocaleString()}</b></span>)}</div> : null}
+        {o.built.public.length ? row("overview.towers", t("overview.towersN", { n: o.built.public.length })) : null}
         {o.work.length ? (<><h5>{t("overview.work")}</h5>{o.work.map((x) => <div key={x.role} className="g-bar"><span>{t(`work.${x.role}` as Key)}</span><i style={{ width: `${(x.n / o.work[0].n) * 100}%`, background: WORK_COLOR[x.role] }} /><b>{x.n.toLocaleString()}</b></div>)}</>) : null}
         {row("overview.spawns", String(o.spawns))}
         {o.skills.length ? (<><h5>{t("overview.skills")}</h5><div className="chips">{o.skills.slice(0, 8).map((s) => <span key={s.name}>{s.name} <b>{s.n}</b></span>)}</div></>) : null}

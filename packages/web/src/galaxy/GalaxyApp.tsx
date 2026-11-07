@@ -111,6 +111,9 @@ function spotsOnScreen(g: Galaxy, town?: string) {
 const sizes = new Map<string, { w: number; h: number }>();
 const RESERVED = (w: number, h: number) => [{ x: w / 2 - 300, y: 0, w: 600, h: 70 }, { x: w / 2 - 470, y: h - 70, w: 940, h: 70 }];
 
+/** px kept between a label and the screen edge */
+const EDGE = 12;
+
 function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
   const { camera, size, scene } = useThree();
   (window as unknown as { __galaxyScene?: unknown }).__galaxyScene = scene;
@@ -152,10 +155,12 @@ function Projector({ labels, g }: { labels: GL[]; g: Galaxy }) {
       const x = ((w.x + 1) / 2) * size.width, y = ((1 - w.y) / 2) * size.height;
       if (x < -150 || x > size.width + 150 || y < -60 || y > size.height + 60) { el.style.visibility = "hidden"; continue; }
       el.style.visibility = "visible";
-      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       let sz = sizes.get(l.id);
       if (!sz) sizes.set(l.id, (sz = { w: el.offsetWidth, h: el.offsetHeight }));
-      crowd.push({ id: l.id, rect: { x: x - sz.w / 2 - 3, y: y - sz.h - 2, w: sz.w + 6, h: sz.h + 4 }, priority: l.near ? l.priority + 2e9 : l.priority });
+      // a label whose point is on screen stays whole on screen (D27 B5): it slides in from the edge
+      const lx = x >= 0 && x <= size.width ? Math.min(Math.max(x, sz.w / 2 + EDGE), size.width - sz.w / 2 - EDGE) : x;
+      el.style.transform = `translate(${lx.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      crowd.push({ id: l.id, rect: { x: lx - sz.w / 2 - 3, y: y - sz.h - 2, w: sz.w + 6, h: sz.h + 4 }, priority: l.near ? l.priority + 2e9 : l.priority });
     }
     const keep = declutter(crowd);
     lastCamera = camera;

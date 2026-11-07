@@ -93,6 +93,8 @@ export function hash(s: string, salt = 0): number {
 }
 const work = (r: RequestRow) => r.tokens.input + r.tokens.output + r.tokens.cacheWrite;
 export const streetOf = (d: string | null) => (d === null ? t("street.other") : d === "." ? t("street.root") : d);
+/** a street's sign: "<folder> 街", but the loose files and the root folder are named as they are (D27 B5) */
+export const streetTitle = (name: string) => (name === t("street.other") ? t("street.otherFiles") : name === t("street.root") ? t("street.rootFiles") : t("city.street", { name }));
 
 export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutConfig): TownLayout {
   const cells = new Map<string, { q: number; r: number; kind: TownLayout["cells"][number]["kind"] }>();
