@@ -48,7 +48,8 @@ export function OverviewPanel() {
   const on = useCityPanel((s) => s.overview);
   const history = useHistory((s) => !!s.town);
   const w = useStore((s) => s.w25);
-  const source = useStore((s) => s.source);
+  // the owner's controls show on real data only, and never while sharing (names may be masked)
+  const editable = useStore((s) => s.source === "real" && !s.share);
   // a replay has the city to itself, as it does with the history (the panel covered the replay bar's end button)
   const replaying = useReplay((s) => !!s.r);
   const o = useMemo(() => (city && w ? townOverview(w, city, absTime(useStore.getState().t)) : null), [city, w]);
@@ -59,7 +60,7 @@ export function OverviewPanel() {
   return (
     <aside className="g-history g-overview" data-testid="overview">
       <header>
-        {town ? <TownTitle key={town.key} town={town} editable={source === "real"} /> : <b />}
+        {town ? <TownTitle key={town.key} town={town} editable={editable} /> : <b />}
         <button onClick={() => useCityPanel.getState().setOverview(false)} aria-label={t("common.close")} data-testid="overview-close">✕</button>
       </header>
       {note ? <p className="muted g-town-note" data-testid="town-note">{note}</p> : null}
@@ -82,7 +83,7 @@ export function OverviewPanel() {
         {row("overview.spawns", String(o.spawns))}
         {o.skills.length ? (<><h5>{t("overview.skills")}</h5><div className="chips">{o.skills.slice(0, 8).map((s) => <span key={s.name}>{s.name} <b>{s.n}</b></span>)}</div></>) : null}
         <p className="muted">{t("overview.note")}</p>
-        {town && source === "real" ? <TownActions town={town} towns={[...w.towns.values()]} /> : null}
+        {town && editable ? <TownActions town={town} towns={[...w.towns.values()]} /> : null}
       </div>
     </aside>
   );

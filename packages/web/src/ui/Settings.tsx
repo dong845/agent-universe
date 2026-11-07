@@ -43,6 +43,7 @@ export function Settings() {
   };
   const [towns, setTowns] = useState<TownPrefs | null>(null);
   const w = useStore((st) => st.w25);
+  const sharing = useStore((st) => st.share);
   const nameOf = (key: string) => { const x = w?.towns.get(key); return x ? townName(x) : keyName(key); };
   const refresh = () => {
     void fetchTownPrefs().then(setTowns);
@@ -94,7 +95,7 @@ export function Settings() {
           <label><input type="checkbox" checked={sounds} onChange={() => { setSoundsOn(!sounds); setSounds(!sounds); }} data-testid="sounds" /> {t("settings.sounds")}<small>{t("settings.soundsHint")}</small></label>
           <hr />
           <p className="muted">{t("settings.towns")} · {t("settings.townsHint")}</p>
-          {towns && (towns.hidden.length || Object.keys(towns.merge).length) ? (
+          {!sharing && towns && (towns.hidden.length || Object.keys(towns.merge).length) ? (
             <ul className="g-settings-towns" data-testid="settings-towns">
               {towns.hidden.map((k) => <li key={`h|${k}`}><span>{nameOf(k)} <small>{t("town.hiddenTag")}</small></span><button onClick={() => void undo(k, { hidden: false })} data-testid="town-show">{t("settings.show")}</button></li>)}
               {Object.entries(towns.merge).map(([k, to]) => <li key={`m|${k}`}><span>{keyName(k)} → {nameOf(to)}</span><button onClick={() => void undo(k, { merge: null })} data-testid="town-unmerge">{t("settings.unmerge")}</button></li>)}

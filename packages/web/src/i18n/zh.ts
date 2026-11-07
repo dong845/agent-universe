@@ -152,6 +152,7 @@ export const zh = {
   "history.gistHint": "这个请求没有标题：这句话是从它自己的记录里拼出来的",
   "history.chatNoHouse": "问答不建楼：记在城里的问答牌上。",
   "history.ghostHouse": "城里平时不画这一步的房子（一座城最多画 20 栋，挑最大的）：现在临时画在它那条街旁，带光圈的就是。",
+  "history.suburbHouse": "这一步的成品是郊区里的一栋小房子，带光圈的就是。",
   "history.noTent": "城里没有单独画出这一步（调查最多画 6 顶帐篷，挑最大的）。",
   "history.did": "做了什么",
   "history.agents": "代理（站在任务大厅旁）",

@@ -12,17 +12,20 @@ import { formatGist } from "../i18n/gist.ts";
 export interface HistoryStep {
   index: number;
   request: RequestRow;
-  /** the city draws a building for it (a city draws at most 20 houses and 6 tents) */
+  /** the city draws a building for it: a house, a tent, or a tiny house in the suburbs (D27 C) */
   drawn: boolean;
+  /** it is a tiny house in the suburbs */
+  suburb?: boolean;
 }
 
 export function historySteps(w: World25, town: string): HistoryStep[] {
   const layout = w.layouts.get(town);
   const drawn = new Set(layout?.spots.flatMap((s) => (s.info.kind === "house" || s.info.kind === "tent" ? [s.info.requestId] : [])) ?? []);
+  const subs = new Set(layout?.suburbs.map((s) => s.requestId) ?? []);
   return [...w.requests.values()]
     .filter((r) => `${r.faction}|${r.projectId}` === town && r.class !== "empty")
     .sort((a, b) => a.endTs - b.endTs || a.startTs - b.startTs || (a.requestId < b.requestId ? -1 : 1))
-    .map((request, i) => ({ index: i + 1, request, drawn: drawn.has(request.requestId) }));
+    .map((request, i) => (subs.has(request.requestId) ? { index: i + 1, request, drawn: true, suburb: true } : { index: i + 1, request, drawn: drawn.has(request.requestId) }));
 }
 
 const CLASS_NAMES: Record<RequestRow["class"], string> = { produced: t("class.produced"), investigation: t("class.investigation"), chat: t("class.chat"), empty: t("class.empty") };

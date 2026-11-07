@@ -351,6 +351,8 @@ export function createServer(o: ServerOptions) {
           } else {
             const to = b.merge;
             if (typeof to !== "string" || !town || to === key || fixedTown(key) || fixedTown(to) || to.slice(0, to.indexOf("|")) !== key.slice(0, key.indexOf("|"))) return json(res, 400, { error: "cannot merge these towns" });
+            // a merge into a town that (through its own merges) leads back here would be a loop
+            for (let x: string | undefined = to, n = 0; x !== undefined && n < 1000; x = prefs.merge[x], n++) if (x === key) return json(res, 400, { error: "would make a loop" });
             prefs.merge[key] = to;
           }
           reloadAfter = true;

@@ -154,6 +154,7 @@ export const en: Record<Key, string> = {
   "history.gistHint": "This request has no title: this sentence is put together from its own records",
   "history.chatNoHouse": "Q&A builds nothing: it is counted on the city's Q&A board.",
   "history.ghostHouse": "The city does not usually draw this step's house (at most 20, the biggest): it is drawn for now beside its street, the one with the ring.",
+  "history.suburbHouse": "This step's work is a tiny house in the suburbs: the one with the ring.",
   "history.noTent": "The city does not draw this step on its own (at most 6 investigation tents, the biggest).",
   "history.did": "What it did",
   "history.agents": "Agents (standing by the task hall)",
