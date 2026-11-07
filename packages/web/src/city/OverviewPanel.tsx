@@ -74,7 +74,8 @@ export function OverviewPanel() {
         {o.products.length ? (<><h5>{t("overview.products")}</h5><div className="chips">{o.products.map((p) => <span key={p.kind}>{sw(PRODUCT_COLOR[p.kind])}{t(`product.${p.kind}` as Key)} <b>{p.n}</b></span>)}</div></>) : null}
         <h5>{t("overview.built")}</h5>
         {row("overview.houses", t("overview.housesN", { n: o.built.houses, of: o.requests.produced }))}
-        {row("overview.tents", t("overview.housesN", { n: o.built.tents, of: o.requests.investigation }))}
+        {o.built.suburbs ? row("overview.suburbs", t("overview.suburbsN", { n: o.built.suburbs }) + (o.built.more ? t("overview.suburbsMore", { n: o.built.more }) : ""), "overview-suburbs") : null}
+        {row("overview.tents", t("overview.tentsN", { n: o.built.tents, of: o.requests.investigation }))}
         {row("overview.streets", String(o.built.streets))}
         {o.built.public.length ? row("overview.towers", t("overview.towersN", { n: o.built.public.length })) : null}
         {o.work.length ? (<><h5>{t("overview.work")}</h5>{o.work.map((x) => <div key={x.role} className="g-bar"><span>{t(`work.${x.role}` as Key)}</span><i style={{ width: `${(x.n / o.work[0].n) * 100}%`, background: WORK_COLOR[x.role] }} /><b>{x.n.toLocaleString()}</b></div>)}</>) : null}

@@ -56,10 +56,34 @@ export interface Street {
   minor: number;
 }
 
+/** a finished piece the city does not draw as a house: a tiny house on the outskirts (D27 C) */
+export interface Suburb {
+  requestId: string;
+  x: number;
+  z: number;
+  /** turned this much (radians) */
+  rot: number;
+  /** the hex cell, "q,r" */
+  cell: string;
+  /** shown from this time on (the request's end) */
+  from: number;
+  /** the kind of product: the roof's colour */
+  kind: string;
+}
+
+/** tiny houses per city at most; the rest are counted (D27 C1) */
+export const MAX_SUBURBS = 600;
+const PER_CELL = 7;
+const SUB_OFF: [number, number][] = [[0, 0], ...Array.from({ length: 6 }, (_, k) => [0.64 * Math.cos(k * Math.PI / 3 + Math.PI / 6), 0.64 * Math.sin(k * Math.PI / 3 + Math.PI / 6)] as [number, number])];
+
 export interface TownLayout {
   cells: { q: number; r: number; kind: "grass" | "plaza" | "street" | "lot" }[];
   spots: Spot[];
   streets: Street[];
+  /** tiny houses, oldest first */
+  suburbs: Suburb[];
+  /** finished pieces neither drawn nor in the suburbs (over MAX_SUBURBS) */
+  suburbsMore: number;
   /** world units from the centre to the outer edge of the island */
   radius: number;
 }
@@ -200,6 +224,33 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
   });
   if (tents.length) maxRing += 1;
 
+  // ---- suburbs: every finished piece not drawn as a house, seven to a hex, on the rings beyond -------
+  const housed = new Set(spots.flatMap((sp) => (sp.info.kind === "house" ? [sp.info.requestId] : [])));
+  const extra = produced.filter((r) => !isLive(r) && !housed.has(r.requestId)).sort((a, b) => a.endTs - b.endTs || (a.requestId < b.requestId ? -1 : 1));
+  const shownSub = extra.slice(0, MAX_SUBURBS);
+  const suburbs: Suburb[] = [];
+  const subCells = new Set<string>();
+  if (shownSub.length) {
+    let need = Math.ceil(shownSub.length / PER_CELL);
+    const picked: [number, number][] = [];
+    // ring by ring outwards, each ring's share spread evenly around it
+    for (let n = maxRing + 1; need > 0 && n < 80; n++) {
+      const open = ring(n).filter(([q, r]) => free(q, r));
+      const k = Math.min(need, open.length);
+      for (let i = 0; i < k; i++) picked.push(open[Math.floor((i * open.length) / k)]);
+      need -= k;
+      maxRing = n;
+    }
+    shownSub.forEach((r, i) => {
+      const [q, rr] = picked[Math.floor(i / PER_CELL)];
+      const c = cellPos(q, rr);
+      const [ox, oz] = SUB_OFF[i % PER_CELL];
+      subCells.add(`${q},${rr}`);
+      suburbs.push({ requestId: r.requestId, x: c.x + ox, z: c.z + oz, rot: hash(r.requestId, 8) * Math.PI * 2, cell: `${q},${rr}`, from: r.endTs, kind: r.productKind ?? "code" });
+    });
+    for (const c of subCells) { const [q, r] = c.split(",").map(Number); take(q, r, "grass"); }
+  }
+
   // ---- the island: everything used plus a ragged margin; trees towards the coast -------------------
   const R = maxRing + 1;
   for (let q = -R; q <= R; q++) for (let r = -R; r <= R; r++) {
@@ -208,12 +259,12 @@ export function layoutTown(town: TownRow, requests: RequestRow[], cfg: LayoutCon
     if (d <= R - 0.5 + hash(`${town.key}|${q},${r}`, 3) * 1.2 && d <= R) take(q, r, "grass");
   }
   for (const c of cells.values()) {
-    if (c.kind !== "grass") continue;
+    if (c.kind !== "grass" || subCells.has(`${c.q},${c.r}`)) continue;
     const h = hash(`${town.key}|${c.q},${c.r}`, 4);
     if (ringDist(c.q, c.r) >= maxRing - 1 && h < 0.3) {
       const p = at(c.q, c.r);
       spots.push({ art: { category: "prop", name: h < 0.15 ? "tree_round" : "tree_cypress" }, ...p, x: p.x + (hash(c.q + "," + c.r, 5) - 0.5) * 0.8, z: p.z + (hash(c.q + "," + c.r, 6) - 0.5) * 0.8, size: 0.85 + hash(c.q + "," + c.r, 7) * 0.35, info: { kind: "prop" } });
     }
   }
-  return { cells: [...cells.values()], spots, streets, radius: (R + 0.6) * 2 };
+  return { cells: [...cells.values()], spots, streets, suburbs, suburbsMore: extra.length - shownSub.length, radius: (R + 0.6) * 2 };
 }

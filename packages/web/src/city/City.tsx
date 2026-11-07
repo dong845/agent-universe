@@ -4,6 +4,7 @@
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useRightPanel } from "../ui/rightPanel.ts";
+import { Suburbs } from "./Suburbs.tsx";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { AgentTownEvent } from "../../../schema/src/event.ts";
@@ -380,6 +381,7 @@ export function CityScene({ p, layout, w, sys }: { p: Planet; layout: TownLayout
       <Haze p={p} layout={layout} />
       <Suspense fallback={null}><Deliveries p={p} layout={layout} /></Suspense>
       <Buildings p={p} w={w} />
+      <Suburbs town={p.key} layout={layout} />
       <Suspense fallback={null}>
         <LiveAgents p={p} layout={layout} w={w} />
         <ReplayAgents p={p} />
