@@ -26,7 +26,21 @@ logs on your own computer and shown only there.
 
 ## Start
 
-Needs **Node 22.18 or newer** (from nodejs.org) and macOS (Linux should work; not tested).
+Needs **Node 22.18 or newer** (from nodejs.org); macOS or Linux.
+
+```
+npx agent-universe
+```
+
+It starts at http://127.0.0.1:5182/ and opens the browser (the page comes prebuilt). In Claude Code you can
+also install the plugin and type `/agent-universe`:
+
+```
+/plugin marketplace add dong845/agent-universe-plugin
+/plugin install agent-universe@agent-universe
+```
+
+From the source:
 
 ```
 git clone <this repository> agent-universe
@@ -37,7 +51,7 @@ npm start
 The first run installs the dependencies (with the pnpm that Node's corepack ships) and builds the
 page; then the server starts at http://127.0.0.1:5182/ and the browser opens. With no logs yet you see
 a demo world, and a note saying where Agent Universe reads from: `~/.claude/projects` (Claude Code)
-and `~/.codex/sessions` (Codex). Options: `npm start -- --port 5190 --no-open`.
+and `~/.codex/sessions` (Codex). Options: `npx agent-universe --port 5190 --no-open` (from the source: `npm start -- --port 5190 --no-open`).
 
 The server listens on 127.0.0.1 only and sends nothing anywhere. Its own files live in
 `~/.agent-town/` (cache, settings, the share secret, downloaded marks).

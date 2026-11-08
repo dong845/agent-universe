@@ -133,8 +133,16 @@ export async function loadEventsAsync(o: LoadOptions): Promise<Loaded> {
  */
 function producerHash(rolesPath: string): string {
   const h = createHash("sha1").update(String(CACHE_VERSION)).update(readFileSync(rolesPath));
-  for (const rel of PRODUCERS) h.update(readFileSync(new URL(rel, import.meta.url)));
+  for (const rel of PRODUCERS) h.update(readFileSync(producerFile(rel)));
   return h.digest("hex").slice(0, 16);
+}
+/** a parser source to hash: the .ts in a clone, the compiled .js in the npm package (D30 A3) */
+export function producerFile(rel: string, base: string | URL = import.meta.url): URL {
+  const ts = new URL(rel, base);
+  if (existsSync(ts)) return ts;
+  const js = new URL(rel.replace(/\.ts$/, ".js"), base);
+  if (existsSync(js)) return js;
+  throw new Error(`parser source missing: ${fileURLToPath(ts)}`);
 }
 const PRODUCERS = [
   "../../adapter-claude/src/index.ts", "../../adapter-codex/src/index.ts", "../../schema/src/event.ts",

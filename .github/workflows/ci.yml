@@ -1,0 +1,21 @@
+# Linux check (spec 2026-11-08 D30 A4): the unit tests, then the npm package built, installed and run on
+# synthetic logs. macOS is checked on the owner's machine; this is the only Linux run.
+name: ci
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable && corepack pnpm install --frozen-lockfile
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      - run: npx vitest run
+      - run: node scripts/pack.mjs --check
