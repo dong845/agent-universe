@@ -22,7 +22,7 @@ function build() {
   cpSync(join(root, "scripts", "start.mjs"), join(lib, "scripts", "start.mjs"));
   for (const f of readdirSync(join(root, "config"))) if (f.endsWith(".json")) cpSync(join(root, "config", f), join(lib, "config", f), { recursive: true });
   cpSync(join(root, "packages", "web", "dist"), join(lib, "packages", "web", "dist"), { recursive: true });
-  for (const f of ["README.md", "README.zh.md"]) cpSync(join(root, f), join(out, f));
+  for (const f of ["README.md", "README.zh.md", "LICENSE"]) cpSync(join(root, f), join(out, f));
   // every compiled file is an ES module
   writeFileSync(join(lib, "package.json"), JSON.stringify({ type: "module" }) + "\n");
   writeFileSync(join(out, "package.json"), JSON.stringify({
@@ -31,7 +31,8 @@ function build() {
     description: "Your Claude Code and Codex work, drawn as a universe that grows with it — read from the logs on your own computer, shown only there.",
     type: "module",
     bin: { "agent-universe": "lib/scripts/start.mjs" },
-    files: ["lib", "README.md", "README.zh.md"],
+    files: ["lib", "README.md", "README.zh.md", "LICENSE"],
+    license: "MIT",
     engines: { node: ">=22.18" },
     os: ["darwin", "linux"],
     keywords: ["claude-code", "codex", "visualization", "agents", "three.js"],
