@@ -21,6 +21,10 @@ test("an English browser: no Chinese in space, in a city, in the history and the
   await expect(page.getByTestId("tour")).toContainText("Welcome to Agent Universe");
   expect(await text(page)).not.toMatch(CJK);
   await page.getByTestId("tour-skip").click();
+  // English texts run longer: the shell meter wraps instead of growing under the token counters (D30 README look)
+  const box = (sel: string) => page.locator(sel).first().boundingBox();
+  const [meter, hud] = [await box(".g-meter"), await box(".hud")];
+  expect(meter && hud && (meter.x + meter.width <= hud.x || meter.y >= hud.y + hud.height), `meter ${JSON.stringify(meter)} under hud ${JSON.stringify(hud)}`).toBe(true);
   const k: string = await page.evaluate(() => (window as any).__galaxyKeys[0]);
   await page.evaluate((key) => (window as any).__agentTown.enterCity(key), k);
   await expect(page.getByTestId("leave-city")).toBeVisible({ timeout: 60_000 });

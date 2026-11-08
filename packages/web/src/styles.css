@@ -264,6 +264,8 @@ canvas { display: block; }
 .g-focus button:hover { border-color: #7fb4ff; }
 .g-focus span { font-size: 14px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px #000; }
 .g-meter small { color: #8fa3c4; font-size: 11px; }
+/* the meter stays left of the token counters: its long note wraps (English runs longer) */
+.g-meter { max-width: 380px; }
 .g-fade { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 40; }
 .g-fade.on { opacity: 1; }
 .g-citybar span small { margin-left: 8px; font-size: 11.5px; font-weight: 400; color: #9fb0cc; }
