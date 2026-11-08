@@ -1,57 +1,65 @@
 # Agent Universe · 智能体宇宙
 
-[English](README.md)
+**看你和 Claude Code、Codex 一起做的事，长成一个宇宙。**
 
-把你用 Claude Code 和 Codex 做过的事，画成一个会随之生长的宇宙。全部从你电脑上的日志读出来，只在本机显示。
+[English](https://www.npmjs.com/package/agent-universe)
 
-- **两颗恒星**：Claude Code 和 Codex。每完成一件成品，恒星的戴森壳就亮一片。
-- **行星是项目**（和技能公会），成品越多越大。点一颗飞过去、进城：方楼是成品和各类工作，**大头小机器人**是正在干活的代理——主代理和它派出的子代理。
-- **代理**：脸上的表情说明它在做什么（专注、思考、等你、出错、完成）；子代理手里拿着它这类工作的工具；点一个，镜头就跟着它，卡片告诉你它此刻在做什么。
-- **需要你**：在等你的会话——可能在等授权、出错停止、本轮完成——配合 macOS 通知和一键复制恢复命令。可选的 hook 让授权提醒更准确。
-- **历史**：把一个城市的请求排成一步步；选一步，城市停在那次请求完成的那一刻，说明全部来自日志。
-- **小窗**：一个总在最前面的小窗口（Chrome/Edge），谁在干活、谁在等你，一眼看到。
-- **回顾海报**：把近 7 / 30 / 365 天或全部时间做成一张可以分享的图。
-- **分享**：把一次重放录成 MP4/GIF，或把整个世界导出成一个离线 HTML 页面。默认保留项目名、隐藏请求标题，永远不含路径和会话编号。
-- **中文 / English**：跟随浏览器语言，右上角按钮切换。可选提示音；页面开着时达成里程碑会有小小的庆祝。第一次打开有引导。
+![两颗恒星：Claude Code 和 Codex，每个项目一颗行星](https://raw.githubusercontent.com/dong845/agent-universe-plugin/main/docs/space-zh.jpg)
 
-## 开始
-
-需要 **Node 22.18 或更新**（从 nodejs.org 下载），macOS 或 Linux。
+Agent Universe 读取 Claude Code 和 Codex 本来就存在你电脑上的日志，把它们变成一个会动的 3D 世界：
+每个项目是一颗行星，每件做完的成品是一栋建筑，正在干活的代理是一个个可以跟着看的小机器人。
+所有数据都不离开你的电脑。
 
 ```
 npx agent-universe
 ```
 
-在 http://127.0.0.1:5182/ 启动并打开浏览器（页面已经构建好，不需要编译）。在 Claude Code 里也可以装插件，之后输入 `/agent-universe` 打开：
+会打开 http://127.0.0.1:5182/。需要 Node 22.18 或更新，macOS 或 Linux。
+
+![项目的城市：成品是建筑，干活的代理是机器人，右侧是项目规模概况](https://raw.githubusercontent.com/dong845/agent-universe-plugin/main/docs/city-zh.jpg)
+
+## 能看到什么
+
+- **一眼看全局。** 每种代理一颗恒星；每个项目一颗行星，做得越多越大；每件成品点亮恒星戴森壳上的一片。
+- **飞进任何项目。** 它的城市展示做出了什么、花在哪类工作上，还有项目规模的概况。行星可以改名、隐藏或合并。
+- **实时看代理干活。** 主代理和子代理会走动、思考、等你、庆祝；点一下，镜头就跟着它。
+- **不错过等你的会话。** 「需要你」列出等你批准或回答的会话，并发 macOS 通知；装上可选的 hook，
+  还能直接在页面上回答 Claude Code。
+- **回看历史。** 按步骤回到项目的任何时刻，或重放任意一次请求。
+- **放心分享。** 回顾海报、MP4/GIF 回放、离线 HTML 页面——隐藏请求标题，从不包含路径。
+
+另外：中文和英文界面、置顶小窗（Chrome/Edge）、第一次打开时的引导。
+
+## 隐私
+
+- 数据来自 `~/.claude/projects` 和 `~/.codex/sessions` 里的日志，只读不改。
+- 服务只监听 127.0.0.1，不向任何地方发送数据。它自己的文件（缓存、设置）在 `~/.agent-town/`。要卸载：先在设置里关掉 hook，再删掉这个文件夹。
+- 还没有日志？会先看到一个演示世界。
+
+## 其他用法
+
+```
+npx agent-universe --port 5190 --no-open    # 换端口，不自动打开浏览器
+```
+
+在 Claude Code 里装插件后，输入 `/agent-universe` 打开：
 
 ```
 /plugin marketplace add dong845/agent-universe-plugin
 /plugin install agent-universe@agent-universe
 ```
 
-从源码运行：
-
-```
-git clone <这个仓库> agent-universe
-cd agent-universe
-npm start
-```
-
-第一次运行会安装依赖（用 Node 自带 corepack 里的 pnpm）并构建网页，然后在 http://127.0.0.1:5182/ 启动服务并打开浏览器。还没有日志时会看到一个演示世界，以及 Agent Universe 从哪里读日志：`~/.claude/projects`（Claude Code）和 `~/.codex/sessions`（Codex）。选项：`npx agent-universe --port 5190 --no-open`（从源码：`npm start -- --port 5190 --no-open`）。
-
-服务只监听 127.0.0.1，不向任何地方发送数据。它自己的文件在 `~/.agent-town/`（缓存、设置、分享用的密钥、下载的标志）。
-
-## 官方标志
-
-Claude 和 OpenAI 的标志不在这个仓库里，它们属于 Anthropic 和 OpenAI。在设置（⚙）里打开「官方标志（仅本机显示）」，会从 Wikimedia Commons 下载到 `~/.agent-town/logos/`，只在你的电脑上显示。没有它们时，以及所有导出的内容里，页面用自己的中性标志。
+Claude 和 OpenAI 的官方标志不随包提供；可以在设置（⚙）里下载，只在你的电脑上显示。
 
 ## 开发
 
 ```
-node --run dev        # Vite 开发服务器，端口 5180（/api 转发到 5182）
-node --run serve      # 只启动本地服务
-node --run test       # 单元测试（vitest）
-node --run e2e        # 浏览器测试，用已安装的 Chrome（需要开发服务器和一次构建）
+git clone <这个仓库> agent-universe && cd agent-universe
+npm start             # 安装依赖、构建页面、启动服务
+node --run dev        # Vite 开发服务器（5180 端口）
+node --run test       # 单元测试
+node --run e2e        # 浏览器测试
+node scripts/pack.mjs --check   # 构建 npm 包、安装并运行它
 ```
 
-设计和决定：[docs/decisions.md](docs/decisions.md)；日志格式：[docs/log-formats.md](docs/log-formats.md)；规格和计划在 `docs/superpowers/` 下。
+设计记录：[docs/decisions.md](docs/decisions.md)。许可证：MIT。

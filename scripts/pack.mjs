@@ -13,7 +13,7 @@ import { needsBuild } from "./start.mjs";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "release");
 const lib = join(out, "lib");
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 function build() {
   if (needsBuild(root)) execFileSync(process.execPath, ["--run", "build"], { cwd: root, stdio: "inherit" });
@@ -36,6 +36,7 @@ function build() {
     engines: { node: ">=22.18" },
     os: ["darwin", "linux"],
     keywords: ["claude-code", "codex", "visualization", "agents", "three.js"],
+    homepage: "https://github.com/dong845/agent-universe-plugin",
   }, null, 2) + "\n");
   // the parts that must never ship
   const bad = listFiles(out).filter((f) => /\.ts$|\.jsonl$|[\\/]logos[\\/]|\.DS_Store$/.test(f));
