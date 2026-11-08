@@ -39,3 +39,24 @@ describe("launcher checks", () => {
     expect(needsBuild(d)).toBe(true);
   });
 });
+
+describe("one launcher for a clone and the npm package (D30 A2)", () => {
+  it("a clone has the page's sources; the package has serve.js and no sources", async () => {
+    const { layoutOf } = await import("../scripts/start.mjs");
+    const clone = mkdtempSync(join(tmpdir(), "launch-clone-"));
+    mkdirSync(join(clone, "scripts"), { recursive: true });
+    mkdirSync(join(clone, "packages", "web", "src"), { recursive: true });
+    writeFileSync(join(clone, "scripts", "serve.ts"), "");
+    expect(layoutOf(clone)).toEqual({ kind: "clone", serve: join(clone, "scripts", "serve.ts"), command: "npm start" });
+    const pkg = mkdtempSync(join(tmpdir(), "launch-pkg-"));
+    mkdirSync(join(pkg, "scripts"), { recursive: true });
+    writeFileSync(join(pkg, "scripts", "serve.js"), "");
+    expect(layoutOf(pkg)).toEqual({ kind: "package", serve: join(pkg, "scripts", "serve.js"), command: "npx agent-universe" });
+  });
+  it("the package says Windows is not supported yet", async () => {
+    const { platformOk } = await import("../scripts/start.mjs");
+    expect(platformOk("darwin")).toBe(true);
+    expect(platformOk("linux")).toBe(true);
+    expect(platformOk("win32")).toBe(false);
+  });
+});

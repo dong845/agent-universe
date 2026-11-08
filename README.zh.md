@@ -16,7 +16,20 @@
 
 ## 开始
 
-需要 **Node 22.18 或更新**（从 nodejs.org 下载）和 macOS（Linux 应该可以，没有测试过）。
+需要 **Node 22.18 或更新**（从 nodejs.org 下载），macOS 或 Linux。
+
+```
+npx agent-universe
+```
+
+在 http://127.0.0.1:5182/ 启动并打开浏览器（页面已经构建好，不需要编译）。在 Claude Code 里也可以装插件，之后输入 `/agent-universe` 打开：
+
+```
+/plugin marketplace add dong845/agent-universe-plugin
+/plugin install agent-universe@agent-universe
+```
+
+从源码运行：
 
 ```
 git clone <这个仓库> agent-universe
@@ -24,7 +37,7 @@ cd agent-universe
 npm start
 ```
 
-第一次运行会安装依赖（用 Node 自带 corepack 里的 pnpm）并构建网页，然后在 http://127.0.0.1:5182/ 启动服务并打开浏览器。还没有日志时会看到一个演示世界，以及 Agent Universe 从哪里读日志：`~/.claude/projects`（Claude Code）和 `~/.codex/sessions`（Codex）。选项：`npm start -- --port 5190 --no-open`。
+第一次运行会安装依赖（用 Node 自带 corepack 里的 pnpm）并构建网页，然后在 http://127.0.0.1:5182/ 启动服务并打开浏览器。还没有日志时会看到一个演示世界，以及 Agent Universe 从哪里读日志：`~/.claude/projects`（Claude Code）和 `~/.codex/sessions`（Codex）。选项：`npx agent-universe --port 5190 --no-open`（从源码：`npm start -- --port 5190 --no-open`）。
 
 服务只监听 127.0.0.1，不向任何地方发送数据。它自己的文件在 `~/.agent-town/`（缓存、设置、分享用的密钥、下载的标志）。
 

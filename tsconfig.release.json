@@ -1,0 +1,21 @@
+{
+  // The npm package's server (spec 2026-11-08 D30 A1): scripts/serve.ts and everything it imports,
+  // compiled to JavaScript in the same folders under release/lib, so every relative path still holds.
+  // No type check here (Node runs these files by stripping types in a clone; this does the same once).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "noCheck": true,
+    "types": [],
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": "release/lib",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "files": ["scripts/serve.ts"]
+}

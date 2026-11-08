@@ -4,10 +4,12 @@
 // Checks Node, installs the dependencies with the pnpm that Node's corepack ships, builds the page when
 // the build is missing or older than the sources, starts the local server and opens the browser.
 // Plain JavaScript on purpose: it must be able to say "your Node is too old" on that old Node.
+// The same file is the npm package's command (`npx agent-universe`, spec 2026-11-08 D30): there the page
+// is prebuilt and the server compiled, so it only checks, starts and opens.
 // Options are passed on to the server (--port, --claude, --codex, --no-cache, --port-file); --no-open
 // leaves the browser alone.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,17 +23,29 @@ export function langOf(env = process.env) {
 const WORDS = {
   zh: {
     exit: "退出码 {code}", noCorepack: "。这个 Node 没有带 corepack：运行 npm install -g corepack 后再试", failed: "✗ {what}失败（{cmd}：{why}）{hint}",
-    open: "请在浏览器打开 {url}", oldNode: "✗ 需要 Node {min} 或更新（现在是 {v}）。到 https://nodejs.org 下载 LTS 版本后再运行 npm start。",
+    open: "请在浏览器打开 {url}", oldNode: "✗ 需要 Node {min} 或更新（现在是 {v}）。到 https://nodejs.org 下载 LTS 版本后再运行 {command}。", noWindows: "✗ Agent Universe 暂时只支持 macOS 和 Linux。",
     running: "Agent Universe 已经在运行：{url}", install: "安装依赖（第一次需要一两分钟）", build: "构建网页",
   },
   en: {
     exit: "exit code {code}", noCorepack: ". This Node has no corepack: run npm install -g corepack and try again", failed: "✗ {what} failed ({cmd}: {why}){hint}",
-    open: "Open {url} in your browser", oldNode: "✗ Needs Node {min} or newer (this is {v}). Get the LTS version from https://nodejs.org, then run npm start again.",
+    open: "Open {url} in your browser", oldNode: "✗ Needs Node {min} or newer (this is {v}). Get the LTS version from https://nodejs.org, then run {command} again.", noWindows: "✗ Agent Universe runs on macOS and Linux for now.",
     running: "Agent Universe is already running: {url}", install: "Installing dependencies (a minute or two the first time)", build: "Building the page",
   },
 };
 const L = langOf();
 export const msg = (key, vars = {}, lang = L) => WORDS[lang][key].replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+
+/**
+ * A clone (page sources present: install, build, run serve.ts) or the npm package (serve.js beside this
+ * file, nothing to build). `command` is what the user typed, for messages.
+ */
+export function layoutOf(root) {
+  if (existsSync(join(root, "packages", "web", "src"))) return { kind: "clone", serve: join(root, "scripts", "serve.ts"), command: "npm start" };
+  return { kind: "package", serve: join(root, "scripts", "serve.js"), command: "npx agent-universe" };
+}
+
+/** macOS and Linux (D30); Windows paths, notifications and hooks are not done yet */
+export const platformOk = (p = process.platform) => p === "darwin" || p === "linux";
 
 /** TypeScript runs directly from Node 22.18 (type stripping on by default) */
 export function nodeOk(version = process.version) {
@@ -126,8 +140,13 @@ async function main() {
   const port = pi >= 0 ? Number(pass[pi + 1]) : 5182;
   const url = `http://127.0.0.1:${port}/`;
 
+  const layout = layoutOf(root);
   if (!nodeOk()) {
-    console.error(msg("oldNode", { min: MIN.join("."), v: process.version }));
+    console.error(msg("oldNode", { min: MIN.join("."), v: process.version, command: layout.command }));
+    process.exit(1);
+  }
+  if (layout.kind === "package" && !platformOk()) {
+    console.error(msg("noWindows"));
     process.exit(1);
   }
   if (await alreadyRunning(port)) {
@@ -135,13 +154,15 @@ async function main() {
     if (!noOpen) openBrowser(url);
     return;
   }
-  if (needsInstall(root)) {
-    const ic = installCommand();
-    run(ic.cmd, ic.args, root, msg("install"), ic.shell);
+  if (layout.kind === "clone") {
+    if (needsInstall(root)) {
+      const ic = installCommand();
+      run(ic.cmd, ic.args, root, msg("install"), ic.shell);
+    }
+    if (needsBuild(root)) run(process.execPath, ["--run", "build"], root, msg("build"));
   }
-  if (needsBuild(root)) run(process.execPath, ["--run", "build"], root, msg("build"));
 
-  const server = spawn(process.execPath, [join(root, "scripts", "serve.ts"), ...pass], { cwd: root, stdio: "inherit" });
+  const server = spawn(process.execPath, [layout.serve, ...pass], { cwd: root, stdio: "inherit" });
   server.on("exit", (code) => process.exit(code ?? 0));
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => server.kill(sig));
   // open the page once the server answers (it shows its own progress while reading the logs)
@@ -155,4 +176,12 @@ async function main() {
 }
 
 // run only when started directly (the tests import the checks)
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) void main();
+// (npm runs the package's command through a link in node_modules/.bin: compare real paths)
+const direct = () => {
+  try {
+    return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+if (direct()) void main();
